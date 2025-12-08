@@ -1,0 +1,109 @@
+/* ОБЩИЙ СТИЛЬ ДЛЯ ВСЕХ СТРАНИЦ */
+.page-container {
+    min-height: 100vh;
+    background-color: #000000;
+    color: white;
+    font-family: 'Rubik', sans-serif;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    padding-top: 60px; /* Для Header */
+    padding-bottom: 80px; /* Для Menu */
+}
+
+.page-content {
+    flex: 1;
+    padding: 20px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    width: 100%;
+    overflow-y: auto;
+}
+
+.pin-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.pin-header h1 {
+    color: white;
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0 0 10px 0;
+}
+
+.pin-subtitle {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
+    margin: 0;
+    line-height: 1.5;
+}
+
+.pin-input-container {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.pin-digit {
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: white;
+    font-size: 24px;
+    font-weight: 600;
+    text-align: center;
+    font-family: 'Rubik', sans-serif;
+    transition: all 0.2s;
+}
+
+.pin-digit:focus {
+    outline: none;
+    border-color: #FFD700;
+    background: rgba(255, 215, 0, 0.05);
+}
+
+.error-message {
+    color: #ff6b6b;
+    font-size: 14px;
+    text-align: center;
+    margin: 0 0 20px 0;
+    min-height: 20px;
+}
+
+.pin-continue-btn {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    border: none;
+    border-radius: 12px;
+    padding: 16px 40px;
+    color: #000;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+    max-width: 300px;
+}
+
+.pin-continue-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 215, 0, 0.3);
+}
+
+.pin-continue-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pin-hint {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 14px;
+    text-align: center;
+    margin: 10px 0 0 0;
+}

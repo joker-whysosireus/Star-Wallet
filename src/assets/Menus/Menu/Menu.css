@@ -1,0 +1,83 @@
+:root {
+  --text-color: #ffffff;
+  --font-family: "Rubik", serif;
+  --green-color: #c4f85c;
+  --container-color: #1c1c1e;
+  --container-color-two: #b9bbbc;
+  --background-color: #000000;
+}
+
+.menu {
+  position: fixed;
+  background: black;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 10px;
+  z-index: 10;
+}
+
+.menu-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  margin-bottom: 5px;
+  padding: 10px 8px;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  flex: 1;
+  max-width: 25%;
+}
+
+.menu-item a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  width: 100%;
+}
+
+.menu-item svg,
+.menu-item img {
+  display: block;
+  width: 18px !important;
+  height: 18px !important;
+  margin-bottom: 4px;
+  transition: all 0.3s ease;
+}
+
+/* Свечение активной иконки БЕЗ смещения */
+.menu-item.active svg,
+.menu-item.active img {
+  filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8));
+}
+
+.Name {
+  width: 100%;
+  font-weight: 600;
+  font-size: 10px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #ffffff; /* Белый цвет по умолчанию */
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+/* Свечение активного названия */
+.menu-item.active .Name {
+  color: gold;
+  text-shadow: 0 0 15px rgba(255, 215, 0, 0.9);
+}
+
+/* Эффект при наведении на неактивные элементы */
+.menu-item:not(.active):hover svg,
+.menu-item:not(.active):hover img {
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.4));
+}
+
+.menu-item:not(.active):hover .Name {
+  color: #f0f0f0;
+}
+

@@ -1,0 +1,319 @@
+.seed-phrase-info {
+    background: transparent;
+    border-radius: 0;
+    padding: 0;
+    margin-bottom: 20px;
+    color: white;
+}
+
+.seed-header {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 16px;
+}
+
+.seed-icon {
+    font-size: 28px;
+    margin-right: 14px;
+    margin-top: 4px;
+    color: #FFD700;
+}
+
+.seed-text-content {
+    flex: 1;
+}
+
+.seed-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 6px 0;
+    color: white;
+}
+
+.seed-description {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1.4;
+    margin: 0;
+}
+
+.seed-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.seed-btn {
+    flex: 1;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 40px;
+}
+
+.show-seed-btn {
+    background: #FFD700;
+    color: #151517;
+}
+
+.show-seed-btn:hover {
+    background: #FFED4E;
+    transform: translateY(-1px);
+}
+
+.instructions-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.instructions-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+/* Общие стили модальных окон */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease;
+}
+
+.seed-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: flex-end;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.seed-modal-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-content, .seed-modal-content {
+    background: #151517;
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 500px;
+    width: 90%;
+    color: white;
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    animation: slideUp 0.3s ease-out;
+}
+
+.seed-modal-content {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 20px 20px 0 0;
+    transform: translateY(100%);
+    transition: transform 0.3s ease-out;
+}
+
+.seed-modal-overlay.visible .seed-modal-content {
+    transform: translateY(0);
+}
+
+.modal-title {
+    color: #FFD700;
+    margin-top: 0;
+    margin-bottom: 16px;
+    font-size: 20px;
+    text-align: center;
+}
+
+.modal-subtitle {
+    color: rgba(255, 255, 255, 0.7);
+    text-align: center;
+    margin-bottom: 24px;
+    font-size: 14px;
+}
+
+/* Блоки сид-фраз */
+.seed-blocks {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.seed-block {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 18px;
+    border: 1px solid rgba(255, 215, 0, 0.2);
+}
+
+.seed-block-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.seed-icon-ton, .seed-icon-sol {
+    width: 36px;
+    height: 36px;
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+}
+
+.seed-icon-ton {
+    background: rgba(0, 136, 204, 0.2);
+    color: #0088cc;
+}
+
+.seed-icon-sol {
+    background: rgba(152, 85, 255, 0.2);
+    color: #9855ff;
+}
+
+.seed-block h4 {
+    margin: 0;
+    font-size: 16px;
+    color: white;
+}
+
+.seed-phrase-text {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 14px;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    margin-bottom: 14px;
+    color: rgba(255, 255, 255, 0.9);
+    word-break: break-all;
+}
+
+.copy-seed-btn {
+    width: 100%;
+    padding: 12px;
+    background: rgba(255, 215, 0, 0.1);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    color: #FFD700;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.copy-seed-btn:hover {
+    background: rgba(255, 215, 0, 0.2);
+}
+
+.seed-warning {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(229, 62, 62, 0.1);
+    border: 1px solid rgba(229, 62, 62, 0.3);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 20px;
+}
+
+.warning-icon {
+    color: #e53e3e;
+    font-size: 18px;
+}
+
+.seed-warning p {
+    margin: 0;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.modal-close-btn {
+    width: 100%;
+    padding: 14px;
+    background: #FFD700;
+    color: #151517;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.modal-close-btn:hover {
+    background: #FFED4E;
+}
+
+/* Стили для инструкции */
+.instruction-content {
+    margin-bottom: 24px;
+}
+
+.instruction-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.instruction-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.instruction-icon {
+    font-size: 20px;
+    color: #FFD700;
+    margin-top: 2px;
+}
+
+.instruction-item p {
+    margin: 0;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.4;
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(100%);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
