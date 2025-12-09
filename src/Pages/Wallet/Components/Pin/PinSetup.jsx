@@ -1,7 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Header from '../../../assets/Header/Header';
-import Menu from '../../../assets/Menus/Menu/Menu';
 import './PinSetup.css';
 
 function PinSetup({ userData }) {
@@ -116,8 +114,7 @@ function PinSetup({ userData }) {
 
     return (
         <div className="page-container">
-            <Header userData={userData} />
-            
+
             <div className="page-content">
                 {step === 1 ? (
                     <>
@@ -187,7 +184,6 @@ function PinSetup({ userData }) {
                 )}
             </div>
 
-            <Menu />
         </div>
     );
 }

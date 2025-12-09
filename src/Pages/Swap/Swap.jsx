@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Menu from "../../assets/Menus/Menu/Menu";
 import Header from "../../assets/Header/Header";
-import TokenSelectModal from '../Wallet/Components/TokenSelectModal';
+import TokenSelectModal from './Components/TokenSelectModal';
 import { getAllTokens } from '../Wallet/Services/storageService';
 import './Swap.css';
 

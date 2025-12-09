@@ -1,9 +1,8 @@
-// src/Pages/Wallet/Wallet.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from "../../assets/Header/Header";
-import Menu from "../../assets/Menus/Menu/Menu";
-import TokenCard from './Components/TokenCard';
+import Menu from '../../assets/Menus/Menu/Menu';
+import TokenCard from './Components/Card/TokenCard';
 import { 
     generateWallets, 
     getBalances, 
@@ -12,9 +11,8 @@ import {
 } from './Services/storageService';
 import './Wallet.css';
 
-function Wallet({ isActive, userData, updateUserData }) {
+function Wallet({ isActive, userData }) {
     const [wallets, setWallets] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [totalBalance, setTotalBalance] = useState('$0.00');
     const navigate = useNavigate();
     
@@ -36,23 +34,13 @@ function Wallet({ isActive, userData, updateUserData }) {
     }, []);
 
     const initializeWallets = useCallback(async () => {
-        console.log('initializeWallets called');
-        setIsLoading(true);
-        
         try {
-            console.log('Generating or loading wallets...');
             const walletsData = await generateWallets();
             
-            // ИСПРАВЛЕНИЕ: getAllTokens() возвращает массив напрямую, без await
             const allTokens = getAllTokens();
             
-            console.log('allTokens loaded:', allTokens);
-            
-            // Проверяем, что allTokens - массив
             if (!Array.isArray(allTokens)) {
-                console.error('allTokens is not an array:', allTokens);
                 setWallets([]);
-                setIsLoading(false);
                 return;
             }
             
@@ -82,21 +70,17 @@ function Wallet({ isActive, userData, updateUserData }) {
                 };
             });
             
-            console.log('All wallets created:', allWallets.length);
             setWallets(allWallets);
             
             localStorage.setItem('cached_wallets', JSON.stringify(allWallets));
             
-            // Обновляем балансы
             try {
-                console.log('Fetching balances for all wallets...');
                 const updatedWallets = await getBalances(allWallets);
                 setWallets(updatedWallets);
                 
                 const total = await calculateTotalBalance(updatedWallets);
                 setTotalBalance(`$${total}`);
             } catch (balanceError) {
-                console.error('Error updating balances:', balanceError);
                 const total = allWallets.reduce((sum, wallet) => {
                     const price = getTokenPrice(wallet.symbol);
                     return sum + (parseFloat(wallet.balance || 0) * price);
@@ -105,10 +89,7 @@ function Wallet({ isActive, userData, updateUserData }) {
             }
             
         } catch (error) {
-            console.error('Error initializing wallets:', error);
             setWallets([]);
-        } finally {
-            setIsLoading(false);
         }
     }, []);
 
@@ -130,13 +111,8 @@ function Wallet({ isActive, userData, updateUserData }) {
         }
     }, [initializeWallets]);
 
-    const handleShowSeedPhrase = useCallback(async () => {
-        const hasPin = localStorage.getItem('wallet_pin_set');
-        if (!hasPin) {
-            navigate('/wallet/setup-pin');
-        } else {
-            navigate('/wallet/enter-pin');
-        }
+    const handleShowSeedPhrase = useCallback(() => {
+        navigate('/wallet/enter-pin');
     }, [navigate]);
 
     const handleTokenClick = useCallback((wallet) => {
@@ -156,11 +132,7 @@ function Wallet({ isActive, userData, updateUserData }) {
                 const firstWallet = wallets.find(w => w.address);
                 if (firstWallet) {
                     alert(`Address to receive ${firstWallet.symbol}:\n\n${firstWallet.address}`);
-                } else {
-                    alert('No wallet address available');
                 }
-            } else {
-                alert('Please wait for wallets to load');
             }
         } else if (action === 'send') {
             if (wallets.length > 0) {
@@ -169,11 +141,7 @@ function Wallet({ isActive, userData, updateUserData }) {
                     navigate(`/wallet/token/${firstWallet.symbol}`, { 
                         state: firstWallet
                     });
-                } else {
-                    alert('No wallet available');
                 }
-            } else {
-                alert('Please wait for wallets to load');
             }
         } else if (action === 'earn') {
             navigate('/stake');
@@ -190,12 +158,11 @@ function Wallet({ isActive, userData, updateUserData }) {
                     const wallets = JSON.parse(cachedWallets);
                     if (wallets.length > 0) {
                         setWallets(wallets);
-                        setIsLoading(false);
                         return true;
                     }
                 }
             } catch (error) {
-                console.error('Error parsing cached wallets:', error);
+                // Ignore error
             }
             return false;
         };
@@ -204,19 +171,6 @@ function Wallet({ isActive, userData, updateUserData }) {
             checkCachedWallets();
         }
     }, []);
-
-    if (isLoading && wallets.length === 0) {
-        return (
-            <div className="wallet-page">
-                <Header userData={userData} />
-                <div className="loading-container">
-                    <div className="loader"></div>
-                    <p>Loading wallets...</p>
-                </div>
-                <Menu />
-            </div>
-        );
-    }
 
     return (
         <div className="wallet-page">
@@ -268,8 +222,8 @@ function Wallet({ isActive, userData, updateUserData }) {
                     <div className="security-content">
                         <div className="security-icon">🔐</div>
                         <div className="security-text">
-                            <h3>Backup your wallet</h3>
-                            <p>View your seed phrase and set up PIN code</p>
+                            <h3>Back Up Your Wallet</h3>
+                            <p>View your seed phrase to backup wallet</p>
                         </div>
                         <div className="security-arrow">›</div>
                     </div>

@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
-import QRScannerModal from './QRScannerModal';
-import Header from '../../../assets/Header/Header';
-import Menu from '../../../assets/Menus/Menu/Menu';
-import { TOKENS } from '../Services/tokensConfig';
+import QRScannerModal from '../QR/QRScannerModal';
+import Header from '../../../../assets/Header/Header';
+import Menu from '../../../../assets/Menus/Menu/Menu';
+import { TOKENS } from '../../Services/tokensConfig';
 import { 
     getBalances,
     getTokenPrices 
-} from '../Services/storageService';
+} from '../../Services/storageService';
 import './TokenDetail.css';
 
 const TokenDetail = () => {
@@ -178,27 +178,112 @@ const TokenDetail = () => {
                         <p className="usd-amount">${usdValue}</p>
                     </div>
                     
-                    <div className="action-buttons">
+                    {/* ГОРИЗОНТАЛЬНЫЕ КНОПКИ - 3 штуки рядом друг с другом */}
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        gap: '15px',
+                        width: '100%',
+                        maxWidth: '400px',
+                        marginTop: '10px'
+                    }}>
                         <button 
-                            className="action-btn"
+                            style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                border: 'none',
+                                borderRadius: '10px',
+                                color: 'white',
+                                padding: '12px 6px',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                flex: 1,
+                                minWidth: '55px',
+                                height: '55px',
+                                transition: 'all 0.2s ease',
+                                maxWidth: '100px'
+                            }}
                             onClick={() => setMode('receive')}
                         >
-                            <span className="action-btn-icon">↓</span>
-                            <span className="action-btn-text">Receive</span>
+                            <span style={{
+                                fontSize: '18px',
+                                marginBottom: '4px',
+                                display: 'block',
+                                color: '#FFD700'
+                            }}>↓</span>
+                            <span style={{
+                                fontSize: '11px',
+                                fontWeight: '500'
+                            }}>Receive</span>
                         </button>
+                        
                         <button 
-                            className="action-btn"
+                            style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                border: 'none',
+                                borderRadius: '10px',
+                                color: 'white',
+                                padding: '12px 6px',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                flex: 1,
+                                minWidth: '55px',
+                                height: '55px',
+                                transition: 'all 0.2s ease',
+                                maxWidth: '100px'
+                            }}
                             onClick={() => setMode('send')}
                         >
-                            <span className="action-btn-icon">↑</span>
-                            <span className="action-btn-text">Send</span>
+                            <span style={{
+                                fontSize: '18px',
+                                marginBottom: '4px',
+                                display: 'block',
+                                color: '#FFD700'
+                            }}>↑</span>
+                            <span style={{
+                                fontSize: '11px',
+                                fontWeight: '500'
+                            }}>Send</span>
                         </button>
+                        
                         <button 
-                            className="action-btn"
+                            style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                border: 'none',
+                                borderRadius: '10px',
+                                color: 'white',
+                                padding: '12px 6px',
+                                fontSize: '11px',
+                                cursor: 'pointer',
+                                flex: 1,
+                                minWidth: '55px',
+                                height: '55px',
+                                transition: 'all 0.2s ease',
+                                maxWidth: '100px'
+                            }}
                             onClick={() => navigate('/swap')}
                         >
-                            <span className="action-btn-icon">↔</span>
-                            <span className="action-btn-text">Swap</span>
+                            <span style={{
+                                fontSize: '18px',
+                                marginBottom: '4px',
+                                display: 'block',
+                                color: '#FFD700'
+                            }}>↔</span>
+                            <span style={{
+                                fontSize: '11px',
+                                fontWeight: '500'
+                            }}>Swap</span>
                         </button>
                     </div>
                 </div>

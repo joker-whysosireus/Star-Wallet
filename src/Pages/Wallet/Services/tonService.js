@@ -1,4 +1,3 @@
-// src/Pages/Wallet/Services/tonService.js
 import { mnemonicToWalletKey } from '@ton/crypto';
 import { WalletContractV4, TonClient, internal, fromNano, toNano } from '@ton/ton';
 
@@ -10,14 +9,17 @@ const TON_API_KEY = '6e8469038f459cce744a29d3947a0228dd4d7b88e448392c9581799582d
 const getSeedPhrase = () => {
     try {
         const seedPhrase = localStorage.getItem('wallet_seed_phrase');
+        if (!seedPhrase) {
+            throw new Error('Seed phrase not found. Please create or restore wallet.');
+        }
         return seedPhrase;
     } catch (error) {
         console.error('Error getting seed phrase:', error);
-        return null;
+        throw error;
     }
 };
 
-// Создаем клиент TON
+// Создаем клиент TON (mainnet)
 const createTonClient = () => {
     return new TonClient({
         endpoint: TON_RPC_URL,
@@ -29,10 +31,7 @@ const createTonClient = () => {
 const getWalletFromSeed = async () => {
     try {
         const seedPhrase = getSeedPhrase();
-        if (!seedPhrase) {
-            throw new Error('Seed phrase not found. Please create a wallet first.');
-        }
-
+        
         const keyPair = await mnemonicToWalletKey(seedPhrase.split(' '));
         const wallet = WalletContractV4.create({
             publicKey: keyPair.publicKey,
@@ -51,7 +50,7 @@ const getWalletFromSeed = async () => {
     }
 };
 
-// Отправка TON
+// Отправка TON (mainnet)
 export const sendTon = async (toAddress, amount) => {
     try {
         console.log(`Sending ${amount} TON to ${toAddress}`);
@@ -132,23 +131,24 @@ export const sendTon = async (toAddress, amount) => {
     }
 };
 
-// Получение баланса TON
+// Получение баланса TON (mainnet)
 export const getTonBalance = async () => {
     try {
         const { walletContract } = await getWalletFromSeed();
         const balance = await walletContract.getBalance();
         const balanceInTon = fromNano(balance);
-        return balanceInTon;
+        return parseFloat(balanceInTon).toFixed(4);
     } catch (error) {
         console.error('Error getting TON balance:', error);
-        return '0';
+        return '0.0000';
     }
 };
 
 // Проверка адреса TON
 export const validateTonAddress = (address) => {
     try {
-        const tonAddressRegex = /^(?:[A-Za-z0-9_-]{48}|0:[A-Fa-f0-9]{64}|kQ[A-Za-z0-9_-]{48}|EQ[A-Za-z0-9_-]{48})$/;
+        // Mainnet TON address validation
+        const tonAddressRegex = /^(?:0Q[A-Za-z0-9_-]{48}|0:[A-Fa-f0-9]{64}|E[A-Za-z0-9_-]{48})$/;
         return tonAddressRegex.test(address);
     } catch (error) {
         console.error('Error validating TON address:', error);
@@ -156,7 +156,7 @@ export const validateTonAddress = (address) => {
     }
 };
 
-// Получение истории транзакций
+// Получение истории транзакций (mainnet)
 export const getTransactionHistory = async (limit = 10) => {
     try {
         const { walletContract } = await getWalletFromSeed();
@@ -205,10 +205,23 @@ export const getTonPrice = async () => {
     }
 };
 
+// Получение комиссии сети (mainnet)
+export const getNetworkFee = async () => {
+    try {
+        const client = createTonClient();
+        const fee = await client.getFee();
+        return fromNano(fee);
+    } catch (error) {
+        console.error('Error getting network fee:', error);
+        return '0.05'; // Default fee
+    }
+};
+
 export default {
     sendTon,
     getTonBalance,
     validateTonAddress,
     getTransactionHistory,
-    getTonPrice
+    getTonPrice,
+    getNetworkFee
 };

