@@ -5,15 +5,22 @@ import inject from '@rollup/plugin-inject'
 
 export default defineConfig({
   plugins: [
+    // 1. ОСНОВНОЙ ПЛАГИН REACT - ПРАВИЛЬНАЯ НАСТРОЙКА
     react({
+      jsxRuntime: 'automatic', // Ключевой параметр для решения ошибки jsx
+      // Убираем кастомный babel.config, который ломал настройки
       babel: {
         plugins: [
-          ['@babel/plugin-proposal-optional-chaining-assign', { 
-            version: '2023-07' 
-          }]
+          // Убрали плагин optional-chaining-assign, если он не критичен
+          // Если он действительно нужен, используйте его аккуратно:
+          // ['@babel/plugin-proposal-optional-chaining-assign', { 
+          //   version: '2023-07' 
+          // }]
         ]
       }
     }),
+    
+    // 2. ПОЛИФИЛЛЫ ДЛЯ NODE.JS API (оставляем как было)
     nodePolyfills({
       include: ['buffer', 'process', 'crypto', 'stream', 'util', 'assert'],
       globals: {
@@ -23,11 +30,14 @@ export default defineConfig({
       },
       protocolImports: true,
     }),
+    
+    // 3. ИНЪЕКЦИЯ ГЛОБАЛЬНЫХ ПЕРЕМЕННЫХ
     inject({
       process: 'process/browser',
       Buffer: ['buffer', 'Buffer'],
     })
   ],
+  
   define: {
     'process.env': '{}',
     'process.version': '"v18.0.0"',
@@ -36,6 +46,7 @@ export default defineConfig({
     __dirname: JSON.stringify(''),
     __filename: JSON.stringify(''),
   },
+  
   resolve: {
     alias: {
       buffer: 'buffer',
@@ -57,6 +68,7 @@ export default defineConfig({
       child_process: false,
     }
   },
+  
   server: {
     host: true,
     allowedHosts: [
@@ -65,6 +77,7 @@ export default defineConfig({
     ],
     https: false,
   },
+  
   optimizeDeps: {
     include: [
       'buffer',
@@ -84,6 +97,7 @@ export default defineConfig({
       },
     },
   },
+  
   build: {
     commonjsOptions: {
       transformMixedEsModules: true,
@@ -100,5 +114,7 @@ export default defineConfig({
         })
       ],
     },
+    // Добавляем sourcemap для отладки, можно убрать в продакшене
+    sourcemap: true,
   },
 })
