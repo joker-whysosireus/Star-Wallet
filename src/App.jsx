@@ -208,12 +208,5 @@ const App = () => {
     );
 };
 
-const Main = () => {
-    return (
-        <Router>
-            <App />
-        </Router>
-    );
-};
 
-export default Main;
+export default App;
