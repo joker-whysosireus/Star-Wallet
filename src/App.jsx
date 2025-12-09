@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 
-// Импорт всех компонентов напрямую - исправленные пути
+// Импорт всех компонентов напрямую - исправлченные пути
 import History from './Pages/History/History';
 import Swap from './Pages/Swap/Swap';
 import Wallet from './Pages/Wallet/Wallet';
