@@ -5,7 +5,7 @@ import inject from '@rollup/plugin-inject'
 
 export default defineConfig({
   plugins: [
-    // УПРОЩЕННАЯ НАСТРОЙКА REACT - удалены все лишние параметры
+    // Основной плагин для React. Важно: удалены все лишние параметры babel[citation:2].
     react(),
     
     nodePolyfills({
@@ -35,11 +35,13 @@ export default defineConfig({
   
   resolve: {
     alias: {
-      // Добавлены алиасы для React - это КРИТИЧЕСКИ важно
-      'react': require.resolve('react'),
-      'react-dom': require.resolve('react-dom'),
-      'react/jsx-runtime': require.resolve('react/jsx-runtime'),
+      // 🔧 ИСПРАВЛЕНО: заменены вызовы require.resolve на строковые пути[citation:4].
+      // Это решает ошибку "__require.resolve is not a function".
+      'react': 'react',
+      'react-dom': 'react-dom',
+      'react/jsx-runtime': 'react/jsx-runtime',
       
+      // Остальные алиасы для полифилов
       buffer: 'buffer',
       crypto: 'crypto-browserify',
       stream: 'stream-browserify',
@@ -71,7 +73,6 @@ export default defineConfig({
   
   optimizeDeps: {
     include: [
-      // Добавлены React для предварительного бандлинга
       'react',
       'react-dom',
       'react/jsx-runtime',
@@ -108,9 +109,9 @@ export default defineConfig({
           Buffer: ['buffer', 'Buffer'],
         })
       ],
-      // Явно указываем external для React, чтобы избежать дублирования
-      external: ['react', 'react-dom'],
+      // Убрана строка с 'external: ['react', 'react-dom']',
+      // чтобы React корректно собирался в бандл.
     },
-    sourcemap: false, // Отключите для продакшена
+    sourcemap: false, // Можно установить в true для отладки
   },
 })
