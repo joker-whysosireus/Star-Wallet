@@ -2,13 +2,11 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
     nodePolyfills({
-      // Полифиллы для модулей, используемых крипто-библиотеками
-      include: ['buffer', 'stream', 'util', 'crypto', 'assert', 'process'],
+      include: ['buffer', 'stream', 'util', 'crypto', 'assert', 'process', 'path', 'os', 'vm', 'https', 'http'],
       globals: {
         Buffer: true,
         global: true,
@@ -16,30 +14,30 @@ export default defineConfig({
       }
     })
   ],
-  // Разрешение конфликтов импортов для сборки
   resolve: {
     alias: {
-      // Эти алиасы помогают Vite найти браузерные версии модулей
-      'stream': 'stream-browserify',
-      'buffer': 'buffer',
-      'crypto': 'crypto-browserify'
+      stream: 'stream-browserify',
+      buffer: 'buffer',
+      crypto: 'crypto-browserify',
+      path: 'path-browserify',
+      os: 'os-browserify',
+      https: 'https-browserify',
+      http: 'stream-http',
+      vm: 'vm-browserify',
+      util: 'util'
     }
   },
-  // Определение глобальных переменных, которых нет в браузере
   define: {
     'process.env': {},
     'global': 'window'
   },
-  // Оптимизация зависимостей для сборки
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom']
   },
   build: {
-    // Увеличивает лимит на размер чанков (может понадобиться для крипто-библиотек)
     chunkSizeWarningLimit: 1600,
     rollupOptions: {
       output: {
-        // Создает отдельный чанк для vendor-библиотек
         manualChunks(id) {
           if (id.includes('node_modules')) {
             return 'vendor'

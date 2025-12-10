@@ -1,13 +1,12 @@
 [build]
-  command = "CI= npm run build"  # Ключевое изменение: пробел после CI=
+  command = "npm run build"  # Убрал CI=
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "20"  # Изменено с "18.20.4" на "20"
-  NPM_FLAGS = "--legacy-peer-deps"  # Оставлено без изменений
+  NODE_VERSION = "18"
+  NPM_FLAGS = "--legacy-peer-deps"
 
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Frame-Options = "DENY"
-    X-XSS-Protection = "1; mode=block"
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
