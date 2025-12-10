@@ -1,14 +1,13 @@
 [build]
-  command = "npm run build"
+  command = "CI= npm run build"  # Ключевое изменение: пробел после CI=
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "18.20.4"
-  NPM_FLAGS = "--legacy-peer-deps"
+  NODE_VERSION = "20"  # Изменено с "18.20.4" на "20"
+  NPM_FLAGS = "--legacy-peer-deps"  # Оставлено без изменений
 
 [[headers]]
   for = "/*"
   [headers.values]
-    # Эти заголовки могут помочь при работе с одностраничными приложениями
     X-Frame-Options = "DENY"
     X-XSS-Protection = "1; mode=block"

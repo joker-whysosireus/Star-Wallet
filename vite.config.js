@@ -5,22 +5,14 @@ import inject from '@rollup/plugin-inject'
 
 export default defineConfig({
   plugins: [
-    // 1. ОСНОВНОЙ ПЛАГИН REACT - ПРАВИЛЬНАЯ НАСТРОЙКА
+    // Основной плагин React - конфигурация правильная
     react({
-      jsxRuntime: 'automatic', // Ключевой параметр для решения ошибки jsx
-      // Убираем кастомный babel.config, который ломал настройки
+      jsxRuntime: 'automatic', // Важно оставить это для React 18
       babel: {
-        plugins: [
-          // Убрали плагин optional-chaining-assign, если он не критичен
-          // Если он действительно нужен, используйте его аккуратно:
-          // ['@babel/plugin-proposal-optional-chaining-assign', { 
-          //   version: '2023-07' 
-          // }]
-        ]
+        plugins: [] // Убедитесь, что здесь пустой массив, если плагин optional-chaining-assign не нужен
       }
     }),
     
-    // 2. ПОЛИФИЛЛЫ ДЛЯ NODE.JS API (оставляем как было)
     nodePolyfills({
       include: ['buffer', 'process', 'crypto', 'stream', 'util', 'assert'],
       globals: {
@@ -31,7 +23,6 @@ export default defineConfig({
       protocolImports: true,
     }),
     
-    // 3. ИНЪЕКЦИЯ ГЛОБАЛЬНЫХ ПЕРЕМЕННЫХ
     inject({
       process: 'process/browser',
       Buffer: ['buffer', 'Buffer'],
@@ -114,7 +105,6 @@ export default defineConfig({
         })
       ],
     },
-    // Добавляем sourcemap для отладки, можно убрать в продакшене
-    sourcemap: true,
+    sourcemap: false, // Можно изменить на false для продакшена
   },
 })
