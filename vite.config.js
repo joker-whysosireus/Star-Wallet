@@ -5,13 +5,8 @@ import inject from '@rollup/plugin-inject'
 
 export default defineConfig({
   plugins: [
-    // Основной плагин React - конфигурация правильная
-    react({
-      jsxRuntime: 'automatic', // Важно оставить это для React 18
-      babel: {
-        plugins: [] // Убедитесь, что здесь пустой массив, если плагин optional-chaining-assign не нужен
-      }
-    }),
+    // УПРОЩЕННАЯ НАСТРОЙКА REACT - удалены все лишние параметры
+    react(),
     
     nodePolyfills({
       include: ['buffer', 'process', 'crypto', 'stream', 'util', 'assert'],
@@ -40,6 +35,11 @@ export default defineConfig({
   
   resolve: {
     alias: {
+      // Добавлены алиасы для React - это КРИТИЧЕСКИ важно
+      'react': require.resolve('react'),
+      'react-dom': require.resolve('react-dom'),
+      'react/jsx-runtime': require.resolve('react/jsx-runtime'),
+      
       buffer: 'buffer',
       crypto: 'crypto-browserify',
       stream: 'stream-browserify',
@@ -71,6 +71,10 @@ export default defineConfig({
   
   optimizeDeps: {
     include: [
+      // Добавлены React для предварительного бандлинга
+      'react',
+      'react-dom',
+      'react/jsx-runtime',
       'buffer',
       'process',
       'crypto-browserify',
@@ -104,7 +108,9 @@ export default defineConfig({
           Buffer: ['buffer', 'Buffer'],
         })
       ],
+      // Явно указываем external для React, чтобы избежать дублирования
+      external: ['react', 'react-dom'],
     },
-    sourcemap: false, // Можно изменить на false для продакшена
+    sourcemap: false, // Отключите для продакшена
   },
 })
