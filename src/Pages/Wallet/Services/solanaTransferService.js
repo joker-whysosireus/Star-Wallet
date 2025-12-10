@@ -1,19 +1,32 @@
 import { Connection, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { Keypair } from '@solana/web3.js';
 import * as bip39 from 'bip39';
-import { getSeedPhrase } from './storageService';
 
-// Надежные RPC endpoints с переключением
+// Mainnet RPC endpoints
 const SOLANA_RPC_URLS = [
     'https://api.mainnet-beta.solana.com',
-    'https://rpc.ankr.com/solana',
-    'https://solana-mainnet.g.alchemy.com/v2/demo'
+    'https://solana-api.projectserum.com',
+    'https://rpc.ankr.com/solana'
 ];
 
 let currentRpcIndex = 0;
 let connection = null;
 
-// Создание соединения с автоматическим переключением при ошибках
+// Получение сид-фразы из localStorage
+const getSeedPhrase = () => {
+    try {
+        const seedPhrase = localStorage.getItem('wallet_seed_phrase');
+        if (!seedPhrase) {
+            throw new Error('Seed phrase not found. Please create or restore wallet.');
+        }
+        return seedPhrase;
+    } catch (error) {
+        console.error('Error getting seed phrase:', error);
+        throw error;
+    }
+};
+
+// Создание соединения (mainnet)
 const createConnection = () => {
     const url = SOLANA_RPC_URLS[currentRpcIndex];
     return new Connection(url, {
@@ -23,11 +36,10 @@ const createConnection = () => {
     });
 };
 
-// Получение соединения с повторными попытками
+// Получение соединения с переключением
 const getConnection = async () => {
     if (connection) {
         try {
-            // Проверяем, что соединение активно
             await connection.getVersion();
             return connection;
         } catch (error) {
@@ -39,7 +51,7 @@ const getConnection = async () => {
         try {
             currentRpcIndex = (currentRpcIndex + 1) % SOLANA_RPC_URLS.length;
             connection = createConnection();
-            const version = await connection.getVersion();
+            await connection.getVersion();
             console.log(`Connected to Solana RPC: ${SOLANA_RPC_URLS[currentRpcIndex]}`);
             return connection;
         } catch (error) {
@@ -50,16 +62,13 @@ const getConnection = async () => {
     throw new Error('All Solana RPC endpoints failed');
 };
 
-// Функция для получения Keypair из сид-фразы
+// Получение Keypair из сид-фразы (mainnet)
 const getKeypairFromSeed = async () => {
     try {
-        const seedPhrase = await getSeedPhrase();
-        if (!seedPhrase) {
-            throw new Error('Seed phrase not found');
-        }
+        const seedPhrase = getSeedPhrase();
         
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const seedArray = new Uint8Array(seedBuffer).slice(32, 64);
+        const seedArray = new Uint8Array(seedBuffer.slice(0, 32));
         return Keypair.fromSeed(seedArray);
     } catch (error) {
         console.error('Error getting keypair from seed:', error);
@@ -67,13 +76,12 @@ const getKeypairFromSeed = async () => {
     }
 };
 
-// Получение баланса SOL с повторными попытками
+// Получение баланса SOL (mainnet)
 export const getSolBalance = async () => {
     try {
         const keypair = await getKeypairFromSeed();
         const publicKey = keypair.publicKey;
         
-        // Пробуем несколько раз с разными RPC
         for (let attempt = 0; attempt < 3; attempt++) {
             try {
                 const connection = await getConnection();
@@ -86,30 +94,27 @@ export const getSolBalance = async () => {
             }
         }
         
-        // Fallback баланс, если все попытки провалились
-        return '1.2345';
+        return '0.0000';
     } catch (error) {
         console.error('Error getting SOL balance:', error);
-        // Возвращаем fallback значение вместо ошибки
-        return '1.2345';
+        return '0.0000';
     }
 };
 
-// Отправка SOL
+// Отправка SOL (mainnet)
 export const sendSol = async (toAddress, solAmount) => {
     try {
-        // Валидация параметров
         if (!toAddress || !solAmount || parseFloat(solAmount) <= 0) {
             throw new Error('Invalid parameters');
         }
 
-        // 1. Восстанавливаем ключ отправителя
+        // Получаем ключ отправителя
         const fromKeypair = await getKeypairFromSeed();
 
-        // 2. Создаем публичный ключ получателя
+        // Создаем публичный ключ получателя
         const toPubkey = new PublicKey(toAddress);
 
-        // 3. Проверяем баланс
+        // Проверяем баланс
         const connection = await getConnection();
         const balance = await connection.getBalance(fromKeypair.publicKey);
         const balanceInSol = balance / LAMPORTS_PER_SOL;
@@ -118,22 +123,22 @@ export const sendSol = async (toAddress, solAmount) => {
             throw new Error(`Insufficient balance. Available: ${balanceInSol} SOL`);
         }
 
-        // 4. Создаем инструкцию перевода SOL
+        // Создаем инструкцию перевода
         const transferInstruction = SystemProgram.transfer({
             fromPubkey: fromKeypair.publicKey,
             toPubkey: toPubkey,
             lamports: Math.floor(solAmount * LAMPORTS_PER_SOL),
         });
 
-        // 5. Создаем и настраиваем транзакцию
+        // Создаем транзакцию
         const transaction = new Transaction().add(transferInstruction);
         transaction.feePayer = fromKeypair.publicKey;
 
-        // 6. Получаем актуальный blockhash
-        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+        // Получаем актуальный blockhash
+        const { blockhash } = await connection.getLatestBlockhash('confirmed');
         transaction.recentBlockhash = blockhash;
 
-        // 7. Подписываем и отправляем транзакцию
+        // Подписываем и отправляем транзакцию
         const signature = await sendAndConfirmTransaction(
             connection,
             transaction,
@@ -144,7 +149,7 @@ export const sendSol = async (toAddress, solAmount) => {
             }
         );
 
-        console.log(`SOL транзакция отправлена. Подпись: ${signature}`);
+        console.log(`SOL transaction sent. Signature: ${signature}`);
         
         return { 
             success: true, 
@@ -154,7 +159,39 @@ export const sendSol = async (toAddress, solAmount) => {
         };
 
     } catch (error) {
-        console.error('Ошибка отправки SOL:', error);
-        throw new Error(`Не удалось отправить SOL: ${error.message}`);
+        console.error('Error sending SOL:', error);
+        throw new Error(`Failed to send SOL: ${error.message}`);
     }
+};
+
+// Получение цены SOL
+export const getSolPrice = async () => {
+    try {
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+        if (response.ok) {
+            const data = await response.json();
+            return data.solana?.usd || '172.34';
+        }
+        return '172.34';
+    } catch (error) {
+        console.error('Error getting SOL price:', error);
+        return '172.34';
+    }
+};
+
+// Проверка адреса Solana
+export const validateSolanaAddress = (address) => {
+    try {
+        new PublicKey(address);
+        return true;
+    } catch (error) {
+        return false;
+    }
+};
+
+export default {
+    getSolBalance,
+    sendSol,
+    getSolPrice,
+    validateSolanaAddress
 };

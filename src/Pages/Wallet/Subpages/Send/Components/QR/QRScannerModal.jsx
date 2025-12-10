@@ -4,16 +4,20 @@ import './QRScannerModal.css';
 const QRScannerModal = ({ isOpen, onClose, onScan }) => {
     const videoRef = useRef(null);
     const streamRef = useRef(null);
+    const modalRef = useRef(null);
 
     useEffect(() => {
         if (isOpen) {
             startCamera();
+            // Добавляем обработчик клика вне модалки
+            document.addEventListener('mousedown', handleClickOutside);
         } else {
             stopCamera();
         }
 
         return () => {
             stopCamera();
+            document.removeEventListener('mousedown', handleClickOutside);
         };
     }, [isOpen]);
 
@@ -55,10 +59,9 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
         }
     };
 
-    const handleManualInput = () => {
-        const address = prompt('Enter address manually:');
-        if (address && address.trim()) {
-            onScan(address.trim());
+    const handleClickOutside = (event) => {
+        if (modalRef.current && !modalRef.current.contains(event.target)) {
+            onClose();
         }
     };
 
@@ -66,14 +69,7 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
 
     return (
         <div className="qr-scanner-overlay">
-            <div className="qr-scanner-container">
-                <button 
-                    className="qr-scanner-close"
-                    onClick={onClose}
-                >
-                    ✕
-                </button>
-                
+            <div className="qr-scanner-container" ref={modalRef}>
                 <div className="qr-scanner-video-container">
                     <video 
                         ref={videoRef}
@@ -82,15 +78,6 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
                         muted
                     />
                     <div className="qr-scanner-frame"></div>
-                </div>
-                
-                <div className="qr-scanner-buttons">
-                    <button 
-                        onClick={handleManualInput}
-                        className="manual-input-btn"
-                    >
-                        Enter manually
-                    </button>
                 </div>
             </div>
         </div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from "../../assets/Header/Header";
 import Menu from '../../assets/Menus/Menu/Menu';
-import TokenCard from './Components/Card/TokenCard';
+import TokenCard from './Components/List/TokenCard';
 import { 
     generateWallets, 
     getBalances, 
@@ -111,10 +111,6 @@ function Wallet({ isActive, userData }) {
         }
     }, [initializeWallets]);
 
-    const handleShowSeedPhrase = useCallback(() => {
-        navigate('/wallet/enter-pin');
-    }, [navigate]);
-
     const handleTokenClick = useCallback((wallet) => {
         if (wallet && wallet.symbol) {
             navigate(`/wallet/token/${wallet.symbol}`, { 
@@ -131,16 +127,20 @@ function Wallet({ isActive, userData }) {
             if (wallets.length > 0) {
                 const firstWallet = wallets.find(w => w.address);
                 if (firstWallet) {
-                    alert(`Address to receive ${firstWallet.symbol}:\n\n${firstWallet.address}`);
+                    navigate('/receive', { state: { wallet: firstWallet } });
+                } else {
+                    // Если нет адреса, переходим на первую страницу токена
+                    navigate('/wallet/token/' + wallets[0].symbol, { state: wallets[0] });
                 }
             }
         } else if (action === 'send') {
             if (wallets.length > 0) {
                 const firstWallet = wallets.find(w => w.address);
                 if (firstWallet) {
-                    navigate(`/wallet/token/${firstWallet.symbol}`, { 
-                        state: firstWallet
-                    });
+                    navigate('/send', { state: { wallet: firstWallet } });
+                } else {
+                    // Если нет адреса, переходим на первую страницу токена
+                    navigate('/wallet/token/' + wallets[0].symbol, { state: wallets[0] });
                 }
             }
         } else if (action === 'earn') {
@@ -173,7 +173,7 @@ function Wallet({ isActive, userData }) {
     }, []);
 
     return (
-        <div className="wallet-page">
+        <div className="page-container">
             <Header userData={userData} />
 
             <div className="page-content">
@@ -215,10 +215,8 @@ function Wallet({ isActive, userData }) {
                     </button>
                 </div>
 
-                <div 
-                    className="security-block"
-                    onClick={handleShowSeedPhrase}
-                >
+                {/* Security Section - ТОЛЬКО СТАТИЧНЫЙ UI (без логики) */}
+                <div className="security-block">
                     <div className="security-content">
                         <div className="security-icon">🔐</div>
                         <div className="security-text">

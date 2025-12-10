@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 
-// Импорт всех компонентов напрямую - исправлченные пути
+// Импорт компонентов
 import History from './Pages/History/History';
 import Swap from './Pages/Swap/Swap';
 import Wallet from './Pages/Wallet/Wallet';
-import TokenDetail from './Pages/Wallet/Components/Card/TokenDetail';
+import TokenDetail from './Pages/Wallet/Subpages/Details/TokenDetail';
 import Stake from './Pages/Stake/Stake';
-import PinEnter from './Pages/Wallet/Components/Pin/PinEnter';
-import ShowSeed from './Pages/Wallet/Components/Seed/ShowSeed';
-import Welcome from './Pages/Wallet/Components/Welcome/Welcome';
+import SendToken from './Pages/Wallet/Subpages/Send/SendToken';
+import ReceiveToken from './Pages/Wallet/Subpages/Receive/ReceiveToken';
 
 const AUTH_FUNCTION_URL = 'https://cryptopayappbackend.netlify.app/.netlify/functions/auth';
 
@@ -18,18 +17,6 @@ const App = () => {
     const navigate = useNavigate();
     const [isActive, setIsActive] = useState(false);
     const [userData, setUserData] = useState(null);
-    const [hasPin, setHasPin] = useState(false);
-
-    // Проверка наличия PIN
-    useEffect(() => {
-        const checkPin = () => {
-            const pinSet = localStorage.getItem('wallet_pin_set') === 'true';
-            setHasPin(pinSet);
-            return pinSet;
-        };
-        
-        checkPin();
-    }, [location]);
 
     // Управление кнопкой BackButton Telegram WebApp
     useEffect(() => {
@@ -180,6 +167,15 @@ const App = () => {
                 <TokenDetail isActive={isActive} userData={userData} />
             } />
             
+            {/* Новые маршруты для Send и Receive */}
+            <Route path="/send" element={
+                <SendToken isActive={isActive} userData={userData} />
+            } />
+            
+            <Route path="/receive" element={
+                <ReceiveToken isActive={isActive} userData={userData} />
+            } />
+            
             <Route path="/history" element={
                 <History isActive={isActive} userData={userData} />
             } />
@@ -191,22 +187,8 @@ const App = () => {
             <Route path="/stake" element={
                 <Stake isActive={isActive} userData={userData} />
             } />
-            
-            <Route path="/wallet/enter-pin" element={
-                <PinEnter isActive={isActive} userData={userData} />
-            } />
-            
-            <Route path="/wallet/show-seed" element={
-                <ShowSeed isActive={isActive} userData={userData} />
-            } />
-            
-            {/* Маршрут для приветствия если нет PIN */}
-            <Route path="/welcome" element={
-                <Welcome isActive={isActive} userData={userData} />
-            } />
         </Routes>
     );
 };
-
 
 export default App;

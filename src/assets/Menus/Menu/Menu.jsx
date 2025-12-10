@@ -13,8 +13,13 @@ const Menu = () => {
   const location = useLocation();
   const currentPath = location.pathname;
   
-  // Определяем активность Wallet для путей /wallet и /wallet/token/:symbol
-  const isWalletActive = currentPath === '/wallet' || currentPath.startsWith('/wallet/token/');
+  // Активность Wallet для всех связанных страниц
+  const isWalletActive = 
+    currentPath === '/' || 
+    currentPath === '/wallet' || 
+    currentPath.startsWith('/wallet/token/') ||
+    currentPath === '/send' ||
+    currentPath === '/receive';
   
   const menuItems = [
     { 
