@@ -1,117 +1,51 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
-import inject from '@rollup/plugin-inject'
 
+// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    // Основной плагин для React. Важно: удалены все лишние параметры babel[citation:2].
     react(),
-    
     nodePolyfills({
-      include: ['buffer', 'process', 'crypto', 'stream', 'util', 'assert'],
+      // Полифиллы для модулей, используемых крипто-библиотеками
+      include: ['buffer', 'stream', 'util', 'crypto', 'assert', 'process'],
       globals: {
         Buffer: true,
-        process: true,
         global: true,
-      },
-      protocolImports: true,
-    }),
-    
-    inject({
-      process: 'process/browser',
-      Buffer: ['buffer', 'Buffer'],
+        process: true,
+      }
     })
   ],
-  
-  define: {
-    'process.env': '{}',
-    'process.version': '"v18.0.0"',
-    'process.browser': true,
-    global: 'globalThis',
-    __dirname: JSON.stringify(''),
-    __filename: JSON.stringify(''),
-  },
-  
+  // Разрешение конфликтов импортов для сборки
   resolve: {
     alias: {
-      // 🔧 ИСПРАВЛЕНО: заменены вызовы require.resolve на строковые пути[citation:4].
-      // Это решает ошибку "__require.resolve is not a function".
-      'react': 'react',
-      'react-dom': 'react-dom',
-      'react/jsx-runtime': 'react/jsx-runtime',
-      
-      // Остальные алиасы для полифилов
-      buffer: 'buffer',
-      crypto: 'crypto-browserify',
-      stream: 'stream-browserify',
-      util: 'util',
-      process: 'process/browser',
-      vm: 'vm-browserify',
-      http: 'stream-http',
-      https: 'https-browserify',
-      os: 'os-browserify',
-      path: 'path-browserify',
-      assert: 'assert',
-      fs: false,
-      tls: false,
-      net: false,
-      zlib: false,
-      dns: false,
-      child_process: false,
+      // Эти алиасы помогают Vite найти браузерные версии модулей
+      'stream': 'stream-browserify',
+      'buffer': 'buffer',
+      'crypto': 'crypto-browserify'
     }
   },
-  
-  server: {
-    host: true,
-    allowedHosts: [
-      ".cloudpub.ru",
-      "localhost"
-    ],
-    https: false,
+  // Определение глобальных переменных, которых нет в браузере
+  define: {
+    'process.env': {},
+    'global': 'window'
   },
-  
+  // Оптимизация зависимостей для сборки
   optimizeDeps: {
-    include: [
-      'react',
-      'react-dom',
-      'react/jsx-runtime',
-      'buffer',
-      'process',
-      'crypto-browserify',
-      'stream-browserify',
-      'util',
-      'assert',
-    ],
-    exclude: [
-      '@ethersproject/hash',
-      '@ethersproject/providers',
-    ],
-    esbuildOptions: {
-      define: {
-        global: 'globalThis',
-      },
-    },
+    include: ['react', 'react-dom', 'react-router-dom']
   },
-  
   build: {
-    commonjsOptions: {
-      transformMixedEsModules: true,
-      exclude: [],
-      include: [
-        /node_modules/,
-      ],
-    },
+    // Увеличивает лимит на размер чанков (может понадобиться для крипто-библиотек)
+    chunkSizeWarningLimit: 1600,
     rollupOptions: {
-      plugins: [
-        inject({
-          process: 'process/browser',
-          Buffer: ['buffer', 'Buffer'],
-        })
-      ],
-      // Убрана строка с 'external: ['react', 'react-dom']',
-      // чтобы React корректно собирался в бандл.
-    },
-    sourcemap: false, // Можно установить в true для отладки
-  },
+      output: {
+        // Создает отдельный чанк для vendor-библиотек
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            return 'vendor'
+          }
+        }
+      }
+    }
+  }
 })
