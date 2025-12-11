@@ -1,3 +1,4 @@
+// Pages/Wallet/Subpages/Send/SendToken.jsx
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import QRScannerModal from './Components/QR/QRScannerModal';
@@ -9,7 +10,7 @@ import { sendSol } from '../../Services/solanaService';
 import { sendEth, sendERC20 } from '../../Services/ethereumService';
 import './SendToken.css';
 
-const SendToken = () => {
+const SendToken = ({ userData }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { wallet } = location.state || {};
@@ -24,7 +25,7 @@ const SendToken = () => {
     const [usdValue, setUsdValue] = useState('0.00');
     
     useEffect(() => {
-        if (!wallet) {
+        if (!wallet || !userData) {
             navigate('/wallet');
             return;
         }
@@ -34,7 +35,7 @@ const SendToken = () => {
     
     const loadBalances = async () => {
         try {
-            const updatedWallets = await getBalances([token]);
+            const updatedWallets = await getBalances([token], userData);
             if (updatedWallets && updatedWallets.length > 0) {
                 setToken(updatedWallets[0]);
                 const prices = await getTokenPrices();
@@ -64,18 +65,29 @@ const SendToken = () => {
         try {
             let result;
             
+            const serviceParams = {
+                toAddress,
+                amount,
+                comment,
+                userData
+            };
+            
             switch (token.blockchain) {
                 case 'TON':
-                    result = await sendTon(toAddress, amount, comment);
+                    result = await sendTon(serviceParams);
                     break;
                 case 'Solana':
-                    result = await sendSol(toAddress, amount, comment);
+                    result = await sendSol(serviceParams);
                     break;
                 case 'Ethereum':
                     if (token.symbol === 'ETH') {
-                        result = await sendEth(toAddress, amount);
+                        result = await sendEth(serviceParams);
                     } else if (token.contractAddress) {
-                        result = await sendERC20(token.contractAddress, toAddress, amount, token.decimals);
+                        result = await sendERC20({
+                            ...serviceParams,
+                            contractAddress: token.contractAddress,
+                            decimals: token.decimals
+                        });
                     } else {
                         throw new Error('Unsupported token');
                     }
@@ -156,7 +168,7 @@ const SendToken = () => {
     if (!token) {
         return (
             <div className="wallet-page">
-                <Header />
+                <Header userData={userData} />
                 <div className="loading-container">
                     <div className="loader"></div>
                     <p>Loading...</p>
@@ -166,13 +178,20 @@ const SendToken = () => {
         );
     }
     
+    const getHeaderText = () => {
+        if (token.symbol === 'USDT' || token.symbol === 'USDC') {
+            return `Send ${token.blockchain} ${token.symbol}`;
+        }
+        return `Send ${token.symbol}`;
+    };
+    
     return (
         <div className="wallet-page">
-            <Header />
+            <Header userData={userData} />
             
             <div className="page-content send-page">
                 <div className="send-header">
-                    <h2>Send {token.symbol}</h2>
+                    <h2>{getHeaderText()}</h2>
                     <p>Choose recipient</p>
                 </div>
                 

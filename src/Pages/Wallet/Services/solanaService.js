@@ -1,3 +1,4 @@
+// Services/solanaService.js
 import { Connection, PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL, Keypair } from '@solana/web3.js';
 import * as bip39 from 'bip39';
 
@@ -7,44 +8,31 @@ const SOLANA_RPC_URLS = [
     'https://rpc.ankr.com/solana/'
 ];
 
-const getSeedPhrase = () => {
+const getKeypairFromUserData = async (userData) => {
     try {
-        const seedPhrase = localStorage.getItem('wallet_seed_phrase');
-        if (!seedPhrase) {
-            throw new Error('Seed phrase not found');
+        if (!userData?.seed_phrases) {
+            throw new Error('Seed phrase not found in user data');
         }
-        return seedPhrase;
-    } catch (error) {
-        console.error('Error getting seed phrase:', error);
-        throw error;
-    }
-};
-
-const getKeypairFromSeed = async () => {
-    try {
-        const seedPhrase = getSeedPhrase();
         
-        // Упрощенная генерация ключа для браузера
+        const seedPhrase = userData.seed_phrases;
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const seedArray = new Uint8Array(seedBuffer).slice(0, 32);
         const keypair = Keypair.fromSeed(seedArray);
         
         return keypair;
     } catch (error) {
-        console.error('Error getting keypair from seed:', error);
-        // Возвращаем тестовый ключ в случае ошибки
-        return Keypair.generate();
+        console.error('Error getting keypair from user data:', error);
+        throw error;
     }
 };
 
-export const getSolBalance = async () => {
+export const getSolBalance = async (userData) => {
     try {
-        const keypair = await getKeypairFromSeed();
+        const keypair = await getKeypairFromUserData(userData);
         const publicKey = keypair.publicKey;
         
         console.log(`Fetching SOL balance for: ${publicKey.toBase58()}`);
         
-        // Пробуем разные RPC endpoints
         for (const url of SOLANA_RPC_URLS) {
             try {
                 const connection = new Connection(url, 'confirmed');
@@ -66,11 +54,11 @@ export const getSolBalance = async () => {
     }
 };
 
-export const sendSol = async (toAddress, solAmount, memo = '') => {
+export const sendSol = async ({ toAddress, amount, memo = '', userData }) => {
     try {
-        console.log(`Sending ${solAmount} SOL to ${toAddress}`);
+        console.log(`Sending ${amount} SOL to ${toAddress}`);
         
-        if (!toAddress || !solAmount || parseFloat(solAmount) <= 0) {
+        if (!toAddress || !amount || parseFloat(amount) <= 0 || !userData) {
             throw new Error('Invalid parameters');
         }
 
@@ -81,9 +69,8 @@ export const sendSol = async (toAddress, solAmount, memo = '') => {
             throw new Error('Invalid Solana address');
         }
 
-        const fromKeypair = await getKeypairFromSeed();
+        const fromKeypair = await getKeypairFromUserData(userData);
 
-        // Используем первый работающий RPC
         let connection;
         for (const url of SOLANA_RPC_URLS) {
             try {
@@ -105,14 +92,14 @@ export const sendSol = async (toAddress, solAmount, memo = '') => {
         
         console.log(`Current balance: ${balanceInSol} SOL`);
         
-        if (parseFloat(solAmount) > balanceInSol) {
+        if (parseFloat(amount) > balanceInSol) {
             throw new Error(`Insufficient balance. Available: ${balanceInSol.toFixed(4)} SOL`);
         }
 
         const transferInstruction = SystemProgram.transfer({
             fromPubkey: fromKeypair.publicKey,
             toPubkey: toPubkey,
-            lamports: Math.floor(parseFloat(solAmount) * LAMPORTS_PER_SOL),
+            lamports: Math.floor(parseFloat(amount) * LAMPORTS_PER_SOL),
         });
 
         const transaction = new Transaction().add(transferInstruction);
@@ -145,7 +132,7 @@ export const sendSol = async (toAddress, solAmount, memo = '') => {
         return { 
             success: true, 
             signature,
-            message: `Successfully sent ${solAmount} SOL to ${toAddress}`,
+            message: `Successfully sent ${amount} SOL to ${toAddress}`,
             explorerUrl: `https://solscan.io/tx/${signature}`,
             timestamp: new Date().toISOString()
         };

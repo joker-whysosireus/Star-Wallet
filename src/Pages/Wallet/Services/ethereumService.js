@@ -1,3 +1,4 @@
+// Services/ethereumService.js
 import { ethers } from 'ethers';
 import * as bip39 from 'bip39';
 
@@ -7,15 +8,27 @@ const ETHEREUM_RPC_URLS = [
     'https://cloudflare-eth.com'
 ];
 
-const getSeedPhrase = () => {
+const getWalletFromUserData = async (userData) => {
     try {
-        const seedPhrase = localStorage.getItem('wallet_seed_phrase');
-        if (!seedPhrase) {
-            throw new Error('Seed phrase not found');
+        if (!userData?.seed_phrases) {
+            throw new Error('Seed phrase not found in user data');
         }
-        return seedPhrase;
+        
+        const seedPhrase = userData.seed_phrases;
+        const seed = await bip39.mnemonicToSeed(seedPhrase);
+        const hdNode = ethers.HDNodeWallet.fromSeed(seed);
+        const wallet = hdNode.derivePath("m/44'/60'/0'/0/0");
+        
+        const provider = createProvider();
+        const connectedWallet = wallet.connect(provider);
+        
+        return {
+            wallet: connectedWallet,
+            provider,
+            address: wallet.address
+        };
     } catch (error) {
-        console.error('Error getting seed phrase:', error);
+        console.error('Error getting wallet from user data:', error);
         throw error;
     }
 };
@@ -31,33 +44,9 @@ const createProvider = () => {
     throw new Error('All Ethereum RPC endpoints failed');
 };
 
-const getWalletFromSeed = async () => {
+export const getEthBalance = async (userData) => {
     try {
-        const seedPhrase = getSeedPhrase();
-        
-        const seed = await bip39.mnemonicToSeed(seedPhrase);
-        
-        const hdNode = ethers.HDNodeWallet.fromSeed(seed);
-        const wallet = hdNode.derivePath("m/44'/60'/0'/0/0");
-        
-        const provider = createProvider();
-        
-        const connectedWallet = wallet.connect(provider);
-        
-        return {
-            wallet: connectedWallet,
-            provider,
-            address: wallet.address
-        };
-    } catch (error) {
-        console.error('Error getting wallet from seed:', error);
-        throw error;
-    }
-};
-
-export const getEthBalance = async () => {
-    try {
-        const { wallet, provider } = await getWalletFromSeed();
+        const { wallet, provider } = await getWalletFromUserData(userData);
         const balance = await provider.getBalance(wallet.address);
         const balanceInEth = ethers.formatEther(balance);
         console.log(`ETH balance: ${balanceInEth}`);
@@ -68,11 +57,11 @@ export const getEthBalance = async () => {
     }
 };
 
-export const sendEth = async (toAddress, amount, data = '') => {
+export const sendEth = async ({ toAddress, amount, data = '', userData }) => {
     try {
         console.log(`Sending ${amount} ETH to ${toAddress}`);
         
-        if (!toAddress || !amount || parseFloat(amount) <= 0) {
+        if (!toAddress || !amount || parseFloat(amount) <= 0 || !userData) {
             throw new Error('Invalid parameters');
         }
 
@@ -80,7 +69,7 @@ export const sendEth = async (toAddress, amount, data = '') => {
             throw new Error('Invalid Ethereum address');
         }
 
-        const { wallet, provider } = await getWalletFromSeed();
+        const { wallet, provider } = await getWalletFromUserData(userData);
         
         const balance = await provider.getBalance(wallet.address);
         const balanceInEth = parseFloat(ethers.formatEther(balance));
@@ -128,11 +117,11 @@ export const sendEth = async (toAddress, amount, data = '') => {
     }
 };
 
-export const sendERC20 = async (contractAddress, toAddress, amount, decimals = 18) => {
+export const sendERC20 = async ({ contractAddress, toAddress, amount, decimals = 18, userData }) => {
     try {
         console.log(`Sending ${amount} ERC20 tokens to ${toAddress}`);
         
-        if (!contractAddress || !toAddress || !amount || parseFloat(amount) <= 0) {
+        if (!contractAddress || !toAddress || !amount || parseFloat(amount) <= 0 || !userData) {
             throw new Error('Invalid parameters');
         }
 
@@ -140,9 +129,8 @@ export const sendERC20 = async (contractAddress, toAddress, amount, decimals = 1
             throw new Error('Invalid Ethereum address');
         }
 
-        const { wallet, provider } = await getWalletFromSeed();
+        const { wallet, provider } = await getWalletFromUserData(userData);
         
-        // ERC20 ABI (минимальный набор для отправки)
         const abi = [
             'function balanceOf(address owner) view returns (uint256)',
             'function decimals() view returns (uint8)',
@@ -153,7 +141,6 @@ export const sendERC20 = async (contractAddress, toAddress, amount, decimals = 1
         const contract = new ethers.Contract(contractAddress, abi, provider);
         const contractWithSigner = contract.connect(wallet);
         
-        // Получаем decimals токена
         let tokenDecimals = decimals;
         try {
             tokenDecimals = await contract.decimals();
@@ -161,20 +148,17 @@ export const sendERC20 = async (contractAddress, toAddress, amount, decimals = 1
             console.warn('Could not get token decimals, using default:', decimals);
         }
         
-        // Получаем баланс токенов
         const balance = await contract.balanceOf(wallet.address);
         const balanceInUnits = ethers.formatUnits(balance, tokenDecimals);
         
         console.log(`Current token balance: ${balanceInUnits}`);
         
-        // Конвертируем amount в единицы токена
         const amountInUnits = ethers.parseUnits(amount.toString(), tokenDecimals);
         
         if (balance < amountInUnits) {
             throw new Error(`Insufficient token balance. Available: ${balanceInUnits}`);
         }
         
-        // Получаем символ токена
         let tokenSymbol = 'TOKEN';
         try {
             tokenSymbol = await contract.symbol();
@@ -182,10 +166,8 @@ export const sendERC20 = async (contractAddress, toAddress, amount, decimals = 1
             console.warn('Could not get token symbol');
         }
         
-        // Получаем данные о комиссии
         const feeData = await provider.getFeeData();
         
-        // Оцениваем газ для передачи токена
         const gasEstimate = await contractWithSigner.transfer.estimateGas(
             toAddress, 
             amountInUnits
@@ -193,9 +175,8 @@ export const sendERC20 = async (contractAddress, toAddress, amount, decimals = 1
         
         console.log('Signing and sending ERC20 transaction...');
         
-        // Отправляем транзакцию
         const txResponse = await contractWithSigner.transfer(toAddress, amountInUnits, {
-            gasLimit: gasEstimate.mul(120).div(100), // +20% на всякий случай
+            gasLimit: gasEstimate.mul(120).div(100),
             gasPrice: feeData.gasPrice || await provider.getGasPrice()
         });
         
@@ -239,9 +220,9 @@ export const getEthPrice = async () => {
     }
 };
 
-export const getERC20Balance = async (contractAddress, decimals = 18) => {
+export const getERC20Balance = async (contractAddress, userData, decimals = 18) => {
     try {
-        const { wallet, provider } = await getWalletFromSeed();
+        const { wallet, provider } = await getWalletFromUserData(userData);
         
         const abi = [
             'function balanceOf(address owner) view returns (uint256)',
@@ -258,7 +239,6 @@ export const getERC20Balance = async (contractAddress, decimals = 18) => {
         }
         
         const balance = await contract.balanceOf(wallet.address);
-        
         const formattedBalance = ethers.formatUnits(balance, tokenDecimals);
         
         return formattedBalance;

@@ -1,3 +1,4 @@
+// App.jsx
 import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 
@@ -10,13 +11,15 @@ import Stake from './Pages/Stake/Stake';
 import SendToken from './Pages/Wallet/Subpages/Send/SendToken';
 import ReceiveToken from './Pages/Wallet/Subpages/Receive/ReceiveToken';
 
-const AUTH_FUNCTION_URL = 'https://cryptopayappbackend.netlify.app/.netlify/functions/auth';
+const AUTH_FUNCTION_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions/auth';
 
 const App = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const [isActive, setIsActive] = useState(false);
     const [userData, setUserData] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [authError, setAuthError] = useState(null);
 
     // Управление кнопкой BackButton Telegram WebApp
     useEffect(() => {
@@ -31,7 +34,6 @@ const App = () => {
         if (isTelegramWebApp()) {
             const webApp = window.Telegram.WebApp;
             
-            // Определяем, на главной ли мы странице
             const isRootPage = location.pathname === '/' || 
                              location.pathname === '/wallet';
             
@@ -52,7 +54,7 @@ const App = () => {
 
     // Initialize Telegram WebApp
     useEffect(() => {
-        console.log("App.jsx: useEffect triggered");
+        console.log("App.jsx: Initializing Telegram WebApp");
 
         const isTelegramWebApp = () => {
             try {
@@ -67,26 +69,21 @@ const App = () => {
                 const webApp = window.Telegram.WebApp;
                 console.log("Telegram WebApp detected, initializing...");
                 
-                // Включение вертикальных свайпов (опционально)
                 webApp.isVerticalSwipesEnabled = false;
                 
-                // Отключение свайпа для закрытия
                 if (webApp.disableSwipeToClose) {
                     webApp.disableSwipeToClose();
                 }
 
-                // Расширение до полного экрана
                 if (webApp.expand) {
                     webApp.expand();
                     console.log("Telegram WebApp expanded to full screen");
                 }
                 
-                // Включение подтверждения закрытия
                 if (webApp.enableClosingConfirmation) {
                     webApp.enableClosingConfirmation();
                 }
                 
-                // Полноэкранный режим (с обработкой ошибок)
                 try {
                     if (webApp.requestFullscreen) {
                         webApp.requestFullscreen();
@@ -108,67 +105,108 @@ const App = () => {
 
     // User authentication
     useEffect(() => {
-        console.log("App.jsx: Starting authentication check");
+        console.log("App.jsx: Starting authentication process");
         
-        const getInitData = () => {
-            try {
-                return window.Telegram?.WebApp?.initData || '';
-            } catch (e) {
-                return '';
-            }
-        };
+        const authenticateUser = async () => {
+            const getInitData = () => {
+                try {
+                    return window.Telegram?.WebApp?.initData || '';
+                } catch (e) {
+                    return '';
+                }
+            };
 
-        const initData = getInitData();
-        console.log("App.jsx: initData available:", !!initData);
+            const initData = getInitData();
+            console.log("App.jsx: initData available:", !!initData);
 
-        if (initData && initData.trim() !== '') {
-            console.log("App.jsx: Sending authentication request");
-            
-            const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error("Authentication timeout")), 10000)
-            );
-            
-            const authPromise = fetch(AUTH_FUNCTION_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ initData }),
-            });
-
-            Promise.race([authPromise, timeoutPromise])
-                .then(response => {
+            if (initData && initData.trim() !== '') {
+                console.log("App.jsx: Sending authentication request");
+                
+                try {
+                    const response = await fetch(AUTH_FUNCTION_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ initData }),
+                    });
+                    
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log("App.jsx: Authentication response received");
+                    
+                    const data = await response.json();
+                    console.log("App.jsx: Authentication response received:", data);
+                    
                     if (data.isValid) {
                         console.log("App.jsx: Authentication successful");
                         setUserData(data.userData);
+                        setAuthError(null);
                     } else {
                         console.warn("App.jsx: Authentication failed");
-                        // Не устанавливаем userData при неудачной аутентификации
+                        setAuthError(data.error || "Authentication failed");
                     }
-                })
-                .catch(error => {
+                } catch (error) {
                     console.error("App.jsx: Authentication error:", error);
-                });
-        } else {
-            console.warn("App.jsx: No initData available");
-        }
+                    setAuthError(error.message);
+                } finally {
+                    setIsLoading(false);
+                }
+            } else {
+                console.warn("App.jsx: No initData available, running in demo mode");
+                
+                // Демо режим для разработки
+                const demoUserData = {
+                    telegram_user_id: 123456789,
+                    username: 'demo_user',
+                    wallet_addresses: {},
+                    token_balances: {},
+                    transactions: [],
+                    first_name: 'Demo',
+                    last_name: 'User',
+                    avatar: null,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                };
+                
+                setUserData(demoUserData);
+                setIsLoading(false);
+            }
+        };
+
+        authenticateUser();
     }, []);
+
+    if (isLoading) {
+        return (
+            <div className="app-loading-container">
+                <div className="app-loader"></div>
+                <p>Loading Star Wallet...</p>
+            </div>
+        );
+    }
+
+    if (authError) {
+        return (
+            <div className="app-error-container">
+                <h2>Authentication Error</h2>
+                <p>{authError}</p>
+                <button 
+                    onClick={() => window.location.reload()}
+                    className="retry-button"
+                >
+                    Retry
+                </button>
+            </div>
+        );
+    }
 
     return (
         <Routes location={location}>
-            {/* Главная страница */}
             <Route path="/" element={
                 <Wallet isActive={isActive} userData={userData} />
             } />
             
-            {/* Дублирующий маршрут для /wallet */}
             <Route path="/wallet" element={
                 <Wallet isActive={isActive} userData={userData} />
             } />
@@ -177,7 +215,6 @@ const App = () => {
                 <TokenDetail isActive={isActive} userData={userData} />
             } />
             
-            {/* Новые маршруты для Send и Receive */}
             <Route path="/send" element={
                 <SendToken isActive={isActive} userData={userData} />
             } />

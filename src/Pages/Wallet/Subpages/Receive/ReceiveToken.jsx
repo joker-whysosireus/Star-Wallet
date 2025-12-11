@@ -1,12 +1,13 @@
+// Pages/Wallet/Subpages/Receive/ReceiveToken.jsx
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
-import { getBalances, getTokenPrices, getTokenBySymbol } from '../../Services/storageService';
+import { getBalances, getTokenPrices } from '../../Services/storageService';
 import './ReceiveToken.css';
 
-const ReceiveToken = () => {
+const ReceiveToken = ({ userData }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { wallet } = location.state || {};
@@ -15,7 +16,7 @@ const ReceiveToken = () => {
     const [usdValue, setUsdValue] = useState('0.00');
     
     useEffect(() => {
-        if (!wallet) {
+        if (!wallet || !userData) {
             navigate('/wallet');
             return;
         }
@@ -25,7 +26,7 @@ const ReceiveToken = () => {
     
     const loadBalances = async () => {
         try {
-            const updatedWallets = await getBalances([token]);
+            const updatedWallets = await getBalances([token], userData);
             if (updatedWallets && updatedWallets.length > 0) {
                 setToken(updatedWallets[0]);
                 const prices = await getTokenPrices();
@@ -50,7 +51,7 @@ const ReceiveToken = () => {
     if (!token) {
         return (
             <div className="wallet-page">
-                <Header />
+                <Header userData={userData} />
                 <div className="loading-container">
                     <div className="loader"></div>
                     <p>Loading...</p>
@@ -60,14 +61,28 @@ const ReceiveToken = () => {
         );
     }
     
+    const getHeaderText = () => {
+        if (token.symbol === 'USDT' || token.symbol === 'USDC') {
+            return `Your ${token.blockchain} ${token.symbol} Address`;
+        }
+        return `Your ${token.symbol} Address`;
+    };
+    
+    const getSubHeaderText = () => {
+        if (token.symbol === 'USDT' || token.symbol === 'USDC') {
+            return `Receive ${token.symbol} to this ${token.blockchain} address`;
+        }
+        return `Receive ${token.symbol} to this address`;
+    };
+    
     return (
         <div className="wallet-page">
-            <Header />
+            <Header userData={userData} />
             
             <div className="page-content receive-page">
                 <div className="receive-header">
-                    <h2>Your {token.symbol} Address</h2>
-                    <p>Receive {token.symbol} to this address</p>
+                    <h2>{getHeaderText()}</h2>
+                    <p>{getSubHeaderText()}</p>
                 </div>
                 
                 <div className="receive-content">
@@ -88,13 +103,24 @@ const ReceiveToken = () => {
                                 </div>
                             </div>
                             
+                            <div className="address-display">
+                                <p className="address-label">{token.blockchain} Address:</p>
+                                <p className="address-value">{token.address}</p>
+                            </div>
+                            
                             <p className="receive-info">
                                 Use this address to receive {token.symbol} to your {token.blockchain} wallet
                             </p>
+                            
+                            <div className="balance-info">
+                                <p>Current Balance: {token.balance || '0.00'} {token.symbol}</p>
+                                <p className="usd-balance">≈ ${usdValue}</p>
+                            </div>
                         </>
                     ) : (
                         <div className="no-address-message">
                             <p>Address not available</p>
+                            <p>Please make sure your wallet is properly initialized</p>
                         </div>
                     )}
                 </div>
