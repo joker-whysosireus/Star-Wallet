@@ -12,6 +12,7 @@
     "@rollup/plugin-inject": "^5.0.5",
     "@scure/bip32": "^2.0.1",
     "@scure/bip39": "^2.0.1",
+    "@solana/spl-memo": "^0.2.5",
     "@solana/spl-token": "^0.4.14",
     "@solana/wallet-adapter-base": "^0.9.27",
     "@solana/web3.js": "^1.98.4",

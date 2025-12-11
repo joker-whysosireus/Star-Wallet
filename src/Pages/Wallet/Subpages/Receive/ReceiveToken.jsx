@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
-import { getBalances, getTokenPrices } from '../../Services/storageService';
+import { getBalances, getTokenPrices, getTokenBySymbol } from '../../Services/storageService';
 import './ReceiveToken.css';
 
 const ReceiveToken = () => {

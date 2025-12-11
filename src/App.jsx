@@ -67,23 +67,32 @@ const App = () => {
                 const webApp = window.Telegram.WebApp;
                 console.log("Telegram WebApp detected, initializing...");
                 
+                // Включение вертикальных свайпов (опционально)
                 webApp.isVerticalSwipesEnabled = false;
                 
+                // Отключение свайпа для закрытия
                 if (webApp.disableSwipeToClose) {
                     webApp.disableSwipeToClose();
                 }
 
+                // Расширение до полного экрана
                 if (webApp.expand) {
                     webApp.expand();
                     console.log("Telegram WebApp expanded to full screen");
                 }
                 
+                // Включение подтверждения закрытия
                 if (webApp.enableClosingConfirmation) {
                     webApp.enableClosingConfirmation();
                 }
                 
-                if (webApp.requestFullscreen) {
-                    webApp.requestFullscreen();
+                // Полноэкранный режим (с обработкой ошибок)
+                try {
+                    if (webApp.requestFullscreen) {
+                        webApp.requestFullscreen();
+                    }
+                } catch (error) {
+                    console.warn("requestFullscreen not supported:", error);
                 }
                 
                 console.log("Telegram WebApp initialized successfully");
@@ -112,7 +121,7 @@ const App = () => {
         const initData = getInitData();
         console.log("App.jsx: initData available:", !!initData);
 
-        if (initData) {
+        if (initData && initData.trim() !== '') {
             console.log("App.jsx: Sending authentication request");
             
             const timeoutPromise = new Promise((_, reject) => 
@@ -140,14 +149,15 @@ const App = () => {
                         console.log("App.jsx: Authentication successful");
                         setUserData(data.userData);
                     } else {
-                        console.error("App.jsx: Authentication failed, but allowing access");
+                        console.warn("App.jsx: Authentication failed");
+                        // Не устанавливаем userData при неудачной аутентификации
                     }
                 })
                 .catch(error => {
                     console.error("App.jsx: Authentication error:", error);
                 });
         } else {
-            console.warn("App.jsx: No initData available, but allowing access");
+            console.warn("App.jsx: No initData available");
         }
     }, []);
 

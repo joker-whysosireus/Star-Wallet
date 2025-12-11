@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
-import { TOKENS } from '../../Services/tokensConfig';
 import { 
     getBalances,
-    getTokenPrices 
+    getTokenPrices,
+    getTokenBySymbol 
 } from '../../Services/storageService';
 import './TokenDetail.css';
 
@@ -23,9 +23,9 @@ const TokenDetail = () => {
         
         if (walletData) {
             setWallet(walletData);
-            loadBalances();
+            loadBalances(walletData);
         } else if (symbol) {
-            const token = Object.values(TOKENS).find(t => t.symbol === symbol);
+            const token = getTokenBySymbol(symbol);
             if (token) {
                 const mockWallet = {
                     ...token,
@@ -41,15 +41,15 @@ const TokenDetail = () => {
         setIsLoading(false);
     }, [symbol, location.state]);
 
-    const loadBalances = async () => {
-        if (!wallet) return;
+    const loadBalances = async (walletToLoad) => {
+        if (!walletToLoad) return;
         
         try {
-            const updatedWallets = await getBalances([wallet]);
+            const updatedWallets = await getBalances([walletToLoad]);
             if (updatedWallets && updatedWallets.length > 0) {
                 setWallet(updatedWallets[0]);
                 const prices = await getTokenPrices();
-                const price = prices[wallet.symbol] || 1;
+                const price = prices[walletToLoad.symbol] || 1;
                 const usd = parseFloat(updatedWallets[0].balance) * price;
                 setUsdValue(usd.toFixed(2));
             }

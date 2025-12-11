@@ -4,6 +4,9 @@ import QRScannerModal from './Components/QR/QRScannerModal';
 import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
 import { getBalances, getTokenPrices } from '../../Services/storageService';
+import { sendTon } from '../../Services/tonService';
+import { sendSol } from '../../Services/solanaService';
+import { sendEth, sendERC20 } from '../../Services/ethereumService';
 import './SendToken.css';
 
 const SendToken = () => {
@@ -58,19 +61,58 @@ const SendToken = () => {
         setIsLoading(true);
         setTransactionStatus(null);
 
-        setTimeout(() => {
-            setIsLoading(false);
-            setTransactionStatus({ 
-                type: 'success', 
-                message: `Successfully sent ${amount} ${token.symbol} to ${toAddress.substring(0, 10)}...` 
-            });
-            setAmount('');
-            setToAddress('');
-            setComment('');
+        try {
+            let result;
             
-            const newBalance = parseFloat(token.balance) - parseFloat(amount);
-            setToken({ ...token, balance: newBalance.toFixed(4) });
-        }, 2000);
+            switch (token.blockchain) {
+                case 'TON':
+                    result = await sendTon(toAddress, amount, comment);
+                    break;
+                case 'Solana':
+                    result = await sendSol(toAddress, amount, comment);
+                    break;
+                case 'Ethereum':
+                    if (token.symbol === 'ETH') {
+                        result = await sendEth(toAddress, amount);
+                    } else if (token.contractAddress) {
+                        result = await sendERC20(token.contractAddress, toAddress, amount, token.decimals);
+                    } else {
+                        throw new Error('Unsupported token');
+                    }
+                    break;
+                default:
+                    throw new Error('Unsupported blockchain');
+            }
+
+            if (result.success) {
+                setTransactionStatus({ 
+                    type: 'success', 
+                    message: `Successfully sent ${amount} ${token.symbol} to ${toAddress.substring(0, 10)}...`,
+                    hash: result.hash,
+                    explorerUrl: result.explorerUrl
+                });
+                setAmount('');
+                setToAddress('');
+                setComment('');
+                
+                const newBalance = parseFloat(token.balance) - parseFloat(amount);
+                setToken({ ...token, balance: newBalance.toFixed(4) });
+                
+                setTimeout(() => {
+                    navigate('/wallet');
+                }, 3000);
+            } else {
+                throw new Error(result.message || 'Transaction failed');
+            }
+        } catch (error) {
+            console.error('Error sending transaction:', error);
+            setTransactionStatus({ 
+                type: 'error', 
+                message: error.message || 'Failed to send transaction'
+            });
+        } finally {
+            setIsLoading(false);
+        }
     };
     
     const handleScanQR = (scannedData) => {
@@ -80,7 +122,27 @@ const SendToken = () => {
     
     const handleMaxAmount = () => {
         if (token?.balance) {
-            setAmount(token.balance);
+            const maxAmount = parseFloat(token.balance);
+            let fee = 0;
+            
+            switch (token.blockchain) {
+                case 'TON':
+                    fee = 0.05;
+                    break;
+                case 'Solana':
+                    fee = 0.000005;
+                    break;
+                case 'Ethereum':
+                    fee = token.symbol === 'ETH' ? 0.001 : 0.005;
+                    break;
+            }
+            
+            const available = maxAmount - fee;
+            if (available > 0) {
+                setAmount(available.toFixed(6));
+            } else {
+                setAmount('0');
+            }
         }
     };
     
@@ -213,6 +275,13 @@ const SendToken = () => {
                     {transactionStatus && (
                         <div className={`transaction-status ${transactionStatus.type}`}>
                             {transactionStatus.message}
+                            {transactionStatus.hash && (
+                                <div className="transaction-hash">
+                                    Hash: <a href={transactionStatus.explorerUrl} target="_blank" rel="noopener noreferrer">
+                                        {transactionStatus.hash.substring(0, 20)}...
+                                    </a>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
