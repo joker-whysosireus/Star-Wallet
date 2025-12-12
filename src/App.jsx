@@ -9,6 +9,7 @@ import TokenDetail from './Pages/Wallet/Subpages/Details/TokenDetail';
 import Stake from './Pages/Stake/Stake';
 import SendToken from './Pages/Wallet/Subpages/Send/SendToken';
 import ReceiveToken from './Pages/Wallet/Subpages/Receive/ReceiveToken';
+import { initializeUserWallets } from './Pages/Wallet/Services/walletService';
 
 const AUTH_FUNCTION_URL = 'https://cryptopayappbackend.netlify.app/.netlify/functions/auth';
 
@@ -97,7 +98,7 @@ const App = () => {
         }
     }, []);
 
-    // User authentication
+    // User authentication and wallet initialization
     useEffect(() => {
         console.log("App.jsx: Starting authentication check");
         
@@ -116,7 +117,7 @@ const App = () => {
             console.log("App.jsx: Sending authentication request");
             
             const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error("Authentication timeout")), 10000)
+                setTimeout(() => reject(new Error("Authentication timeout")), 15000)
             );
             
             const authPromise = fetch(AUTH_FUNCTION_URL, {
@@ -134,20 +135,31 @@ const App = () => {
                     }
                     return response.json();
                 })
-                .then(data => {
+                .then(async (data) => {
                     console.log("App.jsx: Authentication response received");
-                    if (data.isValid) {
+                    if (data.isValid && data.userData) {
                         console.log("App.jsx: Authentication successful");
-                        setUserData(data.userData);
+                        
+                        // Initialize user wallets
+                        console.log("App.jsx: Initializing user wallets...");
+                        const initializedUserData = await initializeUserWallets(data.userData);
+                        
+                        if (initializedUserData) {
+                            console.log("App.jsx: User wallets initialized successfully");
+                            setUserData(initializedUserData);
+                        } else {
+                            console.error("App.jsx: Failed to initialize user wallets");
+                            setUserData(data.userData);
+                        }
                     } else {
-                        console.error("App.jsx: Authentication failed, but allowing access");
+                        console.error("App.jsx: Authentication failed");
                     }
                 })
                 .catch(error => {
                     console.error("App.jsx: Authentication error:", error);
                 });
         } else {
-            console.warn("App.jsx: No initData available, but allowing access");
+            console.warn("App.jsx: No initData available");
         }
     }, []);
 

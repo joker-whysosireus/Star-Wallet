@@ -4,10 +4,9 @@ import Header from "../../assets/Header/Header";
 import Menu from '../../assets/Menus/Menu/Menu';
 import TokenCard from './Components/List/TokenCard';
 import { 
-    generateWallets, 
+    getAllTokens,
     getBalances, 
-    calculateTotalBalance,
-    getAllTokens
+    calculateTotalBalance
 } from './Services/storageService';
 import './Wallet.css';
 
@@ -35,142 +34,151 @@ function Wallet({ isActive, userData }) {
 
     const initializeWallets = useCallback(async () => {
         try {
-            const walletsData = await generateWallets();
+            if (!userData) {
+                console.log('No user data available');
+                return;
+            }
+
+            console.log('Initializing wallets for user:', userData.telegram_user_id);
             
-            const allTokens = getAllTokens();
+            // Получаем все токены пользователя
+            const allTokens = await getAllTokens(userData);
             
-            if (!Array.isArray(allTokens)) {
+            if (!Array.isArray(allTokens) || allTokens.length === 0) {
+                console.log('No tokens found for user');
                 setWallets([]);
                 return;
             }
+
+            console.log('Found tokens:', allTokens.length);
             
-            const addressMap = {};
-            if (walletsData && walletsData.wallets) {
-                walletsData.wallets.forEach(wallet => {
-                    addressMap[wallet.blockchain] = wallet.address;
-                });
-            }
+            // Устанавливаем начальные кошельки
+            setWallets(allTokens);
             
-            const allWallets = allTokens.map(token => {
-                const address = addressMap[token.blockchain] || '';
-                
-                return {
-                    id: token.id,
-                    name: token.name,
-                    symbol: token.symbol,
-                    address: address,
-                    blockchain: token.blockchain,
-                    balance: '0',
-                    isActive: true,
-                    decimals: token.decimals,
-                    logo: token.logo,
-                    isNative: token.isNative,
-                    contractAddress: token.contractAddress,
-                    showBlockchain: true
-                };
-            });
-            
-            setWallets(allWallets);
-            
-            localStorage.setItem('cached_wallets', JSON.stringify(allWallets));
+            // Кэшируем в localStorage
+            localStorage.setItem('cached_wallets', JSON.stringify(allTokens));
             
             try {
-                const updatedWallets = await getBalances(allWallets);
+                // Получаем актуальные балансы
+                const updatedWallets = await getBalances(allTokens);
                 setWallets(updatedWallets);
                 
+                // Рассчитываем общий баланс
                 const total = await calculateTotalBalance(updatedWallets);
                 setTotalBalance(`$${total}`);
+                
+                console.log('Balances updated successfully');
             } catch (balanceError) {
-                const total = allWallets.reduce((sum, wallet) => {
-                    const price = getTokenPrice(wallet.symbol);
+                console.error('Error updating balances:', balanceError);
+                
+                // Используем fallback расчет
+                const prices = {
+                    'TON': 6.24,
+                    'SOL': 172.34,
+                    'ETH': 3500.00,
+                    'USDT': 1.00,
+                    'USDC': 1.00
+                };
+                
+                const total = allTokens.reduce((sum, wallet) => {
+                    const price = prices[wallet.symbol] || 1.00;
                     return sum + (parseFloat(wallet.balance || 0) * price);
                 }, 0);
+                
                 setTotalBalance(`$${total.toFixed(2)}`);
             }
             
         } catch (error) {
+            console.error('Error initializing wallets:', error);
             setWallets([]);
         }
-    }, []);
-
-    const getTokenPrice = (symbol) => {
-        const prices = {
-            'TON': 6.24,
-            'SOL': 172.34,
-            'ETH': 3500.00,
-            'USDT': 1.00,
-            'USDC': 1.00
-        };
-        return prices[symbol] || 1.00;
-    };
+    }, [userData]);
 
     useEffect(() => {
-        if (!hasLoadedWallets.current) {
+        if (!hasLoadedWallets.current && userData) {
             initializeWallets();
             hasLoadedWallets.current = true;
         }
-    }, [initializeWallets]);
+    }, [initializeWallets, userData]);
 
     const handleTokenClick = useCallback((wallet) => {
         if (wallet && wallet.symbol) {
             navigate(`/wallet/token/${wallet.symbol}`, { 
                 state: { 
                     ...wallet,
-                    blockchain: wallet.blockchain
+                    blockchain: wallet.blockchain,
+                    userData: userData
                 }
             });
         }
-    }, [navigate]);
+    }, [navigate, userData]);
 
     const handleActionClick = useCallback((action) => {
+        if (!userData || !wallets.length) return;
+
         if (action === 'receive') {
-            if (wallets.length > 0) {
-                const firstWallet = wallets.find(w => w.address);
-                if (firstWallet) {
-                    navigate('/receive', { state: { wallet: firstWallet } });
-                } else {
-                    // Если нет адреса, переходим на первую страницу токена
-                    navigate('/wallet/token/' + wallets[0].symbol, { state: wallets[0] });
-                }
+            const firstWallet = wallets.find(w => w.address);
+            if (firstWallet) {
+                navigate('/receive', { 
+                    state: { 
+                        wallet: firstWallet,
+                        userData: userData 
+                    } 
+                });
+            } else {
+                navigate('/wallet/token/' + wallets[0].symbol, { 
+                    state: { 
+                        ...wallets[0],
+                        userData: userData 
+                    } 
+                });
             }
         } else if (action === 'send') {
-            if (wallets.length > 0) {
-                const firstWallet = wallets.find(w => w.address);
-                if (firstWallet) {
-                    navigate('/send', { state: { wallet: firstWallet } });
-                } else {
-                    // Если нет адреса, переходим на первую страницу токена
-                    navigate('/wallet/token/' + wallets[0].symbol, { state: wallets[0] });
-                }
+            const firstWallet = wallets.find(w => w.address);
+            if (firstWallet) {
+                navigate('/send', { 
+                    state: { 
+                        wallet: firstWallet,
+                        userData: userData 
+                    } 
+                });
+            } else {
+                navigate('/wallet/token/' + wallets[0].symbol, { 
+                    state: { 
+                        ...wallets[0],
+                        userData: userData 
+                    } 
+                });
             }
         } else if (action === 'earn') {
-            navigate('/stake');
+            navigate('/stake', { state: { userData } });
         } else if (action === 'swap') {
-            navigate('/swap');
+            navigate('/swap', { state: { userData } });
         }
-    }, [wallets, navigate]);
+    }, [wallets, navigate, userData]);
+
+    const checkCachedWallets = () => {
+        try {
+            const cachedWallets = localStorage.getItem('cached_wallets');
+            if (cachedWallets) {
+                const wallets = JSON.parse(cachedWallets);
+                if (wallets.length > 0) {
+                    setWallets(wallets);
+                    return true;
+                }
+            }
+        } catch (error) {
+            console.error('Error checking cached wallets:', error);
+        }
+        return false;
+    };
 
     useEffect(() => {
-        const checkCachedWallets = () => {
-            try {
-                const cachedWallets = localStorage.getItem('cached_wallets');
-                if (cachedWallets) {
-                    const wallets = JSON.parse(cachedWallets);
-                    if (wallets.length > 0) {
-                        setWallets(wallets);
-                        return true;
-                    }
-                }
-            } catch (error) {
-                // Ignore error
-            }
-            return false;
-        };
-        
         if (!hasLoadedWallets.current) {
             checkCachedWallets();
         }
     }, []);
+
 
     return (
         <div className="page-container">
@@ -188,6 +196,7 @@ function Wallet({ isActive, userData }) {
                     <button 
                         className="wallet-action-btn"
                         onClick={() => handleActionClick('receive')}
+                        disabled={!wallets.length}
                     >
                         <span className="wallet-action-btn-icon gold-icon">↓</span>
                         <span className="wallet-action-btn-text">Receive</span>
@@ -195,6 +204,7 @@ function Wallet({ isActive, userData }) {
                     <button 
                         className="wallet-action-btn"
                         onClick={() => handleActionClick('send')}
+                        disabled={!wallets.length}
                     >
                         <span className="wallet-action-btn-icon gold-icon">↑</span>
                         <span className="wallet-action-btn-text">Send</span>
@@ -215,7 +225,7 @@ function Wallet({ isActive, userData }) {
                     </button>
                 </div>
 
-                {/* Security Section - ТОЛЬКО СТАТИЧНЫЙ UI (без логики) */}
+                {/* Security Section */}
                 <div className="security-block">
                     <div className="security-content">
                         <div className="security-icon">🔐</div>
