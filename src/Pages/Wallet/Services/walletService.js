@@ -1,7 +1,7 @@
 // Services/walletService.js
 import { generateNewSeedPhrase, generateWalletsFromSeed } from './storageService';
 
-const WALLET_API_URL = 'https://cryptopayappbackend.netlify.app/.netlify/functions';
+const WALLET_API_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions';
 
 // Инициализация кошельков пользователя
 export const initializeUserWallets = async (userData) => {

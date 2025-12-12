@@ -11,7 +11,7 @@ import SendToken from './Pages/Wallet/Subpages/Send/SendToken';
 import ReceiveToken from './Pages/Wallet/Subpages/Receive/ReceiveToken';
 import { initializeUserWallets } from './Pages/Wallet/Services/walletService';
 
-const AUTH_FUNCTION_URL = 'https://cryptopayappbackend.netlify.app/.netlify/functions/auth';
+const AUTH_FUNCTION_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions/auth';
 
 const App = () => {
     const location = useLocation();
