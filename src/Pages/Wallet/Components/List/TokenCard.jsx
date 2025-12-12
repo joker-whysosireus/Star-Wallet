@@ -2,6 +2,10 @@ import React from 'react';
 import './TokenCard.css';
 
 const TokenCard = ({ wallet }) => {
+    if (!wallet) {
+        return null;
+    }
+    
     const getBlockchainBadge = (blockchain) => {
         const badges = {
             'TON': { color: '#0088cc', text: 'TON' },

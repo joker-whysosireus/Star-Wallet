@@ -47,24 +47,6 @@ const ReceiveToken = ({ userData }) => {
         }
     };
     
-    if (!token) {
-        return (
-            <div className="wallet-page">
-                <Header userData={userData} />
-                <div className="page-content">
-                    <h1 style={{ color: 'white' }}>Token not found</h1>
-                    <button 
-                        onClick={() => navigate('/wallet')}
-                        className="action-button"
-                    >
-                        Back to Wallet
-                    </button>
-                </div>
-                <Menu />
-            </div>
-        );
-    }
-    
     const getHeaderText = () => {
         if (token.symbol === 'USDT' || token.symbol === 'USDC') {
             return `Your ${token.blockchain} ${token.symbol} Address`;
