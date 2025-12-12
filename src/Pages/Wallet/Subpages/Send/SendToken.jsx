@@ -1,4 +1,3 @@
-// Pages/Wallet/Subpages/Send/SendToken.jsx
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import QRScannerModal from './Components/QR/QRScannerModal';
@@ -169,9 +168,14 @@ const SendToken = ({ userData }) => {
         return (
             <div className="wallet-page">
                 <Header userData={userData} />
-                <div className="loading-container">
-                    <div className="loader"></div>
-                    <p>Loading...</p>
+                <div className="page-content">
+                    <h1 style={{ color: 'white' }}>Token not found</h1>
+                    <button 
+                        onClick={() => navigate('/wallet')}
+                        className="action-button"
+                    >
+                        Back to Wallet
+                    </button>
                 </div>
                 <Menu />
             </div>

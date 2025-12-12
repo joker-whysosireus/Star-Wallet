@@ -1,4 +1,3 @@
-// Pages/Wallet/Wallet.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from "../../assets/Header/Header";
@@ -14,7 +13,6 @@ import './Wallet.css';
 function Wallet({ isActive, userData }) {
     const [wallets, setWallets] = useState([]);
     const [totalBalance, setTotalBalance] = useState('$0.00');
-    const [isLoading, setIsLoading] = useState(true);
     const navigate = useNavigate();
     
     const hasLoadedWallets = useRef(false);
@@ -38,26 +36,22 @@ function Wallet({ isActive, userData }) {
         try {
             if (!userData) {
                 console.log('No user data available');
-                setIsLoading(false);
+                setWallets([]);
                 return;
             }
 
             console.log('Initializing wallets with user data:', userData);
             
-            // Получаем все токены для пользователя
             const allTokens = await getAllTokens(userData);
             
             if (!Array.isArray(allTokens)) {
                 setWallets([]);
-                setIsLoading(false);
                 return;
             }
             
-            // Получаем балансы токенов
             const walletsWithBalances = await getBalances(allTokens, userData);
             setWallets(walletsWithBalances);
             
-            // Рассчитываем общий баланс
             const total = await calculateTotalBalance(walletsWithBalances);
             setTotalBalance(`$${total}`);
             
@@ -66,13 +60,11 @@ function Wallet({ isActive, userData }) {
         } catch (error) {
             console.error('Error initializing wallets:', error);
             setWallets([]);
-        } finally {
-            setIsLoading(false);
         }
     }, [userData]);
 
     useEffect(() => {
-        if (userData && !hasLoadedWallets.current) {
+        if (!hasLoadedWallets.current && userData) {
             initializeWallets();
             hasLoadedWallets.current = true;
         }
@@ -95,10 +87,7 @@ function Wallet({ isActive, userData }) {
 
         const firstWallet = wallets.find(w => w.address);
         
-        if (!firstWallet) {
-            console.log('No wallet with address found');
-            return;
-        }
+        if (!firstWallet) return;
 
         switch (action) {
             case 'receive':
@@ -127,19 +116,6 @@ function Wallet({ isActive, userData }) {
                 break;
         }
     }, [wallets, navigate, userData]);
-
-    if (isLoading) {
-        return (
-            <div className="page-container">
-                <Header userData={userData} />
-                <div className="loading-container">
-                    <div className="loader"></div>
-                    <p>Loading wallets...</p>
-                </div>
-                <Menu />
-            </div>
-        );
-    }
 
     return (
         <div className="page-container">
@@ -209,12 +185,6 @@ function Wallet({ isActive, userData }) {
                     ) : (
                         <div className="no-wallets-message">
                             <p>No wallets found</p>
-                            <button 
-                                onClick={initializeWallets}
-                                className="retry-button"
-                            >
-                                Retry Loading
-                            </button>
                         </div>
                     )}
                 </div>

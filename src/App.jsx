@@ -1,8 +1,6 @@
-// App.jsx
 import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 
-// Импорт компонентов
 import History from './Pages/History/History';
 import Swap from './Pages/Swap/Swap';
 import Wallet from './Pages/Wallet/Wallet';
@@ -18,10 +16,7 @@ const App = () => {
     const navigate = useNavigate();
     const [isActive, setIsActive] = useState(false);
     const [userData, setUserData] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [authError, setAuthError] = useState(null);
 
-    // Управление кнопкой BackButton Telegram WebApp
     useEffect(() => {
         const isTelegramWebApp = () => {
             try {
@@ -52,7 +47,6 @@ const App = () => {
         }
     }, [location, navigate]);
 
-    // Initialize Telegram WebApp
     useEffect(() => {
         console.log("App.jsx: Initializing Telegram WebApp");
 
@@ -99,11 +93,10 @@ const App = () => {
                 console.error("Error initializing Telegram WebApp:", error);
             }
         } else {
-            console.warn("Not in Telegram WebApp environment, running in standalone mode");
+            console.warn("Not in Telegram WebApp environment");
         }
     }, []);
 
-    // User authentication
     useEffect(() => {
         console.log("App.jsx: Starting authentication process");
         
@@ -141,65 +134,22 @@ const App = () => {
                     if (data.isValid) {
                         console.log("App.jsx: Authentication successful");
                         setUserData(data.userData);
-                        setAuthError(null);
                     } else {
                         console.warn("App.jsx: Authentication failed");
-                        setAuthError(data.error || "Authentication failed");
+                        setUserData(null);
                     }
                 } catch (error) {
                     console.error("App.jsx: Authentication error:", error);
-                    setAuthError(error.message);
-                } finally {
-                    setIsLoading(false);
+                    setUserData(null);
                 }
             } else {
-                console.warn("App.jsx: No initData available, running in demo mode");
-                
-                // Демо режим для разработки
-                const demoUserData = {
-                    telegram_user_id: 123456789,
-                    username: 'demo_user',
-                    wallet_addresses: {},
-                    token_balances: {},
-                    transactions: [],
-                    first_name: 'Demo',
-                    last_name: 'User',
-                    avatar: null,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                };
-                
-                setUserData(demoUserData);
-                setIsLoading(false);
+                console.warn("App.jsx: No initData available");
+                setUserData(null);
             }
         };
 
         authenticateUser();
     }, []);
-
-    if (isLoading) {
-        return (
-            <div className="app-loading-container">
-                <div className="app-loader"></div>
-                <p>Loading Star Wallet...</p>
-            </div>
-        );
-    }
-
-    if (authError) {
-        return (
-            <div className="app-error-container">
-                <h2>Authentication Error</h2>
-                <p>{authError}</p>
-                <button 
-                    onClick={() => window.location.reload()}
-                    className="retry-button"
-                >
-                    Retry
-                </button>
-            </div>
-        );
-    }
 
     return (
         <Routes location={location}>

@@ -1,4 +1,3 @@
-// Pages/Wallet/Subpages/Details/TokenDetail.jsx
 import React, { useState, useEffect } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import Header from '../../../../assets/Header/Header';
@@ -16,7 +15,6 @@ const TokenDetail = ({ userData }) => {
     const navigate = useNavigate();
     
     const [wallet, setWallet] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
     const [usdValue, setUsdValue] = useState('0.00');
     
     useEffect(() => {
@@ -32,17 +30,10 @@ const TokenDetail = ({ userData }) => {
                     if (token) {
                         setWallet(token);
                         loadBalances(token);
-                    } else {
-                        console.error(`Token ${symbol} not found in user data`);
-                        setIsLoading(false);
                     }
-                } else {
-                    console.error('No symbol or user data available');
-                    setIsLoading(false);
                 }
             } catch (error) {
                 console.error('Error loading token data:', error);
-                setIsLoading(false);
             }
         };
 
@@ -65,23 +56,8 @@ const TokenDetail = ({ userData }) => {
             }
         } catch (error) {
             console.error('Error loading balances:', error);
-        } finally {
-            setIsLoading(false);
         }
     };
-
-    if (isLoading) {
-        return (
-            <div className="page-container">
-                <Header userData={userData} />
-                <div className="loading-container">
-                    <div className="loader"></div>
-                    <p>Loading token details...</p>
-                </div>
-                <Menu />
-            </div>
-        );
-    }
 
     if (!wallet) {
         return (

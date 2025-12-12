@@ -1,4 +1,3 @@
-// Pages/Wallet/Subpages/Receive/ReceiveToken.jsx
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
@@ -52,9 +51,14 @@ const ReceiveToken = ({ userData }) => {
         return (
             <div className="wallet-page">
                 <Header userData={userData} />
-                <div className="loading-container">
-                    <div className="loader"></div>
-                    <p>Loading...</p>
+                <div className="page-content">
+                    <h1 style={{ color: 'white' }}>Token not found</h1>
+                    <button 
+                        onClick={() => navigate('/wallet')}
+                        className="action-button"
+                    >
+                        Back to Wallet
+                    </button>
                 </div>
                 <Menu />
             </div>
@@ -120,7 +124,6 @@ const ReceiveToken = ({ userData }) => {
                     ) : (
                         <div className="no-address-message">
                             <p>Address not available</p>
-                            <p>Please make sure your wallet is properly initialized</p>
                         </div>
                     )}
                 </div>
