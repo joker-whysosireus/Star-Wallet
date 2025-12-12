@@ -7,7 +7,6 @@ import * as bip39 from 'bip39';
 
 const NETLIFY_FUNCTIONS_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions';
 
-// Получение данных пользователя из Supabase
 export const getUserDataFromSupabase = async (telegramUserId) => {
     try {
         const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/getWallets`, {
@@ -31,7 +30,6 @@ export const getUserDataFromSupabase = async (telegramUserId) => {
     }
 };
 
-// Сохранение сид-фразы в Supabase
 export const saveSeedPhraseToSupabase = async (telegramUserId, seedPhrase, pinCode = null) => {
     try {
         const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/saveSeedPhrase`, {
@@ -59,7 +57,6 @@ export const saveSeedPhraseToSupabase = async (telegramUserId, seedPhrase, pinCo
     }
 };
 
-// Сохранение адресов кошельков в Supabase
 export const saveWalletAddressesToSupabase = async (telegramUserId, walletAddresses) => {
     try {
         const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/saveWalletAddresses`, {
@@ -86,7 +83,6 @@ export const saveWalletAddressesToSupabase = async (telegramUserId, walletAddres
     }
 };
 
-// Обновление балансов в Supabase
 export const updateBalancesInSupabase = async (telegramUserId, tokenBalances) => {
     try {
         const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/updateBalances`, {
@@ -113,7 +109,6 @@ export const updateBalancesInSupabase = async (telegramUserId, tokenBalances) =>
     }
 };
 
-// Генерация новой сид-фразы
 export const generateNewSeedPhrase = async () => {
     try {
         const seedPhrase = bip39.generateMnemonic(128);
@@ -139,7 +134,6 @@ export const generateNewSeedPhrase = async () => {
     }
 };
 
-// Генерация адресов из сид-фразы
 const generateWalletAddressesFromSeed = async (seedPhrase) => {
     try {
         console.log('Generating wallet addresses from seed...');
@@ -148,7 +142,6 @@ const generateWalletAddressesFromSeed = async (seedPhrase) => {
             throw new Error('Seed phrase is required');
         }
 
-        // Генерация TON адреса
         let tonAddress;
         try {
             const tonKeyPair = await mnemonicToWalletKey(seedPhrase.split(' '));
@@ -163,7 +156,6 @@ const generateWalletAddressesFromSeed = async (seedPhrase) => {
             tonAddress = 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
         }
 
-        // Генерация Solana адреса
         let solanaAddress;
         try {
             const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -176,7 +168,6 @@ const generateWalletAddressesFromSeed = async (seedPhrase) => {
             solanaAddress = 'So11111111111111111111111111111111111111112';
         }
 
-        // Генерация Ethereum адреса
         let ethAddress;
         try {
             const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -202,16 +193,13 @@ const generateWalletAddressesFromSeed = async (seedPhrase) => {
     }
 };
 
-// Генерация структуры кошельков с адресами
 export const generateWalletsFromAddresses = async (addresses, userData = null) => {
     try {
         console.log('Generating wallets from addresses...');
         
-        // Получаем балансы из userData если есть
         const tokenBalances = userData?.token_balances || {};
         
         const wallets = [
-            // TON Blockchain
             {
                 id: 'ton',
                 name: 'Toncoin',
@@ -255,7 +243,6 @@ export const generateWalletsFromAddresses = async (addresses, userData = null) =
                 logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
             },
 
-            // Solana Blockchain
             {
                 id: 'sol',
                 name: 'Solana',
@@ -299,7 +286,6 @@ export const generateWalletsFromAddresses = async (addresses, userData = null) =
                 logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
             },
 
-            // Ethereum Blockchain
             {
                 id: 'eth',
                 name: 'Ethereum',
@@ -352,7 +338,6 @@ export const generateWalletsFromAddresses = async (addresses, userData = null) =
     }
 };
 
-// Инициализация кошельков пользователя
 export const initializeUserWallets = async (userData) => {
     try {
         console.log('Initializing user wallets...');
@@ -364,36 +349,28 @@ export const initializeUserWallets = async (userData) => {
         let seedPhrase = userData.seed_phrases;
         let walletAddresses = userData.wallet_addresses || {};
 
-        // Если нет сид-фразы, генерируем новую
         if (!seedPhrase) {
             console.log('No seed phrase found, generating new one...');
             seedPhrase = await generateNewSeedPhrase();
             
-            // Сохраняем сид-фразу в Supabase
             await saveSeedPhraseToSupabase(userData.telegram_user_id, seedPhrase);
             
-            // Генерируем адреса из сид-фразы
             walletAddresses = await generateWalletAddressesFromSeed(seedPhrase);
             
-            // Сохраняем адреса в Supabase
             await saveWalletAddressesToSupabase(userData.telegram_user_id, walletAddresses);
             
             console.log('New seed phrase and addresses saved to Supabase');
         } else if (!walletAddresses || Object.keys(walletAddresses).length === 0) {
-            // Если есть сид-фраза, но нет адресов, генерируем адреса
             console.log('Seed phrase found but no addresses, generating addresses...');
             walletAddresses = await generateWalletAddressesFromSeed(seedPhrase);
             
-            // Сохраняем адреса в Supabase
             await saveWalletAddressesToSupabase(userData.telegram_user_id, walletAddresses);
             
             console.log('Addresses generated and saved to Supabase');
         }
 
-        // Генерируем кошельки из адресов
         const wallets = await generateWalletsFromAddresses(walletAddresses, userData);
         
-        // Обновляем userData с новыми данными
         const updatedUserData = {
             ...userData,
             seed_phrases: seedPhrase,
@@ -412,7 +389,6 @@ export const initializeUserWallets = async (userData) => {
     }
 };
 
-// Получение всех токенов для пользователя
 export const getAllTokens = async (userData) => {
     try {
         console.log('Getting all tokens for user...');
@@ -421,16 +397,14 @@ export const getAllTokens = async (userData) => {
             throw new Error('User data is required');
         }
 
-        // Если нет адресов кошельков, инициализируем их
         if (!userData.wallet_addresses || Object.keys(userData.wallet_addresses).length === 0) {
             const result = await initializeUserWallets(userData);
             return result.wallets;
         }
 
-        // Генерируем кошельки из существующих адресов
         const wallets = await generateWalletsFromAddresses(userData.wallet_addresses, userData);
         
-        console.log(`Retrieved ${wallets.length} wallets for user`);
+        console.log(`Generated ${wallets.length} wallets for user`);
         return wallets;
     } catch (error) {
         console.error('Error getting all tokens:', error);
@@ -438,7 +412,6 @@ export const getAllTokens = async (userData) => {
     }
 };
 
-// Получение токена по символу
 export const getTokenBySymbol = async (symbol, userData) => {
     try {
         const wallets = await getAllTokens(userData);
@@ -455,15 +428,12 @@ export const getTokenBySymbol = async (symbol, userData) => {
     }
 };
 
-// Получение балансов кошельков
 export const getBalances = async (wallets, userData = null) => {
     try {
         if (!Array.isArray(wallets) || wallets.length === 0) {
             return wallets || [];
         }
 
-        // Здесь будет логика получения реальных балансов с блокчейнов
-        // Пока возвращаем кошельки с балансами из userData
         const updatedWallets = wallets.map(wallet => {
             if (userData?.token_balances && userData.token_balances[wallet.symbol]) {
                 return {
@@ -481,11 +451,8 @@ export const getBalances = async (wallets, userData = null) => {
     }
 };
 
-// Получение цен токенов
 export const getTokenPrices = async () => {
     try {
-        // Здесь будет логика получения реальных цен
-        // Пока возвращаем статические цены
         return {
             'TON': 6.24,
             'SOL': 172.34,
@@ -499,7 +466,6 @@ export const getTokenPrices = async () => {
     }
 };
 
-// Расчет общего баланса
 export const calculateTotalBalance = async (wallets) => {
     try {
         if (!Array.isArray(wallets) || wallets.length === 0) {
@@ -522,10 +488,8 @@ export const calculateTotalBalance = async (wallets) => {
     }
 };
 
-// Обновление балансов пользователя
 export const updateUserBalances = async (telegramUserId, updatedBalances) => {
     try {
-        // Обновляем балансы в Supabase
         await updateBalancesInSupabase(telegramUserId, updatedBalances);
         
         return {
@@ -538,7 +502,6 @@ export const updateUserBalances = async (telegramUserId, updatedBalances) => {
     }
 };
 
-// Экспорт функций для обратной совместимости
 export default {
     getUserDataFromSupabase,
     saveSeedPhraseToSupabase,
