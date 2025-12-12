@@ -2,56 +2,55 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
+import { TOKENS } from '../../Services/tokensConfig';
 import { 
     getBalances,
-    getTokenPrices,
-    getTokenBySymbol 
+    getTokenPrices 
 } from '../../Services/storageService';
 import './TokenDetail.css';
 
-const TokenDetail = ({ userData }) => {
+const TokenDetail = () => {
     const { symbol } = useParams();
     const location = useLocation();
     const navigate = useNavigate();
     
     const [wallet, setWallet] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
     const [usdValue, setUsdValue] = useState('0.00');
     
     useEffect(() => {
-        const loadTokenData = async () => {
-            try {
-                const walletData = location.state?.wallet || location.state;
-                
-                if (walletData) {
-                    setWallet(walletData);
-                    loadBalances(walletData);
-                } else if (symbol && userData) {
-                    const token = await getTokenBySymbol(symbol, userData);
-                    if (token) {
-                        setWallet(token);
-                        loadBalances(token);
-                    }
-                }
-            } catch (error) {
-                console.error('Error loading token data:', error);
+        const walletData = location.state?.wallet || location.state;
+        
+        if (walletData) {
+            setWallet(walletData);
+            loadBalances();
+        } else if (symbol) {
+            const token = Object.values(TOKENS).find(t => t.symbol === symbol);
+            if (token) {
+                const mockWallet = {
+                    ...token,
+                    address: 'TQCc68Mp5dZ2Lm9XrJARoqo2D4Xtye5gFkR',
+                    balance: '25.43',
+                    isActive: true
+                };
+                setWallet(mockWallet);
+                setUsdValue((25.43 * 6.24).toFixed(2));
             }
-        };
+        }
+        
+        setIsLoading(false);
+    }, [symbol, location.state]);
 
-        loadTokenData();
-    }, [symbol, location.state, userData]);
-
-    const loadBalances = async (walletToLoad) => {
-        if (!walletToLoad) return;
+    const loadBalances = async () => {
+        if (!wallet) return;
         
         try {
-            const updatedWallets = await getBalances([walletToLoad], userData);
+            const updatedWallets = await getBalances([wallet]);
             if (updatedWallets && updatedWallets.length > 0) {
-                const updatedWallet = updatedWallets[0];
-                setWallet(updatedWallet);
-                
+                setWallet(updatedWallets[0]);
                 const prices = await getTokenPrices();
-                const price = prices[updatedWallet.symbol] || 1;
-                const usd = parseFloat(updatedWallet.balance || 0) * price;
+                const price = prices[wallet.symbol] || 1;
+                const usd = parseFloat(updatedWallets[0].balance) * price;
                 setUsdValue(usd.toFixed(2));
             }
         } catch (error) {
@@ -59,10 +58,23 @@ const TokenDetail = ({ userData }) => {
         }
     };
 
+    if (isLoading && !wallet) {
+        return (
+            <div className="page-container">
+                <Header />
+                <div className="loading-container">
+                    <div className="loader"></div>
+                    <p>Loading token details...</p>
+                </div>
+                <Menu />
+            </div>
+        );
+    }
+
     if (!wallet) {
         return (
             <div className="page-container">
-                <Header userData={userData} />
+                <Header />
                 <div className="page-content">
                     <h1 style={{ color: 'white' }}>Token not found</h1>
                     <button 
@@ -79,36 +91,16 @@ const TokenDetail = ({ userData }) => {
 
     return (
         <div className="page-container">
-            <Header userData={userData} />
+            <Header />
             
             <div className="page-content">
                 <div className="token-header">
                     <h1>{wallet.name}</h1>
-                    <p className="token-blockchain">{wallet.blockchain} Network</p>
                 </div>
                 
                 <div className="token-icon-container">
                     <div className="token-icon-large">
-                        {wallet.logo ? (
-                            <img 
-                                src={wallet.logo} 
-                                alt={wallet.symbol}
-                                className="token-logo-large"
-                                onError={(e) => {
-                                    e.target.style.display = 'none';
-                                    const fallback = e.target.nextElementSibling;
-                                    if (fallback) fallback.style.display = 'flex';
-                                }}
-                            />
-                        ) : null}
-                        <div 
-                            className="token-icon-fallback"
-                            style={{
-                                display: wallet.logo ? 'none' : 'flex'
-                            }}
-                        >
-                            {wallet.symbol.substring(0, 2)}
-                        </div>
+                        {wallet.symbol.substring(0, 2)}
                     </div>
                 </div>
                 
@@ -117,65 +109,113 @@ const TokenDetail = ({ userData }) => {
                     <p className="usd-amount">${usdValue}</p>
                 </div>
                 
-                <div className="token-action-buttons">
+                {/* ГОРИЗОНТАЛЬНЫЕ КНОПКИ - 3 штуки рядом друг с другом */}
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    gap: '15px',
+                    width: '100%',
+                    maxWidth: '400px',
+                    marginTop: '10px'
+                }}>
                     <button 
-                        className="token-action-btn"
-                        onClick={() => navigate('/receive', { 
-                            state: { 
-                                wallet,
-                                userData
-                            } 
-                        })}
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: 'none',
+                            borderRadius: '10px',
+                            color: 'white',
+                            padding: '12px 6px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            flex: 1,
+                            minWidth: '55px',
+                            height: '55px',
+                            transition: 'all 0.2s ease',
+                            maxWidth: '100px'
+                        }}
+                        onClick={() => navigate('/receive', { state: { wallet } })}
                     >
-                        <span className="token-action-btn-icon">↓</span>
-                        <span className="token-action-btn-text">Receive</span>
+                        <span style={{
+                            fontSize: '18px',
+                            marginBottom: '4px',
+                            display: 'block',
+                            color: '#FFD700'
+                        }}>↓</span>
+                        <span style={{
+                            fontSize: '11px',
+                            fontWeight: '500'
+                        }}>Receive</span>
                     </button>
                     
                     <button 
-                        className="token-action-btn"
-                        onClick={() => navigate('/send', { 
-                            state: { 
-                                wallet,
-                                userData
-                            } 
-                        })}
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: 'none',
+                            borderRadius: '10px',
+                            color: 'white',
+                            padding: '12px 6px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            flex: 1,
+                            minWidth: '55px',
+                            height: '55px',
+                            transition: 'all 0.2s ease',
+                            maxWidth: '100px'
+                        }}
+                        onClick={() => navigate('/send', { state: { wallet } })}
                     >
-                        <span className="token-action-btn-icon">↑</span>
-                        <span className="token-action-btn-text">Send</span>
+                        <span style={{
+                            fontSize: '18px',
+                            marginBottom: '4px',
+                            display: 'block',
+                            color: '#FFD700'
+                        }}>↑</span>
+                        <span style={{
+                            fontSize: '11px',
+                            fontWeight: '500'
+                        }}>Send</span>
                     </button>
                     
                     <button 
-                        className="token-action-btn"
-                        onClick={() => navigate('/swap', { state: { userData } })}
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: 'none',
+                            borderRadius: '10px',
+                            color: 'white',
+                            padding: '12px 6px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            flex: 1,
+                            minWidth: '55px',
+                            height: '55px',
+                            transition: 'all 0.2s ease',
+                            maxWidth: '100px'
+                        }}
+                        onClick={() => navigate('/swap')}
                     >
-                        <span className="token-action-btn-icon">↔</span>
-                        <span className="token-action-btn-text">Swap</span>
+                        <span style={{
+                            fontSize: '18px',
+                            marginBottom: '4px',
+                            display: 'block',
+                            color: '#FFD700'
+                        }}>↔</span>
+                        <span style={{
+                            fontSize: '11px',
+                            fontWeight: '500'
+                        }}>Swap</span>
                     </button>
-                </div>
-                
-                <div className="token-info-section">
-                    <div className="token-info-item">
-                        <span className="token-info-label">Network:</span>
-                        <span className="token-info-value">{wallet.blockchain}</span>
-                    </div>
-                    <div className="token-info-item">
-                        <span className="token-info-label">Contract:</span>
-                        <span className="token-info-value">
-                            {wallet.contractAddress ? 
-                                `${wallet.contractAddress.substring(0, 10)}...` : 
-                                'Native Token'
-                            }
-                        </span>
-                    </div>
-                    <div className="token-info-item">
-                        <span className="token-info-label">Address:</span>
-                        <span className="token-info-value">
-                            {wallet.address ? 
-                                `${wallet.address.substring(0, 10)}...` : 
-                                'Not available'
-                            }
-                        </span>
-                    </div>
                 </div>
             </div>
             
