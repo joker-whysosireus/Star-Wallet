@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-
-// Импорт компонентов
 import History from './Pages/History/History';
 import Swap from './Pages/Swap/Swap';
 import Wallet from './Pages/Wallet/Wallet';
@@ -24,9 +22,7 @@ const App = () => {
     const [isPinSet, setIsPinSet] = useState(false);
     const [isPinVerified, setIsPinVerified] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
-    const [authChecked, setAuthChecked] = useState(false);
 
-    // Управление кнопкой BackButton Telegram WebApp
     useEffect(() => {
         const isTelegramWebApp = () => {
             try {
@@ -57,7 +53,6 @@ const App = () => {
         }
     }, [location, navigate]);
 
-    // Initialize Telegram WebApp
     useEffect(() => {
         const isTelegramWebApp = () => {
             try {
@@ -92,14 +87,11 @@ const App = () => {
                 setIsActive(webApp.isActive);
                 
             } catch (error) {
-                console.error("Error initializing Telegram WebApp:", error);
+                // ignore error
             }
-        } else {
-            console.warn("Not in Telegram WebApp environment, running in standalone mode");
         }
     }, []);
 
-    // Check if user has PIN set
     const checkUserPin = async (telegramUserId) => {
         try {
             const response = await fetch(`${PIN_API_URL}/check-pin`, {
@@ -116,12 +108,10 @@ const App = () => {
             }
             return false;
         } catch (error) {
-            console.error("App.jsx: Error checking user PIN:", error);
             return false;
         }
     };
 
-    // User authentication and PIN check
     useEffect(() => {
         const getInitData = () => {
             try {
@@ -134,19 +124,13 @@ const App = () => {
         const initData = getInitData();
 
         if (initData) {
-            const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error("Authentication timeout")), 15000)
-            );
-            
-            const authPromise = fetch(AUTH_FUNCTION_URL, {
+            fetch(AUTH_FUNCTION_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ initData }),
-            });
-
-            Promise.race([authPromise, timeoutPromise])
+            })
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
@@ -155,64 +139,43 @@ const App = () => {
                 })
                 .then(async (data) => {
                     if (data.isValid && data.userData) {
-                        setUserData(data.userData);
-                        
-                        // Then check PIN status
                         const hasPin = await checkUserPin(data.userData.telegram_user_id);
                         
                         setIsPinSet(hasPin);
                         
-                        // Initialize wallets regardless of PIN status
                         try {
                             const initializedUserData = await initializeUserWallets(data.userData);
                             
                             if (initializedUserData) {
-                                setUserData(prev => ({ ...prev, ...initializedUserData }));
+                                setUserData(initializedUserData);
+                            } else {
+                                setUserData(data.userData);
                             }
                         } catch (walletError) {
-                            console.error("App.jsx: Error initializing wallets:", walletError);
+                            setUserData(data.userData);
                         }
-                        
-                        // If user has PIN, check if already verified
-                        if (hasPin) {
-                            const isVerified = localStorage.getItem('pin_verified') === 'true';
-                            if (isVerified) {
-                                setIsPinVerified(true);
-                            }
-                        }
-                        
-                        setAuthChecked(true);
-                    } else {
-                        setAuthChecked(true);
                     }
                 })
                 .catch(error => {
-                    console.error("App.jsx: Authentication error:", error);
-                    setAuthChecked(true);
+                    // ignore error
                 })
                 .finally(() => {
                     setIsLoading(false);
                 });
         } else {
-            setAuthChecked(true);
             setIsLoading(false);
         }
     }, []);
 
-    // Handle PIN creation
     const handlePinCreated = () => {
         setIsPinSet(true);
         setIsPinVerified(true);
-        localStorage.setItem('pin_verified', 'true');
     };
 
-    // Handle PIN verification
     const handlePinVerified = () => {
         setIsPinVerified(true);
-        localStorage.setItem('pin_verified', 'true');
     };
 
-    // Handle logout
     const handleLogout = () => {
         setIsPinVerified(false);
         localStorage.clear();
@@ -228,29 +191,23 @@ const App = () => {
         );
     }
 
-    // Wait for auth to complete
-    if (!authChecked) {
+    if (!userData) {
         return (
             <div className="loading-screen">
                 <div className="loader"></div>
-                <p>Checking authentication...</p>
+                <p>Loading user data...</p>
             </div>
         );
     }
 
-
-
-    // If PIN is not set, show CreatePin page
     if (!isPinSet) {
         return <CreatePin userData={userData} onPinCreated={handlePinCreated} />;
     }
 
-    // If PIN is set but not verified, show EnterPin page
     if (!isPinVerified) {
         return <EnterPin userData={userData} onPinVerified={handlePinVerified} />;
     }
 
-    // If PIN is verified, show main app
     return (
         <Routes location={location}>
             <Route path="/" element={
