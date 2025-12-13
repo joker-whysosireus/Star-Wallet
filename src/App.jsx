@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+
+// Импорт компонентов
 import History from './Pages/History/History';
 import Swap from './Pages/Swap/Swap';
 import Wallet from './Pages/Wallet/Wallet';
@@ -7,22 +9,18 @@ import TokenDetail from './Pages/Wallet/Subpages/Details/TokenDetail';
 import Stake from './Pages/Stake/Stake';
 import SendToken from './Pages/Wallet/Subpages/Send/SendToken';
 import ReceiveToken from './Pages/Wallet/Subpages/Receive/ReceiveToken';
-import CreatePin from './assets/PIN/CreatePin/CreatePin';
-import EnterPin from './assets/PIN/EnterPin/EnterPin';
+import BackupSeedPhrase from './Pages/Wallet/Subpages/BackupSeedPhrase/BackupSeedPhrase';
 import { initializeUserWallets } from './Pages/Wallet/Services/walletService';
 
 const AUTH_FUNCTION_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions/auth';
-const PIN_API_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions';
 
 const App = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const [isActive, setIsActive] = useState(false);
     const [userData, setUserData] = useState(null);
-    const [isPinSet, setIsPinSet] = useState(false);
-    const [isPinVerified, setIsPinVerified] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
 
+    // Управление кнопкой BackButton Telegram WebApp
     useEffect(() => {
         const isTelegramWebApp = () => {
             try {
@@ -35,6 +33,7 @@ const App = () => {
         if (isTelegramWebApp()) {
             const webApp = window.Telegram.WebApp;
             
+            // Определяем, на главной ли мы странице
             const isRootPage = location.pathname === '/' || 
                              location.pathname === '/wallet';
             
@@ -53,7 +52,10 @@ const App = () => {
         }
     }, [location, navigate]);
 
+    // Initialize Telegram WebApp
     useEffect(() => {
+        console.log("App.jsx: useEffect triggered");
+
         const isTelegramWebApp = () => {
             try {
                 return window.Telegram && window.Telegram.WebApp;
@@ -65,6 +67,7 @@ const App = () => {
         if (isTelegramWebApp()) {
             try {
                 const webApp = window.Telegram.WebApp;
+                console.log("Telegram WebApp detected, initializing...");
                 
                 webApp.isVerticalSwipesEnabled = false;
                 
@@ -74,6 +77,7 @@ const App = () => {
 
                 if (webApp.expand) {
                     webApp.expand();
+                    console.log("Telegram WebApp expanded to full screen");
                 }
                 
                 if (webApp.enableClosingConfirmation) {
@@ -84,35 +88,21 @@ const App = () => {
                     webApp.requestFullscreen();
                 }
                 
+                console.log("Telegram WebApp initialized successfully");
                 setIsActive(webApp.isActive);
                 
             } catch (error) {
-                // ignore error
+                console.error("Error initializing Telegram WebApp:", error);
             }
+        } else {
+            console.warn("Not in Telegram WebApp environment, running in standalone mode");
         }
     }, []);
 
-    const checkUserPin = async (telegramUserId) => {
-        try {
-            const response = await fetch(`${PIN_API_URL}/check-pin`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ telegram_user_id: telegramUserId }),
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                return data.success ? data.hasPin : false;
-            }
-            return false;
-        } catch (error) {
-            return false;
-        }
-    };
-
+    // User authentication and wallet initialization
     useEffect(() => {
+        console.log("App.jsx: Starting authentication check");
+        
         const getInitData = () => {
             try {
                 return window.Telegram?.WebApp?.initData || '';
@@ -122,15 +112,24 @@ const App = () => {
         };
 
         const initData = getInitData();
+        console.log("App.jsx: initData available:", !!initData);
 
         if (initData) {
-            fetch(AUTH_FUNCTION_URL, {
+            console.log("App.jsx: Sending authentication request");
+            
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error("Authentication timeout")), 15000)
+            );
+            
+            const authPromise = fetch(AUTH_FUNCTION_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ initData }),
-            })
+            });
+
+            Promise.race([authPromise, timeoutPromise])
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
@@ -138,96 +137,61 @@ const App = () => {
                     return response.json();
                 })
                 .then(async (data) => {
+                    console.log("App.jsx: Authentication response received");
                     if (data.isValid && data.userData) {
-                        const hasPin = await checkUserPin(data.userData.telegram_user_id);
+                        console.log("App.jsx: Authentication successful");
                         
-                        setIsPinSet(hasPin);
+                        // Initialize user wallets
+                        console.log("App.jsx: Initializing user wallets...");
+                        const initializedUserData = await initializeUserWallets(data.userData);
                         
-                        try {
-                            const initializedUserData = await initializeUserWallets(data.userData);
-                            
-                            if (initializedUserData) {
-                                setUserData(initializedUserData);
-                            } else {
-                                setUserData(data.userData);
-                            }
-                        } catch (walletError) {
+                        if (initializedUserData) {
+                            console.log("App.jsx: User wallets initialized successfully");
+                            setUserData(initializedUserData);
+                        } else {
+                            console.error("App.jsx: Failed to initialize user wallets");
                             setUserData(data.userData);
                         }
+                    } else {
+                        console.error("App.jsx: Authentication failed");
                     }
                 })
                 .catch(error => {
-                    // ignore error
-                })
-                .finally(() => {
-                    setIsLoading(false);
+                    console.error("App.jsx: Authentication error:", error);
                 });
         } else {
-            setIsLoading(false);
+            console.warn("App.jsx: No initData available");
         }
     }, []);
 
-    const handlePinCreated = () => {
-        setIsPinSet(true);
-        setIsPinVerified(true);
-    };
-
-    const handlePinVerified = () => {
-        setIsPinVerified(true);
-    };
-
-    const handleLogout = () => {
-        setIsPinVerified(false);
-        localStorage.clear();
-        window.location.reload();
-    };
-
-    if (isLoading) {
-        return (
-            <div className="loading-screen">
-                <div className="loader"></div>
-                <p>Loading...</p>
-            </div>
-        );
-    }
-
-    if (!userData) {
-        return (
-            <div className="loading-screen">
-                <div className="loader"></div>
-                <p>Loading user data...</p>
-            </div>
-        );
-    }
-
-    if (!isPinSet) {
-        return <CreatePin userData={userData} onPinCreated={handlePinCreated} />;
-    }
-
-    if (!isPinVerified) {
-        return <EnterPin userData={userData} onPinVerified={handlePinVerified} />;
-    }
-
     return (
         <Routes location={location}>
+            {/* Главная страница */}
             <Route path="/" element={
-                <Wallet isActive={isActive} userData={userData} onLogout={handleLogout} />
+                <Wallet isActive={isActive} userData={userData} />
             } />
             
+            {/* Дублирующий маршрут для /wallet */}
             <Route path="/wallet" element={
-                <Wallet isActive={isActive} userData={userData} onLogout={handleLogout} />
+                <Wallet isActive={isActive} userData={userData} />
             } />
             
             <Route path="/wallet/token/:symbol" element={
                 <TokenDetail isActive={isActive} userData={userData} />
             } />
             
+            {/* Новые маршруты для Send и Receive */}
             <Route path="/send" element={
                 <SendToken isActive={isActive} userData={userData} />
             } />
             
             <Route path="/receive" element={
                 <ReceiveToken isActive={isActive} userData={userData} />
+            } />
+            
+            {/* Новый маршрут для Backup Seed Phrase */}
+            <Route path="/backup-seed-phrase" element={
+                <BackupSeedPhrase isActive={isActive} userData={userData} />
             } />
             
             <Route path="/history" element={

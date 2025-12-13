@@ -66,13 +66,13 @@ const ReceiveToken = () => {
             
             <div className="page-content receive-page">
                 <div className="receive-header">
-                    <h2>Your {token.symbol} ({token.blockchain}) Address</h2>
+                    <h2>Your {token.symbol} Address</h2>
                     <p>Receive {token.symbol} to this address</p>
                 </div>
                 
                 <div className="receive-content">
                     <div className="warning-banner">
-                        Only send {token.symbol} on {token.blockchain} tokens to this address
+                        Only send {token.symbol} tokens to this address
                     </div>
                     
                     {token.address ? (
