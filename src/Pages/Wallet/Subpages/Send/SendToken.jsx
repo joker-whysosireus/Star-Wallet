@@ -110,7 +110,7 @@ const SendToken = () => {
             
             <div className="page-content send-page">
                 <div className="send-header">
-                    <h2>Send {token.symbol}</h2>
+                    <h2>Send {token.symbol} on {token.blockchain}</h2>
                     <p>Choose recipient</p>
                 </div>
                 

@@ -9,15 +9,21 @@ import TokenDetail from './Pages/Wallet/Subpages/Details/TokenDetail';
 import Stake from './Pages/Stake/Stake';
 import SendToken from './Pages/Wallet/Subpages/Send/SendToken';
 import ReceiveToken from './Pages/Wallet/Subpages/Receive/ReceiveToken';
+import CreatePin from './assets/PIN/CreatePin/CreatePin';
+import EnterPin from './assets/PIN/EnterPin/EnterPin';
 import { initializeUserWallets } from './Pages/Wallet/Services/walletService';
 
 const AUTH_FUNCTION_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions/auth';
+const PIN_API_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions';
 
 const App = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const [isActive, setIsActive] = useState(false);
     const [userData, setUserData] = useState(null);
+    const [isPinSet, setIsPinSet] = useState(false);
+    const [isPinVerified, setIsPinVerified] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
     // Управление кнопкой BackButton Telegram WebApp
     useEffect(() => {
@@ -98,7 +104,29 @@ const App = () => {
         }
     }, []);
 
-    // User authentication and wallet initialization
+    // Check if user has PIN set
+    const checkUserPin = async (telegramUserId) => {
+        try {
+            const response = await fetch(`${PIN_API_URL}/check-pin`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ telegram_user_id: telegramUserId }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return data.hasPin;
+            }
+            return false;
+        } catch (error) {
+            console.error("Error checking user PIN:", error);
+            return false;
+        }
+    };
+
+    // User authentication and PIN check
     useEffect(() => {
         console.log("App.jsx: Starting authentication check");
         
@@ -146,10 +174,19 @@ const App = () => {
                         
                         if (initializedUserData) {
                             console.log("App.jsx: User wallets initialized successfully");
+                            
+                            // Check if user has PIN set
+                            const hasPin = await checkUserPin(initializedUserData.telegram_user_id);
+                            setIsPinSet(hasPin);
+                            
                             setUserData(initializedUserData);
                         } else {
                             console.error("App.jsx: Failed to initialize user wallets");
                             setUserData(data.userData);
+                            
+                            // Check if user has PIN set
+                            const hasPin = await checkUserPin(data.userData.telegram_user_id);
+                            setIsPinSet(hasPin);
                         }
                     } else {
                         console.error("App.jsx: Authentication failed");
@@ -157,22 +194,66 @@ const App = () => {
                 })
                 .catch(error => {
                     console.error("App.jsx: Authentication error:", error);
+                })
+                .finally(() => {
+                    setIsLoading(false);
                 });
         } else {
             console.warn("App.jsx: No initData available");
+            setIsLoading(false);
         }
     }, []);
 
+    // Handle PIN creation
+    const handlePinCreated = () => {
+        setIsPinSet(true);
+        setIsPinVerified(true);
+    };
+
+    // Handle PIN verification
+    const handlePinVerified = () => {
+        setIsPinVerified(true);
+    };
+
+    // Handle logout
+    const handleLogout = () => {
+        setIsPinVerified(false);
+        localStorage.clear();
+        window.location.reload();
+    };
+
+    if (isLoading) {
+        return (
+            <div className="loading-screen">
+                <div className="loader"></div>
+                <p>Loading...</p>
+            </div>
+        );
+    }
+
+    
+
+    // If PIN is not set, show CreatePin page
+    if (!isPinSet) {
+        return <CreatePin userData={userData} onPinCreated={handlePinCreated} />;
+    }
+
+    // If PIN is set but not verified, show EnterPin page
+    if (!isPinVerified) {
+        return <EnterPin userData={userData} onPinVerified={handlePinVerified} />;
+    }
+
+    // If PIN is verified, show main app
     return (
         <Routes location={location}>
             {/* Главная страница */}
             <Route path="/" element={
-                <Wallet isActive={isActive} userData={userData} />
+                <Wallet isActive={isActive} userData={userData} onLogout={handleLogout} />
             } />
             
             {/* Дублирующий маршрут для /wallet */}
             <Route path="/wallet" element={
-                <Wallet isActive={isActive} userData={userData} />
+                <Wallet isActive={isActive} userData={userData} onLogout={handleLogout} />
             } />
             
             <Route path="/wallet/token/:symbol" element={

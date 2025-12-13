@@ -58,6 +58,25 @@ const TokenDetail = () => {
         }
     };
 
+    const getLogoUrl = () => {
+        if (wallet.symbol === 'TON') {
+            return 'https://ton.org/download/ton_symbol.svg';
+        }
+        return wallet.logo;
+    };
+
+    const getBlockchainBadge = (blockchain) => {
+        const badges = {
+            'TON': { color: '#0088cc', text: 'TON' },
+            'Solana': { color: '#00ff88', text: 'SOL' },
+            'Ethereum': { color: '#8c8cff', text: 'ETH' },
+        };
+        
+        return badges[blockchain] || { color: '#666', text: blockchain };
+    };
+
+    const badge = wallet ? getBlockchainBadge(wallet.blockchain) : null;
+
     if (isLoading && !wallet) {
         return (
             <div className="page-container">
@@ -94,22 +113,43 @@ const TokenDetail = () => {
             <Header />
             
             <div className="page-content">
-                <div className="token-header">
-                    <h1>{wallet.name}</h1>
-                </div>
-                
                 <div className="token-icon-container">
                     <div className="token-icon-large">
-                        {wallet.symbol.substring(0, 2)}
+                        <img 
+                            src={getLogoUrl()} 
+                            alt={wallet.symbol}
+                            style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+                            onError={(e) => {
+                                console.error(`Failed to load logo for ${wallet.symbol}:`, e);
+                                e.target.style.display = 'none';
+                                const fallback = document.createElement('div');
+                                fallback.className = 'token-logo-fallback';
+                                fallback.textContent = wallet.symbol.substring(0, 2);
+                                e.target.parentNode.appendChild(fallback);
+                            }}
+                        />
                     </div>
                 </div>
                 
                 <div className="token-balance-display">
-                    <p className="token-amount">{wallet.balance || '0.00'} {wallet.symbol}</p>
+                    <div className="token-amount-container">
+                        <p className="token-amount">{wallet.balance || '0.00'} {wallet.symbol}</p>
+                        {badge && (
+                            <div 
+                                className="blockchain-badge" 
+                                style={{ 
+                                    borderColor: badge.color,
+                                    color: badge.color,
+                                }}
+                                title={wallet.blockchain}
+                            >
+                                {badge.text}
+                            </div>
+                        )}
+                    </div>
                     <p className="usd-amount">${usdValue}</p>
                 </div>
                 
-                {/* ГОРИЗОНТАЛЬНЫЕ КНОПКИ - 3 штуки рядом друг с другом */}
                 <div style={{
                     display: 'flex',
                     justifyContent: 'center',
