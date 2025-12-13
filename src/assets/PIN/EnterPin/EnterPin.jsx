@@ -75,6 +75,9 @@ const EnterPin = ({ userData, onPinVerified }) => {
         setError('');
         
         try {
+            console.log('EnterPin: Verifying PIN for user:', userData.telegram_user_id);
+            console.log('EnterPin: PIN to verify:', pinStr);
+            
             const response = await fetch('https://star-wallet-backend.netlify.app/.netlify/functions/verify-pin', {
                 method: 'POST',
                 headers: {
@@ -86,9 +89,13 @@ const EnterPin = ({ userData, onPinVerified }) => {
                 }),
             });
 
+            console.log('EnterPin: Response status:', response.status);
+            
             const data = await response.json();
+            console.log('EnterPin: Response data:', data);
             
             if (data.success) {
+                console.log('EnterPin: PIN verified successfully');
                 // Store PIN verification in localStorage (temporary)
                 localStorage.setItem('pin_verified', 'true');
                 onPinVerified();
@@ -100,14 +107,17 @@ const EnterPin = ({ userData, onPinVerified }) => {
                     // Lock for 30 seconds
                     setIsLocked(true);
                     setLockTime(30);
+                    setError('Too many attempts. Wallet locked for 30 seconds.');
                 } else {
                     // Trigger shake animation for incorrect PIN
                     triggerShake();
+                    setError(`Incorrect PIN. ${3 - newAttempts} attempts remaining.`);
                 }
             }
         } catch (error) {
-            console.error('Error verifying PIN:', error);
+            console.error('EnterPin: Error verifying PIN:', error);
             triggerShake();
+            setError('Network error. Please try again.');
         } finally {
             setIsLoading(false);
         }
@@ -129,6 +139,7 @@ const EnterPin = ({ userData, onPinVerified }) => {
                             />
                         ))}
                     </div>
+                    {error && <div className="pin-error">{error}</div>}
                 </div>
 
                 {isLocked ? (

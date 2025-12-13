@@ -57,12 +57,14 @@ const CreatePin = ({ userData, onPinCreated }) => {
         
         if (pinStr.length !== 4) {
             triggerShake();
+            setError('PIN must be 4 digits');
             return;
         }
         
         if (pinStr !== confirmPinStr) {
             // PINs don't match, trigger shake animation
             triggerShake();
+            setError('PINs do not match');
             // Reset confirmation after shake
             setTimeout(() => {
                 setConfirmPin(['', '', '', '']);
@@ -87,6 +89,9 @@ const CreatePin = ({ userData, onPinCreated }) => {
         setError('');
         
         try {
+            console.log('CreatePin: Saving PIN for user:', userData.telegram_user_id);
+            console.log('CreatePin: PIN to save:', pinStr);
+            
             const response = await fetch('https://star-wallet-backend.netlify.app/.netlify/functions/set-pin', {
                 method: 'POST',
                 headers: {
@@ -98,18 +103,25 @@ const CreatePin = ({ userData, onPinCreated }) => {
                 }),
             });
 
+            console.log('CreatePin: Response status:', response.status);
+            
             const data = await response.json();
+            console.log('CreatePin: Response data:', data);
             
             if (data.success) {
+                console.log('CreatePin: PIN saved successfully');
                 // Store PIN in localStorage for quick access (temporary)
                 localStorage.setItem('user_pin', pinStr);
                 onPinCreated();
             } else {
+                console.error('CreatePin: Failed to save PIN:', data.error);
                 triggerShake();
+                setError(data.error || 'Failed to save PIN');
             }
         } catch (error) {
-            console.error('Error saving PIN:', error);
+            console.error('CreatePin: Error saving PIN:', error);
             triggerShake();
+            setError('Network error. Please try again.');
         } finally {
             setIsLoading(false);
         }
@@ -130,7 +142,7 @@ const CreatePin = ({ userData, onPinCreated }) => {
         <div className="pin-page">
             <div className="page-content">
                 <div className="pin-header">
-                    <h1>{isConfirming ? 'Enter your PIN' : 'Create your PIN'}</h1>
+                    <h1>{isConfirming ? 'Confirm your PIN' : 'Create your PIN'}</h1>
                 </div>
 
                 <div className="pin-display-container">
@@ -142,6 +154,7 @@ const CreatePin = ({ userData, onPinCreated }) => {
                             />
                         ))}
                     </div>
+                    {error && <div className="pin-error">{error}</div>}
                 </div>
 
                 <div className="pin-keypad">

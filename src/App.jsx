@@ -116,13 +116,16 @@ const App = () => {
                 body: JSON.stringify({ telegram_user_id: telegramUserId }),
             });
 
+            console.log("App.jsx: PIN check response status:", response.status);
+            
             if (response.ok) {
                 const data = await response.json();
                 console.log("App.jsx: PIN check result:", data);
-                return data.hasPin;
+                return data.success ? data.hasPin : false;
+            } else {
+                console.log("App.jsx: PIN check failed with status:", response.status);
+                return false;
             }
-            console.log("App.jsx: PIN check failed");
-            return false;
         } catch (error) {
             console.error("App.jsx: Error checking user PIN:", error);
             return false;
@@ -167,9 +170,10 @@ const App = () => {
                     return response.json();
                 })
                 .then(async (data) => {
-                    console.log("App.jsx: Authentication response received");
+                    console.log("App.jsx: Authentication response received:", data);
                     if (data.isValid && data.userData) {
                         console.log("App.jsx: Authentication successful");
+                        console.log("App.jsx: User data:", data.userData);
                         
                         // Check if user has PIN set FIRST
                         console.log("App.jsx: Checking PIN status for user:", data.userData.telegram_user_id);
@@ -195,7 +199,7 @@ const App = () => {
                             setUserData(data.userData);
                         }
                     } else {
-                        console.error("App.jsx: Authentication failed");
+                        console.error("App.jsx: Authentication failed:", data.error);
                     }
                 })
                 .catch(error => {
@@ -239,12 +243,12 @@ const App = () => {
         );
     }
 
-    // If no user data, show authentication error
+    // If userData is not loaded yet, show loading
     if (!userData) {
         return (
-            <div className="auth-error">
-                <h2>Authentication Required</h2>
-                <p>Please open this app from Telegram</p>
+            <div className="loading-screen">
+                <div className="loader"></div>
+                <p>Loading user data...</p>
             </div>
         );
     }
@@ -252,12 +256,14 @@ const App = () => {
     // If PIN is not set, show CreatePin page
     if (!isPinSet) {
         console.log("App.jsx: Showing CreatePin page");
+        console.log("App.jsx: User data for PIN creation:", userData);
         return <CreatePin userData={userData} onPinCreated={handlePinCreated} />;
     }
 
     // If PIN is set but not verified, show EnterPin page
     if (!isPinVerified) {
         console.log("App.jsx: Showing EnterPin page");
+        console.log("App.jsx: User data for PIN verification:", userData);
         return <EnterPin userData={userData} onPinVerified={handlePinVerified} />;
     }
 
