@@ -4,15 +4,16 @@ import Header from "../../assets/Header/Header";
 import Menu from '../../assets/Menus/Menu/Menu';
 import TokenCard from './Components/List/TokenCard';
 import { 
-    getAllTokens,
     getBalances, 
-    calculateTotalBalance
+    calculateTotalBalance,
+    getTokenPrices
 } from './Services/storageService';
 import './Wallet.css';
 
-function Wallet({ isActive, userData }) {
+function Wallet({ isActive, userData, onLogout }) {
     const [wallets, setWallets] = useState([]);
     const [totalBalance, setTotalBalance] = useState('$0.00');
+    const [isLoading, setIsLoading] = useState(true);
     const navigate = useNavigate();
     
     const hasLoadedWallets = useRef(false);
@@ -35,22 +36,39 @@ function Wallet({ isActive, userData }) {
     const initializeWallets = useCallback(async () => {
         try {
             if (!userData) {
-                console.log('No user data available');
+                console.log('Wallet.jsx: No user data available');
+                setIsLoading(false);
                 return;
             }
 
-            console.log('Initializing wallets for user:', userData.telegram_user_id);
+            console.log('Wallet.jsx: Initializing wallets for user:', userData.telegram_user_id);
             
-            // Получаем все токены пользователя
-            const allTokens = await getAllTokens(userData);
+            let allTokens = [];
+            
+            // Если у пользователя уже есть кошельки в userData, используем их
+            if (userData.wallets && Array.isArray(userData.wallets) && userData.wallets.length > 0) {
+                console.log('Wallet.jsx: Using wallets from userData:', userData.wallets.length);
+                allTokens = userData.wallets;
+            } 
+            // Если нет кошельков, но есть wallet_addresses, создаем кошельки из них
+            else if (userData.wallet_addresses && Object.keys(userData.wallet_addresses).length > 0) {
+                console.log('Wallet.jsx: Creating wallets from userData.wallet_addresses');
+                allTokens = createWalletsFromAddresses(userData.wallet_addresses);
+            } 
+            // Если нет ни кошельков, ни адресов, показываем пустой список
+            else {
+                console.log('Wallet.jsx: No wallets or addresses found');
+                allTokens = [];
+            }
             
             if (!Array.isArray(allTokens) || allTokens.length === 0) {
-                console.log('No tokens found for user');
+                console.log('Wallet.jsx: No tokens found');
                 setWallets([]);
+                setIsLoading(false);
                 return;
             }
 
-            console.log('Found tokens:', allTokens.length);
+            console.log('Wallet.jsx: Found tokens:', allTokens.length);
             
             // Устанавливаем начальные кошельки
             setWallets(allTokens);
@@ -67,19 +85,12 @@ function Wallet({ isActive, userData }) {
                 const total = await calculateTotalBalance(updatedWallets);
                 setTotalBalance(`$${total}`);
                 
-                console.log('Balances updated successfully');
+                console.log('Wallet.jsx: Balances updated successfully');
             } catch (balanceError) {
-                console.error('Error updating balances:', balanceError);
+                console.error('Wallet.jsx: Error updating balances:', balanceError);
                 
                 // Используем fallback расчет
-                const prices = {
-                    'TON': 6.24,
-                    'SOL': 172.34,
-                    'ETH': 3500.00,
-                    'USDT': 1.00,
-                    'USDC': 1.00
-                };
-                
+                const prices = await getTokenPrices();
                 const total = allTokens.reduce((sum, wallet) => {
                     const price = prices[wallet.symbol] || 1.00;
                     return sum + (parseFloat(wallet.balance || 0) * price);
@@ -88,9 +99,12 @@ function Wallet({ isActive, userData }) {
                 setTotalBalance(`$${total.toFixed(2)}`);
             }
             
+            setIsLoading(false);
+            
         } catch (error) {
-            console.error('Error initializing wallets:', error);
+            console.error('Wallet.jsx: Error initializing wallets:', error);
             setWallets([]);
+            setIsLoading(false);
         }
     }, [userData]);
 
@@ -101,12 +115,162 @@ function Wallet({ isActive, userData }) {
         }
     }, [initializeWallets, userData]);
 
+    // Функция для создания кошельков из адресов в userData
+    const createWalletsFromAddresses = (walletAddresses) => {
+        const wallets = [];
+        
+        // TON Blockchain
+        if (walletAddresses.TON && walletAddresses.TON.address) {
+            wallets.push({
+                id: 'ton',
+                name: 'Toncoin',
+                symbol: 'TON',
+                address: walletAddresses.TON.address,
+                blockchain: 'TON',
+                decimals: 9,
+                isNative: true,
+                contractAddress: '',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/toncoin-ton-logo.png'
+            });
+            
+            wallets.push({
+                id: 'usdt_ton',
+                name: 'Tether',
+                symbol: 'USDT',
+                address: walletAddresses.TON.address,
+                blockchain: 'TON',
+                decimals: 6,
+                isNative: false,
+                contractAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+            });
+            
+            wallets.push({
+                id: 'usdc_ton',
+                name: 'USD Coin',
+                symbol: 'USDC',
+                address: walletAddresses.TON.address,
+                blockchain: 'TON',
+                decimals: 6,
+                isNative: false,
+                contractAddress: 'EQB-MPwrd1G6WKNkLz_VnV6TCqetER9X_KFXqJzPiTBDdhhG',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+            });
+        }
+
+        // Solana Blockchain
+        if (walletAddresses.Solana && walletAddresses.Solana.address) {
+            wallets.push({
+                id: 'sol',
+                name: 'Solana',
+                symbol: 'SOL',
+                address: walletAddresses.Solana.address,
+                blockchain: 'Solana',
+                decimals: 9,
+                isNative: true,
+                contractAddress: '',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/solana-sol-logo.png'
+            });
+            
+            wallets.push({
+                id: 'usdt_sol',
+                name: 'Tether',
+                symbol: 'USDT',
+                address: walletAddresses.Solana.address,
+                blockchain: 'Solana',
+                decimals: 6,
+                isNative: false,
+                contractAddress: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+            });
+            
+            wallets.push({
+                id: 'usdc_sol',
+                name: 'USD Coin',
+                symbol: 'USDC',
+                address: walletAddresses.Solana.address,
+                blockchain: 'Solana',
+                decimals: 6,
+                isNative: false,
+                contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+            });
+        }
+
+        // Ethereum Blockchain
+        if (walletAddresses.Ethereum && walletAddresses.Ethereum.address) {
+            wallets.push({
+                id: 'eth',
+                name: 'Ethereum',
+                symbol: 'ETH',
+                address: walletAddresses.Ethereum.address,
+                blockchain: 'Ethereum',
+                decimals: 18,
+                isNative: true,
+                contractAddress: '',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png'
+            });
+            
+            wallets.push({
+                id: 'usdt_eth',
+                name: 'Tether',
+                symbol: 'USDT',
+                address: walletAddresses.Ethereum.address,
+                blockchain: 'Ethereum',
+                decimals: 6,
+                isNative: false,
+                contractAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+            });
+            
+            wallets.push({
+                id: 'usdc_eth',
+                name: 'USD Coin',
+                symbol: 'USDC',
+                address: walletAddresses.Ethereum.address,
+                blockchain: 'Ethereum',
+                decimals: 6,
+                isNative: false,
+                contractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+            });
+        }
+
+        return wallets;
+    };
+
     const handleTokenClick = useCallback((wallet) => {
         if (wallet && wallet.symbol) {
             navigate(`/wallet/token/${wallet.symbol}`, { 
                 state: { 
-                    ...wallet,
-                    blockchain: wallet.blockchain,
+                    wallet: wallet,
                     userData: userData
                 }
             });
@@ -125,10 +289,10 @@ function Wallet({ isActive, userData }) {
                         userData: userData 
                     } 
                 });
-            } else {
-                navigate('/wallet/token/' + wallets[0].symbol, { 
+            } else if (wallets.length > 0) {
+                navigate('/receive', { 
                     state: { 
-                        ...wallets[0],
+                        wallet: wallets[0],
                         userData: userData 
                     } 
                 });
@@ -142,10 +306,10 @@ function Wallet({ isActive, userData }) {
                         userData: userData 
                     } 
                 });
-            } else {
-                navigate('/wallet/token/' + wallets[0].symbol, { 
+            } else if (wallets.length > 0) {
+                navigate('/send', { 
                     state: { 
-                        ...wallets[0],
+                        wallet: wallets[0],
                         userData: userData 
                     } 
                 });
@@ -164,6 +328,7 @@ function Wallet({ isActive, userData }) {
                 const wallets = JSON.parse(cachedWallets);
                 if (wallets.length > 0) {
                     setWallets(wallets);
+                    setIsLoading(false);
                     return true;
                 }
             }
@@ -174,22 +339,56 @@ function Wallet({ isActive, userData }) {
     };
 
     useEffect(() => {
-        if (!hasLoadedWallets.current) {
+        if (!hasLoadedWallets.current && !userData) {
             checkCachedWallets();
         }
-    }, []);
+    }, [userData]);
 
+    const handleLogout = () => {
+        if (onLogout) {
+            onLogout();
+        }
+    };
+
+    if (isLoading) {
+        return (
+            <div className="page-container">
+                <Header userData={userData} />
+                <div className="loading-container">
+                    <div className="loader"></div>
+                    <p>Loading wallets...</p>
+                </div>
+                <Menu />
+            </div>
+        );
+    }
 
     return (
         <div className="page-container">
             <Header userData={userData} />
-
+            
             <div className="page-content">
                 <div className="total-balance-section">
                     <div className="balance-display">
                         <p className="total-balance-label">Total Balance</p>
                         <p className="total-balance-amount">{totalBalance}</p>
                     </div>
+                    <button 
+                        className="logout-btn"
+                        onClick={handleLogout}
+                        style={{
+                            background: 'rgba(255, 0, 0, 0.1)',
+                            color: '#ff5555',
+                            border: 'none',
+                            padding: '8px 16px',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            marginTop: '10px',
+                            fontSize: '12px'
+                        }}
+                    >
+                        Logout
+                    </button>
                 </div>
 
                 <div className="wallet-action-buttons">
@@ -241,7 +440,7 @@ function Wallet({ isActive, userData }) {
                     {wallets.length > 0 ? (
                         wallets.map((wallet) => (
                             <div 
-                                key={wallet.id} 
+                                key={`${wallet.id}-${wallet.blockchain}`} 
                                 className="token-block"
                                 onClick={() => handleTokenClick(wallet)}
                             >
@@ -251,6 +450,9 @@ function Wallet({ isActive, userData }) {
                     ) : (
                         <div className="no-wallets-message">
                             <p>No wallets found</p>
+                            <p style={{ fontSize: '12px', color: '#888', marginTop: '5px' }}>
+                                Please wait while we initialize your wallets...
+                            </p>
                         </div>
                     )}
                 </div>

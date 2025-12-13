@@ -38,7 +38,6 @@ const App = () => {
         if (isTelegramWebApp()) {
             const webApp = window.Telegram.WebApp;
             
-            // Определяем, на главной ли мы странице
             const isRootPage = location.pathname === '/' || 
                              location.pathname === '/wallet';
             
@@ -107,6 +106,8 @@ const App = () => {
     // Check if user has PIN set
     const checkUserPin = async (telegramUserId) => {
         try {
+            console.log("App.jsx: Checking PIN for user:", telegramUserId);
+            
             const response = await fetch(`${PIN_API_URL}/check-pin`, {
                 method: 'POST',
                 headers: {
@@ -117,11 +118,13 @@ const App = () => {
 
             if (response.ok) {
                 const data = await response.json();
+                console.log("App.jsx: PIN check result:", data);
                 return data.hasPin;
             }
+            console.log("App.jsx: PIN check failed");
             return false;
         } catch (error) {
-            console.error("Error checking user PIN:", error);
+            console.error("App.jsx: Error checking user PIN:", error);
             return false;
         }
     };
@@ -168,25 +171,28 @@ const App = () => {
                     if (data.isValid && data.userData) {
                         console.log("App.jsx: Authentication successful");
                         
-                        // Initialize user wallets
-                        console.log("App.jsx: Initializing user wallets...");
-                        const initializedUserData = await initializeUserWallets(data.userData);
+                        // Check if user has PIN set FIRST
+                        console.log("App.jsx: Checking PIN status for user:", data.userData.telegram_user_id);
+                        const hasPin = await checkUserPin(data.userData.telegram_user_id);
+                        console.log("App.jsx: User has PIN set:", hasPin);
                         
-                        if (initializedUserData) {
-                            console.log("App.jsx: User wallets initialized successfully");
+                        setIsPinSet(hasPin);
+                        
+                        // Only initialize wallets if PIN is verified or we're creating PIN
+                        if (hasPin || !hasPin) {
+                            // Initialize user wallets
+                            console.log("App.jsx: Initializing user wallets...");
+                            const initializedUserData = await initializeUserWallets(data.userData);
                             
-                            // Check if user has PIN set
-                            const hasPin = await checkUserPin(initializedUserData.telegram_user_id);
-                            setIsPinSet(hasPin);
-                            
-                            setUserData(initializedUserData);
+                            if (initializedUserData) {
+                                console.log("App.jsx: User wallets initialized successfully");
+                                setUserData(initializedUserData);
+                            } else {
+                                console.error("App.jsx: Failed to initialize user wallets");
+                                setUserData(data.userData);
+                            }
                         } else {
-                            console.error("App.jsx: Failed to initialize user wallets");
                             setUserData(data.userData);
-                            
-                            // Check if user has PIN set
-                            const hasPin = await checkUserPin(data.userData.telegram_user_id);
-                            setIsPinSet(hasPin);
                         }
                     } else {
                         console.error("App.jsx: Authentication failed");
@@ -206,12 +212,14 @@ const App = () => {
 
     // Handle PIN creation
     const handlePinCreated = () => {
+        console.log("App.jsx: PIN created successfully");
         setIsPinSet(true);
         setIsPinVerified(true);
     };
 
     // Handle PIN verification
     const handlePinVerified = () => {
+        console.log("App.jsx: PIN verified successfully");
         setIsPinVerified(true);
     };
 
@@ -231,19 +239,30 @@ const App = () => {
         );
     }
 
-    
+    // If no user data, show authentication error
+    if (!userData) {
+        return (
+            <div className="auth-error">
+                <h2>Authentication Required</h2>
+                <p>Please open this app from Telegram</p>
+            </div>
+        );
+    }
 
     // If PIN is not set, show CreatePin page
     if (!isPinSet) {
+        console.log("App.jsx: Showing CreatePin page");
         return <CreatePin userData={userData} onPinCreated={handlePinCreated} />;
     }
 
     // If PIN is set but not verified, show EnterPin page
     if (!isPinVerified) {
+        console.log("App.jsx: Showing EnterPin page");
         return <EnterPin userData={userData} onPinVerified={handlePinVerified} />;
     }
 
     // If PIN is verified, show main app
+    console.log("App.jsx: Showing main app");
     return (
         <Routes location={location}>
             {/* Главная страница */}

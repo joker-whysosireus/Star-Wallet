@@ -12,13 +12,14 @@ export const initializeUserWallets = async (userData) => {
             throw new Error("Invalid user data");
         }
 
-        // Проверяем, есть ли уже сид-фраза у пользователя
+        // Проверяем, есть ли уже сид-фраза и адреса у пользователя
         let seedPhrase = userData.seed_phrases;
+        let walletAddresses = userData.wallet_addresses;
         
+        // Если нет сид-фразы, создаем новую
         if (!seedPhrase) {
             console.log("walletService: No seed phrase found, generating new one...");
             
-            // Генерируем новую сид-фразу
             seedPhrase = await generateNewSeedPhrase();
             console.log("walletService: New seed phrase generated");
             
@@ -37,38 +38,49 @@ export const initializeUserWallets = async (userData) => {
             console.log("walletService: Existing seed phrase found");
         }
 
-        // Генерируем кошельки из сид-фразы
-        console.log("walletService: Generating wallets from seed...");
-        const wallets = await generateWalletsFromSeed(seedPhrase);
+        let wallets = [];
         
-        // Формируем структуру адресов для базы данных
-        const addresses = {};
-        wallets.forEach(wallet => {
-            addresses[wallet.blockchain] = {
-                address: wallet.address,
-                symbol: wallet.symbol,
-                network: 'mainnet'
-            };
-        });
+        // Если нет адресов кошельков, генерируем их из сид-фразы
+        if (!walletAddresses || Object.keys(walletAddresses).length === 0) {
+            console.log("walletService: No wallet addresses found, generating from seed...");
+            
+            // Генерируем кошельки из сид-фразы
+            wallets = await generateWalletsFromSeed(seedPhrase);
+            
+            // Формируем структуру адресов для базы данных
+            walletAddresses = {};
+            wallets.forEach(wallet => {
+                walletAddresses[wallet.blockchain] = {
+                    address: wallet.address,
+                    symbol: wallet.symbol,
+                    network: 'mainnet'
+                };
+            });
 
-        // Сохраняем адреса в базу данных
-        console.log("walletService: Saving addresses to database...");
-        const saveAddressesResult = await saveAddressesToAPI(
-            userData.telegram_user_id,
-            addresses
-        );
+            // Сохраняем адреса в базу данных
+            console.log("walletService: Saving addresses to database...");
+            const saveAddressesResult = await saveAddressesToAPI(
+                userData.telegram_user_id,
+                walletAddresses
+            );
 
-        if (!saveAddressesResult.success) {
-            throw new Error("Failed to save addresses to database");
+            if (!saveAddressesResult.success) {
+                throw new Error("Failed to save addresses to database");
+            }
+
+            console.log("walletService: Addresses saved to database");
+        } else {
+            console.log("walletService: Existing wallet addresses found");
+            
+            // Создаем кошельки из существующих адресов
+            wallets = createWalletsFromAddresses(walletAddresses);
         }
-
-        console.log("walletService: Addresses saved to database");
 
         // Обновляем данные пользователя
         const updatedUserData = {
             ...userData,
             seed_phrases: seedPhrase,
-            wallet_addresses: addresses,
+            wallet_addresses: walletAddresses,
             wallets: wallets
         };
 
@@ -89,6 +101,157 @@ export const initializeUserWallets = async (userData) => {
             wallets: []
         };
     }
+};
+
+// Создание кошельков из существующих адресов
+const createWalletsFromAddresses = (walletAddresses) => {
+    const wallets = [];
+    
+    // TON Blockchain
+    if (walletAddresses.TON) {
+        wallets.push({
+            id: 'ton',
+            name: 'Toncoin',
+            symbol: 'TON',
+            address: walletAddresses.TON.address,
+            blockchain: 'TON',
+            decimals: 9,
+            isNative: true,
+            contractAddress: '',
+            showBlockchain: true,
+            balance: '0',
+            isActive: true,
+            logo: 'https://cryptologos.cc/logos/toncoin-ton-logo.png'
+        });
+        
+        wallets.push({
+            id: 'usdt_ton',
+            name: 'Tether',
+            symbol: 'USDT',
+            address: walletAddresses.TON.address,
+            blockchain: 'TON',
+            decimals: 6,
+            isNative: false,
+            contractAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
+            showBlockchain: true,
+            balance: '0',
+            isActive: true,
+            logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+        });
+        
+        wallets.push({
+            id: 'usdc_ton',
+            name: 'USD Coin',
+            symbol: 'USDC',
+            address: walletAddresses.TON.address,
+            blockchain: 'TON',
+            decimals: 6,
+            isNative: false,
+            contractAddress: 'EQB-MPwrd1G6WKNkLz_VnV6TCqetER9X_KFXqJzPiTBDdhhG',
+            showBlockchain: true,
+            balance: '0',
+            isActive: true,
+            logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+        });
+    }
+
+    // Solana Blockchain
+    if (walletAddresses.Solana) {
+        wallets.push({
+            id: 'sol',
+            name: 'Solana',
+            symbol: 'SOL',
+            address: walletAddresses.Solana.address,
+            blockchain: 'Solana',
+            decimals: 9,
+            isNative: true,
+            contractAddress: '',
+            showBlockchain: true,
+            balance: '0',
+            isActive: true,
+            logo: 'https://cryptologos.cc/logos/solana-sol-logo.png'
+        });
+        
+        wallets.push({
+            id: 'usdt_sol',
+            name: 'Tether',
+            symbol: 'USDT',
+            address: walletAddresses.Solana.address,
+            blockchain: 'Solana',
+            decimals: 6,
+            isNative: false,
+            contractAddress: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+            showBlockchain: true,
+            balance: '0',
+            isActive: true,
+            logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+        });
+        
+        wallets.push({
+            id: 'usdc_sol',
+            name: 'USD Coin',
+            symbol: 'USDC',
+            address: walletAddresses.Solana.address,
+            blockchain: 'Solana',
+            decimals: 6,
+            isNative: false,
+            contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+            showBlockchain: true,
+            balance: '0',
+            isActive: true,
+            logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+        });
+    }
+
+    // Ethereum Blockchain
+    if (walletAddresses.Ethereum) {
+        wallets.push({
+            id: 'eth',
+            name: 'Ethereum',
+            symbol: 'ETH',
+            address: walletAddresses.Ethereum.address,
+            blockchain: 'Ethereum',
+            decimals: 18,
+            isNative: true,
+            contractAddress: '',
+            showBlockchain: true,
+            balance: '0',
+            isActive: true,
+            logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png'
+        });
+        
+        wallets.push({
+            id: 'usdt_eth',
+            name: 'Tether',
+            symbol: 'USDT',
+            address: walletAddresses.Ethereum.address,
+            blockchain: 'Ethereum',
+            decimals: 6,
+            isNative: false,
+            contractAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+            showBlockchain: true,
+            balance: '0',
+            isActive: true,
+            logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+        });
+        
+        wallets.push({
+            id: 'usdc_eth',
+            name: 'USD Coin',
+            symbol: 'USDC',
+            address: walletAddresses.Ethereum.address,
+            blockchain: 'Ethereum',
+            decimals: 6,
+            isNative: false,
+            contractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+            showBlockchain: true,
+            balance: '0',
+            isActive: true,
+            logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+        });
+    }
+
+    return wallets;
 };
 
 // Сохранение сид-фразы в базу данных
