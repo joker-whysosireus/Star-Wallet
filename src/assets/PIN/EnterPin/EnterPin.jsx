@@ -12,7 +12,6 @@ const EnterPin = ({ userData, onPinVerified }) => {
     const [shouldShake, setShouldShake] = useState(false);
 
     useEffect(() => {
-        // Auto focus first input
         if (activeInput < 4 && !isLocked) {
             const input = document.getElementById(`pin-input-${activeInput}`);
             if (input) input.focus();
@@ -20,7 +19,6 @@ const EnterPin = ({ userData, onPinVerified }) => {
     }, [activeInput, isLocked]);
 
     useEffect(() => {
-        // Handle lock timer
         if (isLocked && lockTime > 0) {
             const timer = setTimeout(() => {
                 setLockTime(lockTime - 1);
@@ -44,7 +42,6 @@ const EnterPin = ({ userData, onPinVerified }) => {
             if (activeInput < 3) {
                 setActiveInput(activeInput + 1);
             } else {
-                // All digits entered, verify PIN
                 verifyPin(newPin.join(''));
             }
         }
@@ -62,7 +59,6 @@ const EnterPin = ({ userData, onPinVerified }) => {
         setShouldShake(true);
         setTimeout(() => {
             setShouldShake(false);
-            // Clear PIN after shake
             setPin(['', '', '', '']);
             setActiveInput(0);
         }, 500);
@@ -75,9 +71,6 @@ const EnterPin = ({ userData, onPinVerified }) => {
         setError('');
         
         try {
-            console.log('EnterPin: Verifying PIN for user:', userData.telegram_user_id);
-            console.log('EnterPin: PIN to verify:', pinStr);
-            
             const response = await fetch('https://star-wallet-backend.netlify.app/.netlify/functions/verify-pin', {
                 method: 'POST',
                 headers: {
@@ -89,14 +82,9 @@ const EnterPin = ({ userData, onPinVerified }) => {
                 }),
             });
 
-            console.log('EnterPin: Response status:', response.status);
-            
             const data = await response.json();
-            console.log('EnterPin: Response data:', data);
             
             if (data.success) {
-                console.log('EnterPin: PIN verified successfully');
-                // Store PIN verification in localStorage (temporary)
                 localStorage.setItem('pin_verified', 'true');
                 onPinVerified();
             } else {
@@ -104,18 +92,15 @@ const EnterPin = ({ userData, onPinVerified }) => {
                 setAttempts(newAttempts);
                 
                 if (newAttempts >= 3) {
-                    // Lock for 30 seconds
                     setIsLocked(true);
                     setLockTime(30);
                     setError('Too many attempts. Wallet locked for 30 seconds.');
                 } else {
-                    // Trigger shake animation for incorrect PIN
                     triggerShake();
                     setError(`Incorrect PIN. ${3 - newAttempts} attempts remaining.`);
                 }
             }
         } catch (error) {
-            console.error('EnterPin: Error verifying PIN:', error);
             triggerShake();
             setError('Network error. Please try again.');
         } finally {

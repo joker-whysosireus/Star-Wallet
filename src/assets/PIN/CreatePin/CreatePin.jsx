@@ -11,7 +11,6 @@ const CreatePin = ({ userData, onPinCreated }) => {
     const [shouldShake, setShouldShake] = useState(false);
 
     useEffect(() => {
-        // Auto focus first input
         if (activeInput < 4) {
             const input = document.getElementById(`pin-input-${activeInput}`);
             if (input) input.focus();
@@ -30,7 +29,6 @@ const CreatePin = ({ userData, onPinCreated }) => {
                 if (activeInput < 3) {
                     setActiveInput(activeInput + 1);
                 } else {
-                    // All digits entered
                     verifyPins();
                 }
             }
@@ -43,7 +41,6 @@ const CreatePin = ({ userData, onPinCreated }) => {
                 if (activeInput < 3) {
                     setActiveInput(activeInput + 1);
                 } else {
-                    // All digits entered, move to confirmation
                     setIsConfirming(true);
                     setActiveInput(0);
                 }
@@ -62,10 +59,8 @@ const CreatePin = ({ userData, onPinCreated }) => {
         }
         
         if (pinStr !== confirmPinStr) {
-            // PINs don't match, trigger shake animation
             triggerShake();
             setError('PINs do not match');
-            // Reset confirmation after shake
             setTimeout(() => {
                 setConfirmPin(['', '', '', '']);
                 setActiveInput(0);
@@ -73,7 +68,6 @@ const CreatePin = ({ userData, onPinCreated }) => {
             return;
         }
         
-        // Save PIN to backend
         savePin(pinStr);
     };
 
@@ -85,13 +79,16 @@ const CreatePin = ({ userData, onPinCreated }) => {
     };
 
     const savePin = async (pinStr) => {
+        if (!userData || !userData.telegram_user_id) {
+            triggerShake();
+            setError('User data not loaded. Please refresh.');
+            return;
+        }
+        
         setIsLoading(true);
         setError('');
         
         try {
-            console.log('CreatePin: Saving PIN for user:', userData.telegram_user_id);
-            console.log('CreatePin: PIN to save:', pinStr);
-            
             const response = await fetch('https://star-wallet-backend.netlify.app/.netlify/functions/set-pin', {
                 method: 'POST',
                 headers: {
@@ -103,23 +100,17 @@ const CreatePin = ({ userData, onPinCreated }) => {
                 }),
             });
 
-            console.log('CreatePin: Response status:', response.status);
-            
             const data = await response.json();
-            console.log('CreatePin: Response data:', data);
             
             if (data.success) {
-                console.log('CreatePin: PIN saved successfully');
-                // Store PIN in localStorage for quick access (temporary)
                 localStorage.setItem('user_pin', pinStr);
+                localStorage.setItem('pin_verified', 'true');
                 onPinCreated();
             } else {
-                console.error('CreatePin: Failed to save PIN:', data.error);
                 triggerShake();
                 setError(data.error || 'Failed to save PIN');
             }
         } catch (error) {
-            console.error('CreatePin: Error saving PIN:', error);
             triggerShake();
             setError('Network error. Please try again.');
         } finally {
@@ -160,33 +151,33 @@ const CreatePin = ({ userData, onPinCreated }) => {
                 <div className="pin-keypad">
                     <div className="keypad-center">
                         <div className="keypad-row">
-                            <button className="keypad-btn" onClick={() => handleNumberClick('1')}>1</button>
-                            <button className="keypad-btn" onClick={() => handleNumberClick('2')}>2</button>
-                            <button className="keypad-btn" onClick={() => handleNumberClick('3')}>3</button>
+                            <button className="keypad-btn" onClick={() => handleNumberClick('1')} disabled={isLoading}>1</button>
+                            <button className="keypad-btn" onClick={() => handleNumberClick('2')} disabled={isLoading}>2</button>
+                            <button className="keypad-btn" onClick={() => handleNumberClick('3')} disabled={isLoading}>3</button>
                         </div>
                         <div className="keypad-row">
-                            <button className="keypad-btn" onClick={() => handleNumberClick('4')}>4</button>
-                            <button className="keypad-btn" onClick={() => handleNumberClick('5')}>5</button>
-                            <button className="keypad-btn" onClick={() => handleNumberClick('6')}>6</button>
+                            <button className="keypad-btn" onClick={() => handleNumberClick('4')} disabled={isLoading}>4</button>
+                            <button className="keypad-btn" onClick={() => handleNumberClick('5')} disabled={isLoading}>5</button>
+                            <button className="keypad-btn" onClick={() => handleNumberClick('6')} disabled={isLoading}>6</button>
                         </div>
                         <div className="keypad-row">
-                            <button className="keypad-btn" onClick={() => handleNumberClick('7')}>7</button>
-                            <button className="keypad-btn" onClick={() => handleNumberClick('8')}>8</button>
-                            <button className="keypad-btn" onClick={() => handleNumberClick('9')}>9</button>
+                            <button className="keypad-btn" onClick={() => handleNumberClick('7')} disabled={isLoading}>7</button>
+                            <button className="keypad-btn" onClick={() => handleNumberClick('8')} disabled={isLoading}>8</button>
+                            <button className="keypad-btn" onClick={() => handleNumberClick('9')} disabled={isLoading}>9</button>
                         </div>
                         <div className="keypad-row centered">
-                            <button className="keypad-btn zero-btn" onClick={() => handleNumberClick('0')}>0</button>
+                            <button className="keypad-btn zero-btn" onClick={() => handleNumberClick('0')} disabled={isLoading}>0</button>
                         </div>
                     </div>
 
                     <div className="keypad-footer">
                         <div className="footer-left">
-                            <button className="forgot-pin-btn">
+                            <button className="forgot-pin-btn" disabled={isLoading}>
                                 Forgot PIN?
                             </button>
                         </div>
                         <div className="footer-right">
-                            <button className="clear-btn" onClick={handleClear}>
+                            <button className="clear-btn" onClick={handleClear} disabled={isLoading}>
                                 Clear
                             </button>
                         </div>
