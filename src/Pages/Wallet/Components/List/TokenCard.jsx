@@ -11,6 +11,8 @@ const TokenCard = ({ wallet }) => {
             'TON': { color: '#0088cc', text: 'TON' },
             'Solana': { color: '#00ff88', text: 'SOL' },
             'Ethereum': { color: '#8c8cff', text: 'ETH' },
+            'Tron': { color: '#ff0000', text: 'TRX' },
+            'Bitcoin': { color: '#f7931a', text: 'BTC' },
         };
         
         return badges[blockchain] || { color: '#666', text: blockchain };
@@ -25,7 +27,9 @@ const TokenCard = ({ wallet }) => {
             'SOL': 172.34,
             'ETH': 3500.00,
             'USDT': 1.00,
-            'USDC': 1.00
+            'USDC': 1.00,
+            'TRX': 0.12,
+            'BTC': 68000.00
         };
         
         const price = prices[wallet.symbol] || 1.00;

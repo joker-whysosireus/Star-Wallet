@@ -3,9 +3,8 @@ import { WalletContractV4 } from '@ton/ton';
 import { Keypair } from '@solana/web3.js';
 import { ethers } from 'ethers';
 
-// Ключи для localStorage
+// Ключ для localStorage
 const SEED_PHRASE_KEY = 'wallet_seed_phrase';
-const PIN_KEY = 'wallet_pin';
 
 // Базовые URL для функций Netlify
 const NETLIFY_FUNCTIONS_URL = 'https://ton-jacket-backend.netlify.app/.netlify/functions';
@@ -46,45 +45,6 @@ export const getWalletFromAPI = async (telegramUserId) => {
         return await response.json();
     } catch (error) {
         console.error('Error getting wallet from API:', error);
-        throw error;
-    }
-};
-
-export const savePinToAPI = async (telegramUserId, pin) => {
-    try {
-        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/save-pin`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                telegram_user_id: telegramUserId,
-                pin_code: pin
-            }),
-        });
-        
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-        }
-        
-        return await response.json();
-    } catch (error) {
-        console.error('Error saving PIN to API:', error);
-        throw error;
-    }
-};
-
-export const getPinFromAPI = async (telegramUserId) => {
-    try {
-        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/get-pin?telegram_user_id=${telegramUserId}`);
-        
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-        }
-        
-        return await response.json();
-    } catch (error) {
-        console.error('Error getting PIN from API:', error);
         throw error;
     }
 };
@@ -205,32 +165,6 @@ export const saveSeedPhrase = (seedPhrase) => {
     }
 };
 
-export const savePin = (pin) => {
-    try {
-        localStorage.setItem(PIN_KEY, pin);
-        localStorage.setItem('wallet_pin_set', 'true');
-        console.log('PIN saved locally');
-        return true;
-    } catch (error) {
-        console.error('Error saving PIN:', error);
-        return false;
-    }
-};
-
-export const verifyPin = (pin) => {
-    try {
-        const savedPin = localStorage.getItem(PIN_KEY);
-        return savedPin === pin;
-    } catch (error) {
-        console.error('Error verifying PIN:', error);
-        return false;
-    }
-};
-
-export const isPinSet = () => {
-    return localStorage.getItem('wallet_pin_set') === 'true';
-};
-
 // Генерация адресов
 const generateTonAddress = async (seedPhrase) => {
     try {
@@ -296,6 +230,88 @@ const generateEthereumAddress = async (seedPhrase) => {
     }
 };
 
+// Генерация Tron адреса из сид-фразы
+const generateTronAddress = async (seedPhrase) => {
+    try {
+        if (!seedPhrase || seedPhrase.trim() === '') {
+            console.warn('Empty seed phrase for Tron address generation');
+            return 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
+        }
+        
+        console.log('Generating Tron address from seed...');
+        
+        // Импортируем TronWeb динамически
+        const TronWeb = (await import('tronweb')).default;
+        
+        // Используем bip39 для создания seed из мнемонической фразы
+        const bip39 = await import('bip39');
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        
+        // Используем ethers.js для создания кошелька из seed
+        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
+        
+        // Используем путь BIP44 для Tron: m/44'/195'/0'/0/0
+        const tronWallet = masterNode.derivePath("m/44'/195'/0'/0/0");
+        const privateKey = tronWallet.privateKey.slice(2); // Убираем '0x'
+        
+        // Создаем адрес Tron из приватного ключа
+        const tronWeb = new TronWeb({
+            fullHost: 'https://api.trongrid.io',
+            privateKey: privateKey
+        });
+        
+        const address = tronWeb.address.fromPrivateKey(privateKey);
+        console.log('Tron address generated:', address);
+        return address;
+    } catch (error) {
+        console.error('Error generating Tron address:', error);
+        return 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
+    }
+};
+
+// Генерация Bitcoin адреса из сид-фразы
+const generateBitcoinAddress = async (seedPhrase) => {
+    try {
+        if (!seedPhrase || seedPhrase.trim() === '') {
+            console.warn('Empty seed phrase for Bitcoin address generation');
+            return 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
+        }
+        
+        console.log('Generating Bitcoin address from seed...');
+        
+        // Используем BIP39 для создания seed из мнемонической фразы
+        const bip39 = await import('bip39');
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        
+        // Используем bip32 для создания кошелька Bitcoin
+        const { BIP32Factory } = await import('bip32');
+        const ecc = await import('tiny-secp256k1');
+        const bip32 = BIP32Factory(ecc);
+        
+        // Создаем корневой ключ из seed
+        const root = bip32.fromSeed(seedBuffer);
+        
+        // Используем путь BIP84 для SegWit (начинаются с bc1)
+        // m/84'/0'/0'/0/0 - стандартный путь для Bitcoin SegWit
+        const child = root.derivePath("m/84'/0'/0'/0/0");
+        
+        // Генерируем SegWit адрес (bech32)
+        const { payments } = await import('bitcoinjs-lib');
+        const { networks } = await import('bitcoinjs-lib');
+        
+        const { address } = payments.p2wpkh({
+            pubkey: child.publicKey,
+            network: networks.bitcoin
+        });
+        
+        console.log('Bitcoin address generated:', address);
+        return address;
+    } catch (error) {
+        console.error('Error generating Bitcoin address:', error);
+        return 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
+    }
+};
+
 // Генерация всех кошельков
 export const generateWalletsFromSeed = async (seedPhrase) => {
     try {
@@ -308,6 +324,8 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
         const tonAddress = await generateTonAddress(seedPhrase);
         const solanaAddress = await generateSolanaAddress(seedPhrase);
         const ethAddress = await generateEthereumAddress(seedPhrase);
+        const tronAddress = await generateTronAddress(seedPhrase);
+        const bitcoinAddress = await generateBitcoinAddress(seedPhrase);
 
         console.log('All addresses generated');
         
@@ -437,6 +455,62 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
                 balance: '0',
                 isActive: true,
                 logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+            },
+            {
+                id: 'trx',
+                name: 'TRON',
+                symbol: 'TRX',
+                address: tronAddress,
+                blockchain: 'Tron',
+                decimals: 6,
+                isNative: true,
+                contractAddress: '',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/tron-trx-logo.png'
+            },
+            {
+                id: 'usdt_trx',
+                name: 'Tether',
+                symbol: 'USDT',
+                address: tronAddress,
+                blockchain: 'Tron',
+                decimals: 6,
+                isNative: false,
+                contractAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+            },
+            {
+                id: 'usdc_trx',
+                name: 'USD Coin',
+                symbol: 'USDC',
+                address: tronAddress,
+                blockchain: 'Tron',
+                decimals: 6,
+                isNative: false,
+                contractAddress: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+            },
+            {
+                id: 'btc',
+                name: 'Bitcoin',
+                symbol: 'BTC',
+                address: bitcoinAddress,
+                blockchain: 'Bitcoin',
+                decimals: 8,
+                isNative: true,
+                contractAddress: '',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png'
             }
         ];
 
@@ -510,7 +584,7 @@ export const getBalances = async (wallets) => {
 
 export const getTokenPrices = async () => {
     try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,solana,ethereum&vs_currencies=usd');
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,solana,ethereum,tron,bitcoin&vs_currencies=usd');
         
         if (response.ok) {
             const data = await response.json();
@@ -519,7 +593,9 @@ export const getTokenPrices = async () => {
                 'SOL': data['solana']?.usd || 172.34,
                 'ETH': data['ethereum']?.usd || 3500.00,
                 'USDT': 1.00,
-                'USDC': 1.00
+                'USDC': 1.00,
+                'TRX': data['tron']?.usd || 0.12,
+                'BTC': data['bitcoin']?.usd || 68000.00
             };
         }
         
@@ -528,7 +604,9 @@ export const getTokenPrices = async () => {
             'SOL': 172.34,
             'ETH': 3500.00,
             'USDT': 1.00,
-            'USDC': 1.00
+            'USDC': 1.00,
+            'TRX': 0.12,
+            'BTC': 68000.00
         };
     } catch (error) {
         console.error('Error getting token prices:', error);
@@ -537,7 +615,9 @@ export const getTokenPrices = async () => {
             'SOL': 172.34,
             'ETH': 3500.00,
             'USDT': 1.00,
-            'USDC': 1.00
+            'USDC': 1.00,
+            'TRX': 0.12,
+            'BTC': 68000.00
         };
     }
 };
@@ -586,10 +666,8 @@ export const generateWallets = async (existingSeedPhrase = null) => {
 export const clearWallets = () => {
     try {
         localStorage.removeItem(SEED_PHRASE_KEY);
-        localStorage.removeItem(PIN_KEY);
         localStorage.removeItem('wallets');
         localStorage.removeItem('wallets_generated');
-        localStorage.removeItem('wallet_pin_set');
         console.log('Wallets cleared');
         return true;
     } catch (error) {
@@ -705,6 +783,50 @@ export const TOKENS = {
         contractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
         showBlockchain: true,
         logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+    },
+    TRX: {
+        id: 'trx',
+        name: 'TRON',
+        symbol: 'TRX',
+        blockchain: 'Tron',
+        decimals: 6,
+        isNative: true,
+        contractAddress: '',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/tron-trx-logo.png'
+    },
+    USDT_TRX: {
+        id: 'usdt_trx',
+        name: 'Tether',
+        symbol: 'USDT',
+        blockchain: 'Tron',
+        decimals: 6,
+        isNative: false,
+        contractAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+    },
+    USDC_TRX: {
+        id: 'usdc_trx',
+        name: 'USD Coin',
+        symbol: 'USDC',
+        blockchain: 'Tron',
+        decimals: 6,
+        isNative: false,
+        contractAddress: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+    },
+    BTC: {
+        id: 'btc',
+        name: 'Bitcoin',
+        symbol: 'BTC',
+        blockchain: 'Bitcoin',
+        decimals: 8,
+        isNative: true,
+        contractAddress: '',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png'
     }
 };
 
@@ -712,9 +834,6 @@ export default {
     generateNewSeedPhrase,
     saveSeedPhrase,
     getSeedPhrase,
-    savePin,
-    verifyPin,
-    isPinSet,
     generateWalletsFromSeed,
     generateWallets,
     getAllTokens,
@@ -727,8 +846,6 @@ export default {
     // API функции
     saveWalletToAPI,
     getWalletFromAPI,
-    savePinToAPI,
-    getPinFromAPI,
     saveSeedPhraseToAPI,
     getSeedPhraseFromAPI,
     saveAddressesToAPI,

@@ -79,7 +79,9 @@ function Wallet({ isActive, userData }) {
                     'SOL': 172.34,
                     'ETH': 3500.00,
                     'USDT': 1.00,
-                    'USDC': 1.00
+                    'USDC': 1.00,
+                    'TRX': 0.12,
+                    'BTC': 68000.00
                 };
                 
                 const total = allTokens.reduce((sum, wallet) => {
@@ -182,12 +184,10 @@ function Wallet({ isActive, userData }) {
     }, []);
 
     const handleBackupClick = () => {
-        // Показываем страницу BackupSeedPhrase внутри Wallet
         setShowBackupPage(true);
     };
 
     const handleBackToWallet = () => {
-        // Возвращаемся к основному интерфейсу Wallet
         setShowBackupPage(false);
     };
 

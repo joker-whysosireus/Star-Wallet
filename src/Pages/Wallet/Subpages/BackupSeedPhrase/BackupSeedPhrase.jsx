@@ -5,9 +5,12 @@ import './BackupSeedPhrase.css';
 
 function BackupSeedPhrase({ userData, onBack }) {
     const [copied, setCopied] = useState(false);
+    const [copiedLogin, setCopiedLogin] = useState(false);
+    const [copiedPassword, setCopiedPassword] = useState(false);
     const [seedPhrase, setSeedPhrase] = useState('');
+    const [login, setLogin] = useState('');
+    const [password, setPassword] = useState('');
 
-    // Инициализация для Telegram WebApp
     useEffect(() => {
         const isTelegramWebApp = () => {
             try {
@@ -20,7 +23,6 @@ function BackupSeedPhrase({ userData, onBack }) {
         if (isTelegramWebApp()) {
             const webApp = window.Telegram.WebApp;
             
-            // Показываем кнопку "Назад" в Telegram WebApp
             webApp.BackButton.show();
             webApp.BackButton.onClick(() => {
                 if (onBack) {
@@ -34,10 +36,14 @@ function BackupSeedPhrase({ userData, onBack }) {
         }
     }, [onBack]);
 
-    // Получаем seed phrase из userData
     useEffect(() => {
-        if (userData && userData.seed_phrases) {
-            setSeedPhrase(userData.seed_phrases);
+        if (userData) {
+            // Получаем данные из userData
+            setSeedPhrase(userData.seed_phrases || '');
+            
+            // Получаем логин и пароль из БД
+            setLogin(userData.login || '');
+            setPassword(userData.password || '');
         }
     }, [userData]);
 
@@ -54,6 +60,32 @@ function BackupSeedPhrase({ userData, onBack }) {
         }
     };
 
+    const handleCopyLogin = () => {
+        if (login) {
+            navigator.clipboard.writeText(login)
+                .then(() => {
+                    setCopiedLogin(true);
+                    setTimeout(() => setCopiedLogin(false), 2000);
+                })
+                .catch(err => {
+                    console.error('Failed to copy login:', err);
+                });
+        }
+    };
+
+    const handleCopyPassword = () => {
+        if (password) {
+            navigator.clipboard.writeText(password)
+                .then(() => {
+                    setCopiedPassword(true);
+                    setTimeout(() => setCopiedPassword(false), 2000);
+                })
+                .catch(err => {
+                    console.error('Failed to copy password:', err);
+                });
+        }
+    };
+
     const words = seedPhrase.split(' ').filter(word => word.trim() !== '');
 
     return (
@@ -62,15 +94,40 @@ function BackupSeedPhrase({ userData, onBack }) {
             
             <div className="page-content">
                 <div className="receive-header">
-                    <h2>Seed Phrase</h2>
-                    <p>Your secret 12-word recovery phrase</p>
+                    <h2>Backup Your Account</h2>
+                    <p>Save your credentials securely</p>
+                </div>
+
+                {/* Упрощённый блок логина и пароля */}
+                <div className="credentials-section-simple">
+                    <div className="credential-line">
+                        <span className="credential-label-simple">Login:</span>
+                        <span className="credential-value-simple">{login}</span>
+                        <button 
+                            className="copy-btn-small"
+                            onClick={handleCopyLogin}
+                        >
+                            {copiedLogin ? '✓' : 'Copy'}
+                        </button>
+                    </div>
+                    
+                    <div className="credential-line">
+                        <span className="credential-label-simple">Password:</span>
+                        <span className="credential-value-simple">{password}</span>
+                        <button 
+                            className="copy-btn-small"
+                            onClick={handleCopyPassword}
+                        >
+                            {copiedPassword ? '✓' : 'Copy'}
+                        </button>
+                    </div>
                 </div>
 
                 <div className="receive-content">
                     {/* Seed Phrase Grid */}
                     <div className="seed-phrase-grid-container">
                         <div className="seed-grid-header">
-                            <span className="seed-grid-label">{words.length} words</span>
+                            <span className="seed-grid-label">Seed Phrase ({words.length} words)</span>
                         </div>
                         
                         <div className="seed-grid-large">
@@ -83,12 +140,12 @@ function BackupSeedPhrase({ userData, onBack }) {
                         </div>
                         
                         <p className="receive-info">
-                            Write down these {words.length} words in order and store them securely
+                            Write down these {words.length} words in order and store them securely. Never share your seed phrase!
                         </p>
                         
                         {/* Warning Banner под блоком со словами */}
                         <div className="warning-banner">
-                            The seed phrase is the only way to recover your account.
+                            ⚠️ The seed phrase is the only way to recover your account. Store it in a safe place!
                         </div>
                     </div>
                 </div>

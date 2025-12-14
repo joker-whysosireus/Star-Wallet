@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
-import { TOKENS } from '../../Services/tokensConfig';
+import { TOKENS } from '../../Services/storageService';
 import { 
     getBalances,
     getTokenPrices 
@@ -70,6 +70,8 @@ const TokenDetail = () => {
             'TON': { color: '#0088cc', text: 'TON' },
             'Solana': { color: '#00ff88', text: 'SOL' },
             'Ethereum': { color: '#8c8cff', text: 'ETH' },
+            'Tron': { color: '#ff0000', text: 'TRX' },
+            'Bitcoin': { color: '#f7931a', text: 'BTC' },
         };
         
         return badges[blockchain] || { color: '#666', text: blockchain };
