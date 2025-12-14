@@ -23,7 +23,7 @@ const App = () => {
     const [isActive, setIsActive] = useState(false);
     const [userData, setUserData] = useState(null);
     const [isPinVerified, setIsPinVerified] = useState(false);
-    const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+    const [authStatus, setAuthStatus] = useState('checking'); // 'checking', 'auth_failed', 'pin_required', 'ready'
     const [pinStatus, setPinStatus] = useState({
         needsPin: true,
         hasPin: false
@@ -97,39 +97,37 @@ const App = () => {
 
     // User authentication
     useEffect(() => {
-        const getInitData = () => {
-            try {
-                return window.Telegram?.WebApp?.initData || '';
-            } catch (e) {
-                return '';
-            }
-        };
+        const initData = window.Telegram?.WebApp?.initData || '';
 
-        const initData = getInitData();
-
-        if (initData) {
-            fetch(AUTH_FUNCTION_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ initData }),
-            })
-            .then(response => response.json())
-            .then(async (data) => {
-                if (data.isValid && data.userData) {
-                    await checkPinStatus(data.userData);
-                } else {
-                    setIsCheckingAuth(false);
-                }
-            })
-            .catch(error => {
-                console.error("App.jsx: Authentication error:", error);
-                setIsCheckingAuth(false);
-            });
-        } else {
-            setIsCheckingAuth(false);
+        if (!initData) {
+            setAuthStatus('auth_failed');
+            return;
         }
+
+        fetch(AUTH_FUNCTION_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ initData }),
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(async (data) => {
+            if (data.isValid && data.userData) {
+                await checkPinStatus(data.userData);
+            } else {
+                setAuthStatus('auth_failed');
+            }
+        })
+        .catch(error => {
+            console.error("App.jsx: Authentication error:", error);
+            setAuthStatus('auth_failed');
+        });
     }, []);
 
     const checkPinStatus = async (userDataFromAuth) => {
@@ -139,7 +137,9 @@ const App = () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ userId: userDataFromAuth.telegram_user_id }),
+                body: JSON.stringify({ 
+                    userId: userDataFromAuth.telegram_user_id 
+                }),
             });
 
             const data = await response.json();
@@ -153,29 +153,21 @@ const App = () => {
                 setUserData(userDataFromAuth);
                 
                 if (!data.needsPin) {
-                    await initializeWallets(userDataFromAuth);
+                    // У пользователя уже есть PIN и он не нуждается в создании/вводе
+                    const initializedUserData = await initializeUserWallets(userDataFromAuth);
+                    setUserData(initializedUserData || userDataFromAuth);
                     setIsPinVerified(true);
+                    setAuthStatus('ready');
+                } else {
+                    // Нужно создать или ввести PIN
+                    setAuthStatus('pin_required');
                 }
+            } else {
+                setAuthStatus('auth_failed');
             }
         } catch (error) {
             console.error("App.jsx: Error checking PIN status:", error);
-            setPinStatus({
-                needsPin: true,
-                hasPin: false
-            });
-            setUserData(userDataFromAuth);
-        } finally {
-            setIsCheckingAuth(false);
-        }
-    };
-
-    const initializeWallets = async (userData) => {
-        const initializedUserData = await initializeUserWallets(userData);
-        
-        if (initializedUserData) {
-            setUserData(initializedUserData);
-        } else {
-            setUserData(userData);
+            setAuthStatus('auth_failed');
         }
     };
 
@@ -197,8 +189,10 @@ const App = () => {
                 const data = await response.json();
                 
                 if (data.success) {
-                    await initializeWallets(userData);
+                    const initializedUserData = await initializeUserWallets(userData);
+                    setUserData(initializedUserData || userData);
                     setIsPinVerified(true);
+                    setAuthStatus('ready');
                     navigate('/wallet');
                 } else {
                     throw new Error(data.error || "Failed to create PIN");
@@ -219,8 +213,10 @@ const App = () => {
                 const data = await response.json();
                 
                 if (data.success && data.pinVerified) {
-                    await initializeWallets(userData);
+                    const initializedUserData = await initializeUserWallets(userData);
+                    setUserData(initializedUserData || userData);
                     setIsPinVerified(true);
+                    setAuthStatus('ready');
                     navigate('/wallet');
                 } else {
                     throw new Error(data.error || "Invalid PIN");
@@ -238,17 +234,19 @@ const App = () => {
         }
     };
 
-    if (isCheckingAuth) {
+    // Если проверка аутентификации еще идет
+    if (authStatus === 'checking') {
         return (
             <div style={{
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
                 height: '100vh',
-                background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
+                background: '#000000',
+                fontFamily: "'Rubik', sans-serif"
             }}>
                 <div style={{
-                    color: 'white',
+                    color: '#FFD700',
                     fontSize: '18px',
                     textAlign: 'center'
                 }}>
@@ -258,7 +256,33 @@ const App = () => {
         );
     }
 
-    if (userData && !isPinVerified && pinStatus.needsPin) {
+    // Если аутентификация не удалась
+    if (authStatus === 'auth_failed') {
+        return (
+            <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '100vh',
+                background: '#000000',
+                padding: '20px',
+                textAlign: 'center',
+                fontFamily: "'Rubik', sans-serif"
+            }}>
+                <div style={{
+                    color: '#FFD700',
+                    fontSize: '16px',
+                    maxWidth: '300px'
+                }}>
+                    <h2 style={{ marginBottom: '20px', color: '#FFD700' }}>Authentication Error</h2>
+                    <p style={{ color: 'rgba(255, 255, 255, 0.7)' }}>Please try again or contact support.</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Показываем экран PIN-кода если требуется
+    if (authStatus === 'pin_required' && userData && !isPinVerified) {
         return (
             <PinCodeScreen
                 mode={pinStatus.hasPin ? 'enter' : 'create'}
@@ -273,7 +297,12 @@ const App = () => {
         );
     }
 
+    // Если userData отсутствует, не показываем приложение
+    if (!userData || authStatus !== 'ready') {
+        return null;
+    }
 
+    // Основное приложение после успешной аутентификации и верификации PIN
     return (
         <Routes location={location}>
             <Route path="/" element={<Wallet isActive={isActive} userData={userData} />} />

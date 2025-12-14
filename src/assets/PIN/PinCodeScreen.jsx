@@ -19,6 +19,18 @@ const PinCodeScreen = ({
     
     const pinDotsRef = useRef([]);
 
+    // Добавляем шрифт в head
+    useEffect(() => {
+        const link = document.createElement('link');
+        link.href = 'https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap';
+        link.rel = 'stylesheet';
+        document.head.appendChild(link);
+
+        return () => {
+            document.head.removeChild(link);
+        };
+    }, []);
+
     useEffect(() => {
         setPin('');
         setConfirmPin('');
