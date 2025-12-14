@@ -10,7 +10,6 @@ import Stake from './Pages/Stake/Stake';
 import SendToken from './Pages/Wallet/Subpages/Send/SendToken';
 import ReceiveToken from './Pages/Wallet/Subpages/Receive/ReceiveToken';
 import BackupSeedPhrase from './Pages/Wallet/Subpages/BackupSeedPhrase/BackupSeedPhrase';
-import WelcomePage from './Pages/Welcome/WelcomePage';
 import { initializeUserWallets } from './Pages/Wallet/Services/walletService';
 
 const AUTH_FUNCTION_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions/auth';
@@ -20,8 +19,6 @@ const App = () => {
     const navigate = useNavigate();
     const [isActive, setIsActive] = useState(false);
     const [userData, setUserData] = useState(null);
-    const [showWelcome, setShowWelcome] = useState(false);
-    const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
     // Управление кнопкой BackButton Telegram WebApp
     useEffect(() => {
@@ -102,29 +99,9 @@ const App = () => {
         }
     }, []);
 
-    // Проверяем, видел ли пользователь Welcome страницу
-    const checkWelcomeShown = (userId) => {
-        try {
-            const welcomeShown = localStorage.getItem(`welcomeShown_${userId}`);
-            return welcomeShown === 'true';
-        } catch (e) {
-            return false;
-        }
-    };
-
-    // Отмечаем, что пользователь увидел Welcome страницу
-    const markWelcomeShown = (userId) => {
-        try {
-            localStorage.setItem(`welcomeShown_${userId}`, 'true');
-        } catch (e) {
-            console.error("Error saving welcome status:", e);
-        }
-    };
-
     // User authentication and wallet initialization
     useEffect(() => {
         console.log("App.jsx: Starting authentication check");
-        setIsCheckingAuth(true);
         
         const getInitData = () => {
             try {
@@ -164,27 +141,15 @@ const App = () => {
                     if (data.isValid && data.userData) {
                         console.log("App.jsx: Authentication successful");
                         
-                        // Проверяем, новый ли пользователь (по наличию pin_code и seed_phrases)
-                        const hasPinCode = data.userData.pin_code;
-                        const hasSeedPhrases = data.userData.seed_phrases;
-                        const isNewUser = hasPinCode && hasSeedPhrases;
+                        // Initialize user wallets
+                        console.log("App.jsx: Initializing user wallets...");
+                        const initializedUserData = await initializeUserWallets(data.userData);
                         
-                        if (isNewUser) {
-                            // Проверяем, видел ли пользователь Welcome страницу
-                            const hasSeenWelcome = checkWelcomeShown(data.userData.telegram_user_id);
-                            
-                            if (!hasSeenWelcome) {
-                                // Показываем Welcome страницу для новых пользователей
-                                setShowWelcome(true);
-                                setUserData(data.userData);
-                            } else {
-                                // Инициализируем кошельки для существующих пользователей
-                                await initializeUserWallets(data.userData);
-                                setUserData(data.userData);
-                            }
+                        if (initializedUserData) {
+                            console.log("App.jsx: User wallets initialized successfully");
+                            setUserData(initializedUserData);
                         } else {
-                            // Инициализируем кошельки для существующих пользователей
-                            await initializeUserWallets(data.userData);
+                            console.error("App.jsx: Failed to initialize user wallets");
                             setUserData(data.userData);
                         }
                     } else {
@@ -193,32 +158,11 @@ const App = () => {
                 })
                 .catch(error => {
                     console.error("App.jsx: Authentication error:", error);
-                })
-                .finally(() => {
-                    setIsCheckingAuth(false);
                 });
         } else {
             console.warn("App.jsx: No initData available");
-            setIsCheckingAuth(false);
         }
     }, []);
-
-    // Обработчик продолжения с Welcome страницы
-    const handleWelcomeContinue = () => {
-        if (userData?.telegram_user_id) {
-            markWelcomeShown(userData.telegram_user_id);
-        }
-        setShowWelcome(false);
-        // Инициализируем кошельки после показа Welcome страницы
-        if (userData) {
-            initializeUserWallets(userData);
-        }
-    };
-
-    // Если нужно показать Welcome страницу
-    if (showWelcome && userData) {
-        return <WelcomePage userData={userData} onContinue={handleWelcomeContinue} />;
-    }
 
     return (
         <Routes location={location}>
