@@ -10,15 +10,24 @@ import Stake from './Pages/Stake/Stake';
 import SendToken from './Pages/Wallet/Subpages/Send/SendToken';
 import ReceiveToken from './Pages/Wallet/Subpages/Receive/ReceiveToken';
 import BackupSeedPhrase from './Pages/Wallet/Subpages/BackupSeedPhrase/BackupSeedPhrase';
+import PinCodeScreen from './assets/PIN/PinCodeScreen';
 import { initializeUserWallets } from './Pages/Wallet/Services/walletService';
 
 const AUTH_FUNCTION_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions/auth';
+const CHECK_PIN_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions/check-pin';
+const SET_PIN_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions/set-pin';
 
 const App = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const [isActive, setIsActive] = useState(false);
     const [userData, setUserData] = useState(null);
+    const [isPinVerified, setIsPinVerified] = useState(false);
+    const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+    const [pinStatus, setPinStatus] = useState({
+        needsPin: true,
+        hasPin: false
+    });
 
     // Управление кнопкой BackButton Telegram WebApp
     useEffect(() => {
@@ -33,9 +42,7 @@ const App = () => {
         if (isTelegramWebApp()) {
             const webApp = window.Telegram.WebApp;
             
-            // Определяем, на главной ли мы странице
-            const isRootPage = location.pathname === '/' || 
-                             location.pathname === '/wallet';
+            const isRootPage = location.pathname === '/' || location.pathname === '/wallet';
             
             if (isRootPage) {
                 webApp.BackButton.hide();
@@ -54,8 +61,6 @@ const App = () => {
 
     // Initialize Telegram WebApp
     useEffect(() => {
-        console.log("App.jsx: useEffect triggered");
-
         const isTelegramWebApp = () => {
             try {
                 return window.Telegram && window.Telegram.WebApp;
@@ -67,7 +72,6 @@ const App = () => {
         if (isTelegramWebApp()) {
             try {
                 const webApp = window.Telegram.WebApp;
-                console.log("Telegram WebApp detected, initializing...");
                 
                 webApp.isVerticalSwipesEnabled = false;
                 
@@ -77,32 +81,22 @@ const App = () => {
 
                 if (webApp.expand) {
                     webApp.expand();
-                    console.log("Telegram WebApp expanded to full screen");
                 }
                 
                 if (webApp.enableClosingConfirmation) {
                     webApp.enableClosingConfirmation();
                 }
                 
-                if (webApp.requestFullscreen) {
-                    webApp.requestFullscreen();
-                }
-                
-                console.log("Telegram WebApp initialized successfully");
                 setIsActive(webApp.isActive);
                 
             } catch (error) {
                 console.error("Error initializing Telegram WebApp:", error);
             }
-        } else {
-            console.warn("Not in Telegram WebApp environment, running in standalone mode");
         }
     }, []);
 
-    // User authentication and wallet initialization
+    // User authentication
     useEffect(() => {
-        console.log("App.jsx: Starting authentication check");
-        
         const getInitData = () => {
             try {
                 return window.Telegram?.WebApp?.initData || '';
@@ -112,99 +106,185 @@ const App = () => {
         };
 
         const initData = getInitData();
-        console.log("App.jsx: initData available:", !!initData);
 
         if (initData) {
-            console.log("App.jsx: Sending authentication request");
-            
-            const timeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error("Authentication timeout")), 15000)
-            );
-            
-            const authPromise = fetch(AUTH_FUNCTION_URL, {
+            fetch(AUTH_FUNCTION_URL, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ initData }),
+            })
+            .then(response => response.json())
+            .then(async (data) => {
+                if (data.isValid && data.userData) {
+                    await checkPinStatus(data.userData);
+                } else {
+                    setIsCheckingAuth(false);
+                }
+            })
+            .catch(error => {
+                console.error("App.jsx: Authentication error:", error);
+                setIsCheckingAuth(false);
             });
-
-            Promise.race([authPromise, timeoutPromise])
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(async (data) => {
-                    console.log("App.jsx: Authentication response received");
-                    if (data.isValid && data.userData) {
-                        console.log("App.jsx: Authentication successful");
-                        
-                        // Initialize user wallets
-                        console.log("App.jsx: Initializing user wallets...");
-                        const initializedUserData = await initializeUserWallets(data.userData);
-                        
-                        if (initializedUserData) {
-                            console.log("App.jsx: User wallets initialized successfully");
-                            setUserData(initializedUserData);
-                        } else {
-                            console.error("App.jsx: Failed to initialize user wallets");
-                            setUserData(data.userData);
-                        }
-                    } else {
-                        console.error("App.jsx: Authentication failed");
-                    }
-                })
-                .catch(error => {
-                    console.error("App.jsx: Authentication error:", error);
-                });
         } else {
-            console.warn("App.jsx: No initData available");
+            setIsCheckingAuth(false);
         }
     }, []);
 
+    const checkPinStatus = async (userDataFromAuth) => {
+        try {
+            const response = await fetch(CHECK_PIN_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ userId: userDataFromAuth.telegram_user_id }),
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                setPinStatus({
+                    needsPin: data.needsPin,
+                    hasPin: data.hasPin
+                });
+                
+                setUserData(userDataFromAuth);
+                
+                if (!data.needsPin) {
+                    await initializeWallets(userDataFromAuth);
+                    setIsPinVerified(true);
+                }
+            }
+        } catch (error) {
+            console.error("App.jsx: Error checking PIN status:", error);
+            setPinStatus({
+                needsPin: true,
+                hasPin: false
+            });
+            setUserData(userDataFromAuth);
+        } finally {
+            setIsCheckingAuth(false);
+        }
+    };
+
+    const initializeWallets = async (userData) => {
+        const initializedUserData = await initializeUserWallets(userData);
+        
+        if (initializedUserData) {
+            setUserData(initializedUserData);
+        } else {
+            setUserData(userData);
+        }
+    };
+
+    const handlePinComplete = async (pinCode) => {
+        try {
+            if (!pinStatus.hasPin) {
+                // Создание нового PIN-кода
+                const response = await fetch(SET_PIN_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        userId: userData.telegram_user_id, 
+                        pinCode 
+                    }),
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    await initializeWallets(userData);
+                    setIsPinVerified(true);
+                    navigate('/wallet');
+                } else {
+                    throw new Error(data.error || "Failed to create PIN");
+                }
+            } else {
+                // Проверка существующего PIN-кода
+                const response = await fetch(CHECK_PIN_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        userId: userData.telegram_user_id, 
+                        pinCode 
+                    }),
+                });
+
+                const data = await response.json();
+                
+                if (data.success && data.pinVerified) {
+                    await initializeWallets(userData);
+                    setIsPinVerified(true);
+                    navigate('/wallet');
+                } else {
+                    throw new Error(data.error || "Invalid PIN");
+                }
+            }
+        } catch (error) {
+            throw error;
+        }
+    };
+
+    const handleCancelPin = () => {
+        const webApp = window.Telegram?.WebApp;
+        if (webApp && webApp.close) {
+            webApp.close();
+        }
+    };
+
+    if (isCheckingAuth) {
+        return (
+            <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '100vh',
+                background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
+            }}>
+                <div style={{
+                    color: 'white',
+                    fontSize: '18px',
+                    textAlign: 'center'
+                }}>
+                    Loading...
+                </div>
+            </div>
+        );
+    }
+
+    if (userData && !isPinVerified && pinStatus.needsPin) {
+        return (
+            <PinCodeScreen
+                mode={pinStatus.hasPin ? 'enter' : 'create'}
+                title={pinStatus.hasPin ? 'Enter Passcode' : 'Create Passcode'}
+                message={pinStatus.hasPin 
+                    ? 'Enter your passcode to access your wallet' 
+                    : 'Create a 4-digit passcode to secure your wallet'}
+                onComplete={handlePinComplete}
+                onCancel={handleCancelPin}
+                showForgotButton={pinStatus.hasPin}
+            />
+        );
+    }
+
+
     return (
         <Routes location={location}>
-            {/* Главная страница */}
-            <Route path="/" element={
-                <Wallet isActive={isActive} userData={userData} />
-            } />
-            
-            {/* Дублирующий маршрут для /wallet */}
-            <Route path="/wallet" element={
-                <Wallet isActive={isActive} userData={userData} />
-            } />
-            
-            <Route path="/wallet/token/:symbol" element={
-                <TokenDetail isActive={isActive} userData={userData} />
-            } />
-            
-            {/* Новые маршруты для Send и Receive */}
-            <Route path="/send" element={
-                <SendToken isActive={isActive} userData={userData} />
-            } />
-            
-            <Route path="/receive" element={
-                <ReceiveToken isActive={isActive} userData={userData} />
-            } />
-            
-            {/* Новый маршрут для Backup Seed Phrase */}
-            <Route path="/backup-seed-phrase" element={
-                <BackupSeedPhrase isActive={isActive} userData={userData} />
-            } />
-            
-            <Route path="/history" element={
-                <History isActive={isActive} userData={userData} />
-            } />
-            
-            <Route path="/swap" element={
-                <Swap isActive={isActive} userData={userData} />
-            } />
-            
-            <Route path="/stake" element={
-                <Stake isActive={isActive} userData={userData} />
-            } />
+            <Route path="/" element={<Wallet isActive={isActive} userData={userData} />} />
+            <Route path="/wallet" element={<Wallet isActive={isActive} userData={userData} />} />
+            <Route path="/wallet/token/:symbol" element={<TokenDetail isActive={isActive} userData={userData} />} />
+            <Route path="/send" element={<SendToken isActive={isActive} userData={userData} />} />
+            <Route path="/receive" element={<ReceiveToken isActive={isActive} userData={userData} />} />
+            <Route path="/backup-seed-phrase" element={<BackupSeedPhrase isActive={isActive} userData={userData} />} />
+            <Route path="/history" element={<History isActive={isActive} userData={userData} />} />
+            <Route path="/swap" element={<Swap isActive={isActive} userData={userData} />} />
+            <Route path="/stake" element={<Stake isActive={isActive} userData={userData} />} />
         </Routes>
     );
 };

@@ -136,7 +136,7 @@
     gap: 12px;
     padding: 0;
     margin-top: auto;
-    margin-bottom: 10px; /* Поднимаем блок на 20px вверх */
+    margin-bottom: 5px; /* Поднимаем блок на 20px вверх */
 }
 
 .modal-button {
@@ -152,15 +152,8 @@
     font-size: 16px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s ease;
     text-align: left;
     width: 100%;
-}
-
-.modal-button:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 215, 0, 0.3);
-    transform: translateX(-5px);
 }
 
 .modal-button-icon {
