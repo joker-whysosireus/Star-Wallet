@@ -1,4 +1,5 @@
-import { Keypair, Connection, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { Connection, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { Keypair } from '@solana/web3.js';
 import * as bip39 from 'bip39';
 import { getSeedPhrase } from './storageService';
 
@@ -156,9 +157,4 @@ export const sendSol = async (toAddress, solAmount) => {
         console.error('Ошибка отправки SOL:', error);
         throw new Error(`Не удалось отправить SOL: ${error.message}`);
     }
-};
-
-export default {
-    getSolBalance,
-    sendSol
 };

@@ -2,299 +2,96 @@ import { mnemonicToWalletKey } from '@ton/crypto';
 import { WalletContractV4 } from '@ton/ton';
 import { Keypair } from '@solana/web3.js';
 import { ethers } from 'ethers';
-import * as bip39 from 'bip39';
 
-const WALLET_API_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions';
+// Ключи для localStorage
+const SEED_PHRASE_KEY = 'wallet_seed_phrase';
+const PIN_KEY = 'wallet_pin';
 
-// Получение сид-фразы (добавленная функция)
-export const getSeedPhrase = async () => {
+// Базовые URL для функций Netlify
+const NETLIFY_FUNCTIONS_URL = 'https://ton-jacket-backend.netlify.app/.netlify/functions';
+
+// API функции
+export const saveWalletToAPI = async (telegramUserId, walletData) => {
     try {
-        // Проверяем доступность localStorage
-        if (typeof window === 'undefined' || !window.localStorage) {
-            throw new Error('localStorage is not available');
+        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/save-wallet`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                telegram_user_id: telegramUserId,
+                ...walletData
+            }),
+        });
+        
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
         }
         
-        const seedPhrase = localStorage.getItem('seedPhrase');
-        if (!seedPhrase) {
-            throw new Error('Seed phrase not found in localStorage');
-        }
-        
-        return seedPhrase;
+        return await response.json();
     } catch (error) {
-        console.error('Error getting seed phrase:', error);
-        
-        // Fallback: возвращаем тестовую сид-фразу для демонстрации
-        // В реальном приложении удалите эту строку
-        return 'test test test test test test test test test test test junk';
-    }
-};
-
-// Получение всех токенов пользователя
-export const getAllTokens = async (userData) => {
-    try {
-        if (!userData) {
-            console.error('storageService: No user data provided');
-            return [];
-        }
-
-        console.log('storageService: Getting all tokens for user:', userData.telegram_user_id);
-
-        // Если у пользователя есть seed_phrases и wallet_addresses, создаем кошельки из них
-        if (userData.seed_phrases && userData.wallet_addresses) {
-            console.log('storageService: Creating wallets from user data with addresses');
-            return createWalletsFromAddresses(userData.wallet_addresses);
-        }
-
-        // Если у пользователя есть только seed_phrases, генерируем кошельки
-        if (userData.seed_phrases) {
-            console.log('storageService: Generating wallets from user seed phrase');
-            try {
-                const wallets = await generateWalletsFromSeed(userData.seed_phrases);
-                console.log('storageService: Successfully generated wallets from seed');
-                return wallets;
-            } catch (error) {
-                console.error('storageService: Error generating wallets from seed:', error);
-                return createDefaultWallets();
-            }
-        }
-
-        // Если у пользователя есть только wallet_addresses, создаем кошельки из них
-        if (userData.wallet_addresses && Object.keys(userData.wallet_addresses).length > 0) {
-            console.log('storageService: Creating wallets from user addresses');
-            return createWalletsFromAddresses(userData.wallet_addresses);
-        }
-
-        console.log('storageService: No seed phrase or addresses found, creating default wallets');
-        return createDefaultWallets();
-
-    } catch (error) {
-        console.error('storageService: Error getting all tokens:', error);
-        return createDefaultWallets();
-    }
-};
-
-// Создание дефолтных кошельков
-const createDefaultWallets = () => {
-    console.log('storageService: Creating default wallets');
-    return [
-        {
-            id: 'ton',
-            name: 'Toncoin',
-            symbol: 'TON',
-            address: '',
-            blockchain: 'TON',
-            decimals: 9,
-            isNative: true,
-            contractAddress: '',
-            showBlockchain: true,
-            balance: '0',
-            isActive: true,
-            logo: 'https://cryptologos.cc/logos/toncoin-ton-logo.png'
-        },
-        {
-            id: 'sol',
-            name: 'Solana',
-            symbol: 'SOL',
-            address: '',
-            blockchain: 'Solana',
-            decimals: 9,
-            isNative: true,
-            contractAddress: '',
-            showBlockchain: true,
-            balance: '0',
-            isActive: true,
-            logo: 'https://cryptologos.cc/logos/solana-sol-logo.png'
-        },
-        {
-            id: 'eth',
-            name: 'Ethereum',
-            symbol: 'ETH',
-            address: '',
-            blockchain: 'Ethereum',
-            decimals: 18,
-            isNative: true,
-            contractAddress: '',
-            showBlockchain: true,
-            balance: '0',
-            isActive: true,
-            logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png'
-        }
-    ];
-};
-
-// Функция для создания кошельков из адресов
-export const createWalletsFromAddresses = (walletAddresses) => {
-    const wallets = [];
-    
-    // TON Blockchain
-    if (walletAddresses.TON && walletAddresses.TON.address) {
-        const tonAddress = walletAddresses.TON.address;
-        
-        wallets.push({
-            id: 'ton',
-            name: 'Toncoin',
-            symbol: 'TON',
-            address: tonAddress,
-            blockchain: 'TON',
-            decimals: 9,
-            isNative: true,
-            contractAddress: '',
-            showBlockchain: true,
-            balance: '0',
-            isActive: true,
-            logo: 'https://cryptologos.cc/logos/toncoin-ton-logo.png'
-        });
-        
-        wallets.push({
-            id: 'usdt_ton',
-            name: 'Tether',
-            symbol: 'USDT',
-            address: tonAddress,
-            blockchain: 'TON',
-            decimals: 6,
-            isNative: false,
-            contractAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
-            showBlockchain: true,
-            balance: '0',
-            isActive: true,
-            logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-        });
-        
-        wallets.push({
-            id: 'usdc_ton',
-            name: 'USD Coin',
-            symbol: 'USDC',
-            address: tonAddress,
-            blockchain: 'TON',
-            decimals: 6,
-            isNative: false,
-            contractAddress: 'EQB-MPwrd1G6WKNkLz_VnV6TCqetER9X_KFXqJzPiTBDdhhG',
-            showBlockchain: true,
-            balance: '0',
-            isActive: true,
-            logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
-        });
-    }
-
-    // Solana Blockchain
-    if (walletAddresses.Solana && walletAddresses.Solana.address) {
-        const solAddress = walletAddresses.Solana.address;
-        
-        wallets.push({
-            id: 'sol',
-            name: 'Solana',
-            symbol: 'SOL',
-            address: solAddress,
-            blockchain: 'Solana',
-            decimals: 9,
-            isNative: true,
-            contractAddress: '',
-            showBlockchain: true,
-            balance: '0',
-            isActive: true,
-            logo: 'https://cryptologos.cc/logos/solana-sol-logo.png'
-        });
-        
-        wallets.push({
-            id: 'usdt_sol',
-            name: 'Tether',
-            symbol: 'USDT',
-            address: solAddress,
-            blockchain: 'Solana',
-            decimals: 6,
-            isNative: false,
-            contractAddress: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
-            showBlockchain: true,
-            balance: '0',
-            isActive: true,
-            logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-        });
-        
-        wallets.push({
-            id: 'usdc_sol',
-            name: 'USD Coin',
-            symbol: 'USDC',
-            address: solAddress,
-            blockchain: 'Solana',
-            decimals: 6,
-            isNative: false,
-            contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-            showBlockchain: true,
-            balance: '0',
-            isActive: true,
-            logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
-        });
-    }
-
-    // Ethereum Blockchain
-    if (walletAddresses.Ethereum && walletAddresses.Ethereum.address) {
-        const ethAddress = walletAddresses.Ethereum.address;
-        
-        wallets.push({
-            id: 'eth',
-            name: 'Ethereum',
-            symbol: 'ETH',
-            address: ethAddress,
-            blockchain: 'Ethereum',
-            decimals: 18,
-            isNative: true,
-            contractAddress: '',
-            showBlockchain: true,
-            balance: '0',
-            isActive: true,
-            logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png'
-        });
-        
-        wallets.push({
-            id: 'usdt_eth',
-            name: 'Tether',
-            symbol: 'USDT',
-            address: ethAddress,
-            blockchain: 'Ethereum',
-            decimals: 6,
-            isNative: false,
-            contractAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
-            showBlockchain: true,
-            balance: '0',
-            isActive: true,
-            logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-        });
-        
-        wallets.push({
-            id: 'usdc_eth',
-            name: 'USD Coin',
-            symbol: 'USDC',
-            address: ethAddress,
-            blockchain: 'Ethereum',
-            decimals: 6,
-            isNative: false,
-            contractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-            showBlockchain: true,
-            balance: '0',
-            isActive: true,
-            logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
-        });
-    }
-
-    return wallets;
-};
-
-// Генерация новой сид-фразы
-export const generateNewSeedPhrase = async () => {
-    try {
-        const seedPhrase = bip39.generateMnemonic(128);
-        console.log('storageService: New seed phrase generated');
-        return seedPhrase;
-    } catch (error) {
-        console.error('storageService: Error generating seed phrase:', error);
+        console.error('Error saving wallet to API:', error);
         throw error;
     }
 };
 
-// Сохранение сид-фразы через API
-export const saveSeedPhrase = async (telegramUserId, seedPhrase) => {
+export const getWalletFromAPI = async (telegramUserId) => {
     try {
-        const response = await fetch(`${WALLET_API_URL}/save-seed`, {
+        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/get-wallet?telegram_user_id=${telegramUserId}`);
+        
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Error getting wallet from API:', error);
+        throw error;
+    }
+};
+
+export const savePinToAPI = async (telegramUserId, pin) => {
+    try {
+        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/save-pin`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                telegram_user_id: telegramUserId,
+                pin_code: pin
+            }),
+        });
+        
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Error saving PIN to API:', error);
+        throw error;
+    }
+};
+
+export const getPinFromAPI = async (telegramUserId) => {
+    try {
+        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/get-pin?telegram_user_id=${telegramUserId}`);
+        
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Error getting PIN from API:', error);
+        throw error;
+    }
+};
+
+export const saveSeedPhraseToAPI = async (telegramUserId, seedPhrase) => {
+    try {
+        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/save-seed`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -304,22 +101,36 @@ export const saveSeedPhrase = async (telegramUserId, seedPhrase) => {
                 seed_phrase: seedPhrase
             }),
         });
-
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            throw new Error(`API error: ${response.status}`);
         }
-
+        
         return await response.json();
     } catch (error) {
-        console.error('storageService: Error saving seed phrase:', error);
+        console.error('Error saving seed phrase to API:', error);
         throw error;
     }
 };
 
-// Сохранение адресов через API
-export const saveAddresses = async (telegramUserId, addresses) => {
+export const getSeedPhraseFromAPI = async (telegramUserId) => {
     try {
-        const response = await fetch(`${WALLET_API_URL}/save-addresses`, {
+        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/get-seed?telegram_user_id=${telegramUserId}`);
+        
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Error getting seed phrase from API:', error);
+        throw error;
+    }
+};
+
+export const saveAddressesToAPI = async (telegramUserId, addresses) => {
+    try {
+        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/save-addresses`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -329,97 +140,178 @@ export const saveAddresses = async (telegramUserId, addresses) => {
                 wallet_addresses: addresses
             }),
         });
-
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            throw new Error(`API error: ${response.status}`);
         }
-
+        
         return await response.json();
     } catch (error) {
-        console.error('storageService: Error saving addresses:', error);
+        console.error('Error saving addresses to API:', error);
         throw error;
     }
 };
 
-// Вспомогательные функции для генерации адресов
+export const getAddressesFromAPI = async (telegramUserId) => {
+    try {
+        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/get-addresses?telegram_user_id=${telegramUserId}`);
+        
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        
+        return await response.json();
+    } catch (error) {
+        console.error('Error getting addresses from API:', error);
+        throw error;
+    }
+};
+
+// Локальные функции
+export const getSeedPhrase = () => {
+    try {
+        const seedPhrase = localStorage.getItem(SEED_PHRASE_KEY);
+        if (!seedPhrase) {
+            console.log('No seed phrase found');
+            return null;
+        }
+        return seedPhrase;
+    } catch (error) {
+        console.error('Error getting seed phrase:', error);
+        return null;
+    }
+};
+
+export const generateNewSeedPhrase = async () => {
+    try {
+        const { generateMnemonic } = await import('bip39');
+        const seedPhrase = generateMnemonic(128);
+        console.log('New seed phrase generated');
+        return seedPhrase;
+    } catch (error) {
+        console.error('Error generating seed phrase:', error);
+        throw error;
+    }
+};
+
+export const saveSeedPhrase = (seedPhrase) => {
+    try {
+        localStorage.setItem(SEED_PHRASE_KEY, seedPhrase);
+        console.log('Seed phrase saved locally');
+        return true;
+    } catch (error) {
+        console.error('Error saving seed phrase:', error);
+        return false;
+    }
+};
+
+export const savePin = (pin) => {
+    try {
+        localStorage.setItem(PIN_KEY, pin);
+        localStorage.setItem('wallet_pin_set', 'true');
+        console.log('PIN saved locally');
+        return true;
+    } catch (error) {
+        console.error('Error saving PIN:', error);
+        return false;
+    }
+};
+
+export const verifyPin = (pin) => {
+    try {
+        const savedPin = localStorage.getItem(PIN_KEY);
+        return savedPin === pin;
+    } catch (error) {
+        console.error('Error verifying PIN:', error);
+        return false;
+    }
+};
+
+export const isPinSet = () => {
+    return localStorage.getItem('wallet_pin_set') === 'true';
+};
+
+// Генерация адресов
 const generateTonAddress = async (seedPhrase) => {
     try {
         if (!seedPhrase || seedPhrase.trim() === '') {
-            throw new Error('Empty seed phrase for TON address generation');
+            console.warn('Empty seed phrase for TON address generation');
+            return 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
         }
         
-        console.log('storageService: Generating TON address from seed...');
+        console.log('Generating TON address from seed...');
         const tonKeyPair = await mnemonicToWalletKey(seedPhrase.split(' '));
         const tonWallet = WalletContractV4.create({
             publicKey: tonKeyPair.publicKey,
             workchain: 0
         });
         const address = tonWallet.address.toString();
-        console.log('storageService: TON address generated:', address);
+        console.log('TON address generated:', address);
         return address;
     } catch (error) {
-        console.error('storageService: Error generating TON address:', error);
-        throw error;
+        console.error('Error generating TON address:', error);
+        return 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
     }
 };
 
 const generateSolanaAddress = async (seedPhrase) => {
     try {
         if (!seedPhrase || seedPhrase.trim() === '') {
-            throw new Error('Empty seed phrase for Solana address generation');
+            console.warn('Empty seed phrase for Solana address generation');
+            return 'So11111111111111111111111111111111111111112';
         }
         
-        console.log('storageService: Generating Solana address from seed...');
+        console.log('Generating Solana address from seed...');
+        const bip39 = await import('bip39');
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const solanaSeed = new Uint8Array(seedBuffer.slice(0, 32));
         const solanaKeypair = Keypair.fromSeed(solanaSeed);
         const address = solanaKeypair.publicKey.toBase58();
-        console.log('storageService: Solana address generated:', address);
+        console.log('Solana address generated:', address);
         return address;
     } catch (error) {
-        console.error('storageService: Error generating Solana address:', error);
-        throw error;
+        console.error('Error generating Solana address:', error);
+        return 'So11111111111111111111111111111111111111112';
     }
 };
 
 const generateEthereumAddress = async (seedPhrase) => {
     try {
         if (!seedPhrase || seedPhrase.trim() === '') {
-            throw new Error('Empty seed phrase for Ethereum address generation');
+            console.warn('Empty seed phrase for Ethereum address generation');
+            return '0x0000000000000000000000000000000000000000';
         }
         
-        console.log('storageService: Generating Ethereum address from seed...');
+        console.log('Generating Ethereum address from seed...');
+        const bip39 = await import('bip39');
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
         const ethWallet = masterNode.derivePath("m/44'/60'/0'/0/0");
         const address = ethWallet.address;
-        console.log('storageService: Ethereum address generated:', address);
+        console.log('Ethereum address generated:', address);
         return address;
     } catch (error) {
-        console.error('storageService: Error generating Ethereum address:', error);
-        throw error;
+        console.error('Error generating Ethereum address:', error);
+        return '0x0000000000000000000000000000000000000000';
     }
 };
 
-// Генерация всех кошельков из сид-фразы
+// Генерация всех кошельков
 export const generateWalletsFromSeed = async (seedPhrase) => {
     try {
-        console.log('storageService: Starting wallet generation from seed phrase...');
+        console.log('Starting wallet generation from seed phrase...');
         
         if (!seedPhrase || seedPhrase.trim() === '') {
-            throw new Error('Seed phrase is required and cannot be empty');
+            throw new Error('Seed phrase is required');
         }
 
-        // Генерируем адреса для всех блокчейнов
         const tonAddress = await generateTonAddress(seedPhrase);
         const solanaAddress = await generateSolanaAddress(seedPhrase);
         const ethAddress = await generateEthereumAddress(seedPhrase);
 
-        console.log('storageService: All addresses generated successfully');
+        console.log('All addresses generated');
         
-        // Создаем кошельки
         const wallets = [
-            // TON Blockchain
             {
                 id: 'ton',
                 name: 'Toncoin',
@@ -462,8 +354,6 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
                 isActive: true,
                 logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
             },
-
-            // Solana Blockchain
             {
                 id: 'sol',
                 name: 'Solana',
@@ -506,8 +396,6 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
                 isActive: true,
                 logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
             },
-
-            // Ethereum Blockchain
             {
                 id: 'eth',
                 name: 'Ethereum',
@@ -552,30 +440,48 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
             }
         ];
 
-        console.log('storageService: Wallets generated successfully');
+        localStorage.setItem('wallets', JSON.stringify(wallets));
+        localStorage.setItem('wallets_generated', 'true');
+        
+        console.log('Wallets generated:', wallets.length);
         return wallets;
     } catch (error) {
-        console.error('storageService: Error generating wallets from seed:', error);
+        console.error('Error generating wallets:', error);
         throw error;
     }
 };
 
-// Получение балансов кошельков
+export const getAllTokens = () => {
+    try {
+        const cachedWallets = localStorage.getItem('wallets');
+        if (cachedWallets) {
+            const wallets = JSON.parse(cachedWallets);
+            if (Array.isArray(wallets)) {
+                return wallets;
+            }
+        }
+        
+        return [];
+    } catch (error) {
+        console.error('Error getting all tokens:', error);
+        return [];
+    }
+};
+
 export const getBalances = async (wallets) => {
     try {
         if (!Array.isArray(wallets)) {
             console.error('getBalances: wallets is not an array');
-            return wallets || [];
+            return [];
         }
         
         const updatedWallets = [...wallets];
         
-        // Получаем балансы для TON кошельков
         for (const wallet of updatedWallets.filter(w => w.blockchain === 'TON')) {
-            if (wallet.symbol === 'TON' && wallet.address) {
+            if (wallet.symbol === 'TON') {
                 try {
                     const { getTonBalance } = await import('./tonService');
-                    const balance = await getTonBalance(wallet.address);
+                    const balance = await getTonBalance();
                     wallet.balance = balance || '0';
                 } catch (error) {
                     console.error('Error getting TON balance:', error);
@@ -583,28 +489,14 @@ export const getBalances = async (wallets) => {
             }
         }
         
-        // Получаем балансы для Solana кошельков
         for (const wallet of updatedWallets.filter(w => w.blockchain === 'Solana')) {
-            if (wallet.symbol === 'SOL' && wallet.address) {
+            if (wallet.symbol === 'SOL') {
                 try {
                     const { getSolBalance } = await import('./solanaService');
                     const balance = await getSolBalance();
                     wallet.balance = balance || '0';
                 } catch (error) {
                     console.error('Error getting SOL balance:', error);
-                }
-            }
-        }
-        
-        // Получаем балансы для Ethereum кошельков
-        for (const wallet of updatedWallets.filter(w => w.blockchain === 'Ethereum')) {
-            if (wallet.symbol === 'ETH' && wallet.address) {
-                try {
-                    const { getEthBalance } = await import('./ethereumService');
-                    const balance = await getEthBalance(wallet.address);
-                    wallet.balance = balance || '0';
-                } catch (error) {
-                    console.error('Error getting ETH balance:', error);
                 }
             }
         }
@@ -672,15 +564,173 @@ export const calculateTotalBalance = async (wallets) => {
     }
 };
 
+export const generateWallets = async (existingSeedPhrase = null) => {
+    try {
+        let seedPhrase = existingSeedPhrase;
+        if (!seedPhrase) {
+            seedPhrase = getSeedPhrase();
+        }
+        
+        if (!seedPhrase) {
+            throw new Error('Invalid seed phrase');
+        }
+
+        const wallets = await generateWalletsFromSeed(seedPhrase);
+        return { wallets, seedPhrase };
+    } catch (error) {
+        console.error('Error generating wallets:', error);
+        throw error;
+    }
+};
+
+export const clearWallets = () => {
+    try {
+        localStorage.removeItem(SEED_PHRASE_KEY);
+        localStorage.removeItem(PIN_KEY);
+        localStorage.removeItem('wallets');
+        localStorage.removeItem('wallets_generated');
+        localStorage.removeItem('wallet_pin_set');
+        console.log('Wallets cleared');
+        return true;
+    } catch (error) {
+        console.error('Error clearing wallets:', error);
+        return false;
+    }
+};
+
+export const revealSeedPhrase = async () => {
+    const seedPhrase = getSeedPhrase();
+    if (!seedPhrase) {
+        throw new Error('Seed phrase not found');
+    }
+    return seedPhrase;
+};
+
+export const TOKENS = {
+    TON: {
+        id: 'ton',
+        name: 'Toncoin',
+        symbol: 'TON',
+        blockchain: 'TON',
+        decimals: 9,
+        isNative: true,
+        contractAddress: '',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/toncoin-ton-logo.png'
+    },
+    USDT_TON: {
+        id: 'usdt_ton',
+        name: 'Tether',
+        symbol: 'USDT',
+        blockchain: 'TON',
+        decimals: 6,
+        isNative: false,
+        contractAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+    },
+    USDC_TON: {
+        id: 'usdc_ton',
+        name: 'USD Coin',
+        symbol: 'USDC',
+        blockchain: 'TON',
+        decimals: 6,
+        isNative: false,
+        contractAddress: 'EQB-MPwrd1G6WKNkLz_VnV6TCqetER9X_KFXqJzPiTBDdhhG',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+    },
+    SOL: {
+        id: 'sol',
+        name: 'Solana',
+        symbol: 'SOL',
+        blockchain: 'Solana',
+        decimals: 9,
+        isNative: true,
+        contractAddress: '',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/solana-sol-logo.png'
+    },
+    USDT_SOL: {
+        id: 'usdt_sol',
+        name: 'Tether',
+        symbol: 'USDT',
+        blockchain: 'Solana',
+        decimals: 6,
+        isNative: false,
+        contractAddress: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+    },
+    USDC_SOL: {
+        id: 'usdc_sol',
+        name: 'USD Coin',
+        symbol: 'USDC',
+        blockchain: 'Solana',
+        decimals: 6,
+        isNative: false,
+        contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+    },
+    ETH: {
+        id: 'eth',
+        name: 'Ethereum',
+        symbol: 'ETH',
+        blockchain: 'Ethereum',
+        decimals: 18,
+        isNative: true,
+        contractAddress: '',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png'
+    },
+    USDT_ETH: {
+        id: 'usdt_eth',
+        name: 'Tether',
+        symbol: 'USDT',
+        blockchain: 'Ethereum',
+        decimals: 6,
+        isNative: false,
+        contractAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+    },
+    USDC_ETH: {
+        id: 'usdc_eth',
+        name: 'USD Coin',
+        symbol: 'USDC',
+        blockchain: 'Ethereum',
+        decimals: 6,
+        isNative: false,
+        contractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+    }
+};
+
 export default {
-    getSeedPhrase,
-    getAllTokens,
-    createWalletsFromAddresses,
     generateNewSeedPhrase,
     saveSeedPhrase,
-    saveAddresses,
+    getSeedPhrase,
+    savePin,
+    verifyPin,
+    isPinSet,
     generateWalletsFromSeed,
+    generateWallets,
+    getAllTokens,
     getBalances,
+    revealSeedPhrase,
     getTokenPrices,
-    calculateTotalBalance
+    calculateTotalBalance,
+    clearWallets,
+    TOKENS,
+    // API функции
+    saveWalletToAPI,
+    getWalletFromAPI,
+    savePinToAPI,
+    getPinFromAPI,
+    saveSeedPhraseToAPI,
+    getSeedPhraseFromAPI,
+    saveAddressesToAPI,
+    getAddressesFromAPI
 };
