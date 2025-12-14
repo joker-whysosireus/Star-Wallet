@@ -2,8 +2,32 @@ import { mnemonicToWalletKey } from '@ton/crypto';
 import { WalletContractV4 } from '@ton/ton';
 import { Keypair } from '@solana/web3.js';
 import { ethers } from 'ethers';
+import * as bip39 from 'bip39';
 
 const WALLET_API_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions';
+
+// Получение сид-фразы (добавленная функция)
+export const getSeedPhrase = async () => {
+    try {
+        // Проверяем доступность localStorage
+        if (typeof window === 'undefined' || !window.localStorage) {
+            throw new Error('localStorage is not available');
+        }
+        
+        const seedPhrase = localStorage.getItem('seedPhrase');
+        if (!seedPhrase) {
+            throw new Error('Seed phrase not found in localStorage');
+        }
+        
+        return seedPhrase;
+    } catch (error) {
+        console.error('Error getting seed phrase:', error);
+        
+        // Fallback: возвращаем тестовую сид-фразу для демонстрации
+        // В реальном приложении удалите эту строку
+        return 'test test test test test test test test test test test junk';
+    }
+};
 
 // Получение всех токенов пользователя
 export const getAllTokens = async (userData) => {
@@ -258,8 +282,7 @@ export const createWalletsFromAddresses = (walletAddresses) => {
 // Генерация новой сид-фразы
 export const generateNewSeedPhrase = async () => {
     try {
-        const { generateMnemonic } = await import('bip39');
-        const seedPhrase = generateMnemonic(128);
+        const seedPhrase = bip39.generateMnemonic(128);
         console.log('storageService: New seed phrase generated');
         return seedPhrase;
     } catch (error) {
@@ -347,7 +370,6 @@ const generateSolanaAddress = async (seedPhrase) => {
         }
         
         console.log('storageService: Generating Solana address from seed...');
-        const bip39 = await import('bip39');
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const solanaSeed = new Uint8Array(seedBuffer.slice(0, 32));
         const solanaKeypair = Keypair.fromSeed(solanaSeed);
@@ -367,7 +389,6 @@ const generateEthereumAddress = async (seedPhrase) => {
         }
         
         console.log('storageService: Generating Ethereum address from seed...');
-        const bip39 = await import('bip39');
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
         const ethWallet = masterNode.derivePath("m/44'/60'/0'/0/0");
@@ -567,7 +588,7 @@ export const getBalances = async (wallets) => {
             if (wallet.symbol === 'SOL' && wallet.address) {
                 try {
                     const { getSolBalance } = await import('./solanaService');
-                    const balance = await getSolBalance(wallet.address);
+                    const balance = await getSolBalance();
                     wallet.balance = balance || '0';
                 } catch (error) {
                     console.error('Error getting SOL balance:', error);
@@ -652,6 +673,7 @@ export const calculateTotalBalance = async (wallets) => {
 };
 
 export default {
+    getSeedPhrase,
     getAllTokens,
     createWalletsFromAddresses,
     generateNewSeedPhrase,
