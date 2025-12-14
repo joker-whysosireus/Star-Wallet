@@ -1,14 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
 import './BackupSeedPhrase.css';
 
-function BackupSeedPhrase() {
-    const location = useLocation();
-    const navigate = useNavigate();
-    const { userData } = location.state || {};
-    
+function BackupSeedPhrase({ userData, onBack }) {
     const [copied, setCopied] = useState(false);
     const [seedPhrase, setSeedPhrase] = useState('');
 
@@ -28,14 +23,16 @@ function BackupSeedPhrase() {
             // Показываем кнопку "Назад" в Telegram WebApp
             webApp.BackButton.show();
             webApp.BackButton.onClick(() => {
-                navigate('/wallet');
+                if (onBack) {
+                    onBack();
+                }
             });
             
             return () => {
                 webApp.BackButton.offClick();
             };
         }
-    }, [navigate]);
+    }, [onBack]);
 
     // Получаем seed phrase из userData
     useEffect(() => {

@@ -8,11 +8,13 @@ import {
     getBalances, 
     calculateTotalBalance
 } from './Services/storageService';
+import BackupSeedPhrase from './Subpages/BackupSeedPhrase/BackupSeedPhrase';
 import './Wallet.css';
 
 function Wallet({ isActive, userData }) {
     const [wallets, setWallets] = useState([]);
     const [totalBalance, setTotalBalance] = useState('$0.00');
+    const [showBackupPage, setShowBackupPage] = useState(false);
     const navigate = useNavigate();
     
     const hasLoadedWallets = useRef(false);
@@ -180,8 +182,24 @@ function Wallet({ isActive, userData }) {
     }, []);
 
     const handleBackupClick = () => {
-        navigate('/backup-seed-phrase', { state: { userData } });
+        // Показываем страницу BackupSeedPhrase внутри Wallet
+        setShowBackupPage(true);
     };
+
+    const handleBackToWallet = () => {
+        // Возвращаемся к основному интерфейсу Wallet
+        setShowBackupPage(false);
+    };
+
+    // Если показываем страницу BackupSeedPhrase
+    if (showBackupPage) {
+        return (
+            <BackupSeedPhrase 
+                userData={userData} 
+                onBack={handleBackToWallet}
+            />
+        );
+    }
 
     return (
         <div className="page-container">

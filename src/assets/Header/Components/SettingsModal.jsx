@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaUser, FaSignOutAlt, FaShieldAlt, FaQuestionCircle } from 'react-icons/fa';
+import { FaUser, FaSignOutAlt, FaShieldAlt, FaQuestionCircle, FaTelegram, FaSteamSquare, FaSteam, FaGlobeAmericas } from 'react-icons/fa';
 import './SettingsModal.css';
 
 const SettingsModal = ({ userData, isOpen, onClose, onLogout, onPrivacy, onFAQ }) => {
@@ -23,6 +23,26 @@ const SettingsModal = ({ userData, isOpen, onClose, onLogout, onPrivacy, onFAQ }
                         <div className="modal-username">
                             {userData?.username || 'User'}
                         </div>
+                    </div>
+                    
+                    {/* Telegram Channel Block под Header */}
+                    <div className="modal-telegram-banner">
+                        <div className="modal-telegram-icon">
+                            <FaTelegram />
+                        </div>
+                        <span className="modal-telegram-text">Telegram Channel</span>
+                    </div>
+                    <div className="modal-telegram-banner">
+                        <div className="modal-telegram-icon">
+                            <FaTelegram />
+                        </div>
+                        <span className="modal-telegram-text">Channel Chat</span>
+                    </div>
+                    <div className="modal-telegram-banner">
+                        <div className="modal-telegram-icon">
+                            <FaGlobeAmericas />
+                        </div>
+                        <span className="modal-telegram-text">Website</span>
                     </div>
                 </div>
                 
