@@ -39,11 +39,8 @@ function BackupSeedPhrase() {
 
     // Получаем seed phrase из userData
     useEffect(() => {
-        if (userData && userData.seed_phrase) {
-            setSeedPhrase(userData.seed_phrase);
-        } else {
-            // Если нет userData, показываем 12 раз "armor"
-            setSeedPhrase('armor '.repeat(12).trim());
+        if (userData && userData.seed_phrases) {
+            setSeedPhrase(userData.seed_phrases);
         }
     }, [userData]);
 
