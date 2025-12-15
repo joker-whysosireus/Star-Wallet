@@ -12,7 +12,7 @@ const PinCodeScreen = ({
     const [loading, setLoading] = useState(false);
     const [title, setTitle] = useState('');
     const [subtitle, setSubtitle] = useState('');
-    const [confirmPin, setConfirmPin] = useState('');
+    const [confirmPin, setConfirmPin] = useState(''); //sdasdasdads
     const [step, setStep] = useState(1);
 
     useEffect(() => {

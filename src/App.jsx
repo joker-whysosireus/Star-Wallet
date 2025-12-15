@@ -9,7 +9,7 @@ import Stake from './Pages/Stake/Stake';
 import SendToken from './Pages/Wallet/Subpages/Send/SendToken';
 import ReceiveToken from './Pages/Wallet/Subpages/Receive/ReceiveToken';
 import BackupSeedPhrase from './Pages/Wallet/Subpages/BackupSeedPhrase/BackupSeedPhrase';
-import PinCodeScreen from './assets/PIN/PinCodeScreen'; //s
+import PinCodeScreen from './assets/PIN/PinCodeScreen'; //szx
 import { initializeUserWallets } from './Pages/Wallet/Services/walletService';
 
 const AUTH_FUNCTION_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions/auth';
