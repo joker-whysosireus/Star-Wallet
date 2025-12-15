@@ -8,12 +8,12 @@ const PinCodeScreen = ({
     mode = 'verify'
 }) => {
     const [pin, setPin] = useState('');
-    const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [title, setTitle] = useState('');
     const [subtitle, setSubtitle] = useState('');
     const [confirmPin, setConfirmPin] = useState('');
     const [step, setStep] = useState(1);
+    const [errorState, setErrorState] = useState(false);
 
     useEffect(() => {
         if (mode === 'create') {
@@ -33,18 +33,18 @@ const PinCodeScreen = ({
     const handleNumberClick = useCallback((number) => {
         if (pin.length < 4) {
             setPin(prev => prev + number);
-            setError('');
+            setErrorState(false);
         }
     }, [pin.length]);
 
     const handleDelete = useCallback(() => {
         setPin(prev => prev.slice(0, -1));
-        setError('');
+        setErrorState(false);
     }, []);
 
     const handleClear = useCallback(() => {
         setPin('');
-        setError('');
+        setErrorState(false);
     }, []);
 
     const PIN_API_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions';
@@ -99,12 +99,11 @@ const PinCodeScreen = ({
 
     const handleSubmit = useCallback(async () => {
         if (pin.length !== 4) {
-            setError('Please enter 4 digits');
             return;
         }
 
         setLoading(true);
-        setError('');
+        setErrorState(false);
 
         try {
             if (mode === 'create') {
@@ -114,16 +113,23 @@ const PinCodeScreen = ({
                     setStep(2);
                 } else {
                     if (pin !== confirmPin) {
-                        setError('PIN codes do not match. Try again.');
-                        setStep(1);
-                        setPin('');
-                        setConfirmPin('');
+                        setErrorState(true);
+                        setTimeout(() => {
+                            setStep(1);
+                            setPin('');
+                            setConfirmPin('');
+                            setErrorState(false);
+                        }, 500);
                     } else {
                         const result = await savePin(pin);
                         if (result.success) {
                             onPinCreated(pin);
                         } else {
-                            setError('Failed to save PIN code. Please try again.');
+                            setErrorState(true);
+                            setTimeout(() => {
+                                setPin('');
+                                setErrorState(false);
+                            }, 500);
                         }
                     }
                 }
@@ -136,12 +142,19 @@ const PinCodeScreen = ({
                     setSubtitle('Set up a 4-digit PIN to secure your wallet');
                     setPin('');
                 } else {
-                    setError('Invalid PIN code. Try again.');
-                    setPin('');
+                    setErrorState(true);
+                    setTimeout(() => {
+                        setPin('');
+                        setErrorState(false);
+                    }, 500);
                 }
             }
         } catch (error) {
-            setError('An error occurred. Please try again.');
+            setErrorState(true);
+            setTimeout(() => {
+                setPin('');
+                setErrorState(false);
+            }, 500);
         } finally {
             setLoading(false);
         }
@@ -159,7 +172,7 @@ const PinCodeScreen = ({
                 {[1, 2, 3, 4].map((i) => (
                     <div 
                         key={i} 
-                        className={`pin-circle ${i <= pin.length ? 'filled' : ''} ${loading ? 'bounce' : ''}`}
+                        className={`pin-circle ${i <= pin.length ? 'filled' : ''} ${loading ? 'bounce' : ''} ${errorState ? 'error' : ''}`}
                         style={{ animationDelay: loading ? `${(i-1)*0.1}s` : '0s' }}
                     />
                 ))}
@@ -177,13 +190,6 @@ const PinCodeScreen = ({
 
                 <div className="pin-content">
                     {renderPinCircles()}
-                    
-                    {error && (
-                        <div className="pin-error">
-                            <span className="error-icon">!</span>
-                            <span className="error-text">{error}</span>
-                        </div>
-                    )}
                 </div>
 
                 <div className="pin-keypad">
@@ -193,7 +199,7 @@ const PinCodeScreen = ({
                                 key={num}
                                 className="pin-key"
                                 onClick={() => handleNumberClick(num.toString())}
-                                disabled={loading}
+                                disabled={loading || errorState}
                             >
                                 {num}
                             </button>
@@ -205,7 +211,7 @@ const PinCodeScreen = ({
                                 key={num}
                                 className="pin-key"
                                 onClick={() => handleNumberClick(num.toString())}
-                                disabled={loading}
+                                disabled={loading || errorState}
                             >
                                 {num}
                             </button>
@@ -217,7 +223,7 @@ const PinCodeScreen = ({
                                 key={num}
                                 className="pin-key"
                                 onClick={() => handleNumberClick(num.toString())}
-                                disabled={loading}
+                                disabled={loading || errorState}
                             >
                                 {num}
                             </button>
@@ -227,21 +233,21 @@ const PinCodeScreen = ({
                         <button 
                             className="pin-key clear-key"
                             onClick={handleClear}
-                            disabled={loading}
+                            disabled={loading || errorState}
                         >
                             Clear
                         </button>
                         <button
                             className="pin-key"
                             onClick={() => handleNumberClick('0')}
-                            disabled={loading}
+                            disabled={loading || errorState}
                         >
                             0
                         </button>
                         <button 
                             className="pin-key delete-key"
                             onClick={handleDelete}
-                            disabled={loading || pin.length === 0}
+                            disabled={loading || errorState || pin.length === 0}
                         >
                             ←
                         </button>

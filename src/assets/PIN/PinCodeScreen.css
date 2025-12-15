@@ -73,6 +73,16 @@
     animation: bounce 0.5s infinite alternate;
 }
 
+.pin-circle.error {
+    border-color: #ff3b30;
+}
+
+.pin-circle.error.filled {
+    background: #ff3b30;
+    border-color: #ff3b30;
+    box-shadow: 0 0 10px rgba(255, 59, 48, 0.3);
+}
+
 @keyframes bounce {
     from {
         transform: translateY(0);
@@ -80,34 +90,6 @@
     to {
         transform: translateY(-10px);
     }
-}
-
-.pin-error {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(255, 59, 48, 0.1);
-    border: 1px solid rgba(255, 59, 48, 0.2);
-    border-radius: 10px;
-    padding: 12px 16px;
-    margin-top: 20px;
-}
-
-.error-icon {
-    color: #ff3b30;
-    font-weight: bold;
-    font-size: 14px;
-    width: 16px;
-    height: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.error-text {
-    color: #ff3b30;
-    font-size: 14px;
-    font-weight: 500;
 }
 
 .pin-keypad {

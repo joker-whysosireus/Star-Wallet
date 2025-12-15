@@ -207,7 +207,7 @@ const App = () => {
         );
     }
 
-    if (isAuthenticated && userData) {
+    
         return (
             <Routes location={location}>
                 <Route path="/" element={
@@ -245,9 +245,13 @@ const App = () => {
                 <Route path="/stake" element={
                     <Stake isActive={isActive} userData={userData} />
                 } />
+
+                <Route path="/pin" element={
+                    <PinCodeScreen isActive={isActive} userData={userData} />
+                } />
             </Routes>
         );
-    }
+   
 
     return null;
 };
