@@ -13,6 +13,7 @@ const TokenCard = ({ wallet }) => {
             'Ethereum': { color: '#8c8cff', text: 'ETH' },
             'Tron': { color: '#ff0000', text: 'TRX' },
             'Bitcoin': { color: '#f7931a', text: 'BTC' },
+            'Bitcoin': { color: '#013220', text: 'NEAR' },
         };
         
         return badges[blockchain] || { color: '#666', text: blockchain };

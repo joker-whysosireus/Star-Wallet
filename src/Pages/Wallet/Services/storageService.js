@@ -240,7 +240,7 @@ const generateTronAddress = async (seedPhrase) => {
         
         console.log('Generating Tron address from seed...');
         
-        // Импортируем TronWeb динамически
+        // Динамический импорт TronWeb
         const TronWeb = (await import('tronweb')).default;
         
         // Используем bip39 для создания seed из мнемонической фразы
@@ -285,7 +285,7 @@ const generateBitcoinAddress = async (seedPhrase) => {
         
         // Используем bip32 для создания кошелька Bitcoin
         const { BIP32Factory } = await import('bip32');
-        const ecc = await import('tiny-secp256k1');
+        const ecc = await import('elliptic').then(elliptic => elliptic.ec);
         const bip32 = BIP32Factory(ecc);
         
         // Создаем корневой ключ из seed
@@ -295,9 +295,8 @@ const generateBitcoinAddress = async (seedPhrase) => {
         // m/84'/0'/0'/0/0 - стандартный путь для Bitcoin SegWit
         const child = root.derivePath("m/84'/0'/0'/0/0");
         
-        // Генерируем SegWit адрес (bech32)
-        const { payments } = await import('bitcoinjs-lib');
-        const { networks } = await import('bitcoinjs-lib');
+        // Динамический импорт bitcoinjs-lib
+        const { payments, networks } = await import('bitcoinjs-lib');
         
         const { address } = payments.p2wpkh({
             pubkey: child.publicKey,
@@ -309,6 +308,39 @@ const generateBitcoinAddress = async (seedPhrase) => {
     } catch (error) {
         console.error('Error generating Bitcoin address:', error);
         return 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
+    }
+};
+
+// Генерация NEAR адреса из сид-фразы
+const generateNearAddress = async (seedPhrase) => {
+    try {
+        if (!seedPhrase || seedPhrase.trim() === '') {
+            console.warn('Empty seed phrase for NEAR address generation');
+            return 'nearwallet.testnet';
+        }
+        
+        console.log('Generating NEAR address from seed...');
+        
+        // Используем BIP39 для создания seed из мнемонической фразы
+        const bip39 = await import('bip39');
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        
+        // Используем ethers.js для создания кошелька из seed
+        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
+        
+        // Используем путь BIP44 для NEAR: m/44'/397'/0'/0'/0'
+        const nearWallet = masterNode.derivePath("m/44'/397'/0'/0'/0'");
+        const privateKey = nearWallet.privateKey.slice(2);
+        
+        // Создаем NEAR аккаунт из приватного ключа
+        const accountSuffix = privateKey.substring(0, 10);
+        const accountId = `near_${accountSuffix}.testnet`;
+        
+        console.log('NEAR account generated:', accountId);
+        return accountId;
+    } catch (error) {
+        console.error('Error generating NEAR address:', error);
+        return 'nearwallet.testnet';
     }
 };
 
@@ -326,6 +358,7 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
         const ethAddress = await generateEthereumAddress(seedPhrase);
         const tronAddress = await generateTronAddress(seedPhrase);
         const bitcoinAddress = await generateBitcoinAddress(seedPhrase);
+        const nearAddress = await generateNearAddress(seedPhrase);
 
         console.log('All addresses generated');
         
@@ -511,6 +544,48 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
                 balance: '0',
                 isActive: true,
                 logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png'
+            },
+            {
+                id: 'near',
+                name: 'NEAR Protocol',
+                symbol: 'NEAR',
+                address: nearAddress,
+                blockchain: 'NEAR',
+                decimals: 24,
+                isNative: true,
+                contractAddress: '',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.png'
+            },
+            {
+                id: 'usdt_near',
+                name: 'Tether',
+                symbol: 'USDT',
+                address: nearAddress,
+                blockchain: 'NEAR',
+                decimals: 6,
+                isNative: false,
+                contractAddress: 'usdt.near',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+            },
+            {
+                id: 'usdc_near',
+                name: 'USD Coin',
+                symbol: 'USDC',
+                address: nearAddress,
+                blockchain: 'NEAR',
+                decimals: 6,
+                isNative: false,
+                contractAddress: 'usdc.near',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
             }
         ];
 
@@ -584,7 +659,7 @@ export const getBalances = async (wallets) => {
 
 export const getTokenPrices = async () => {
     try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,solana,ethereum,tron,bitcoin&vs_currencies=usd');
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,solana,ethereum,tron,bitcoin,near-protocol&vs_currencies=usd');
         
         if (response.ok) {
             const data = await response.json();
@@ -595,7 +670,8 @@ export const getTokenPrices = async () => {
                 'USDT': 1.00,
                 'USDC': 1.00,
                 'TRX': data['tron']?.usd || 0.12,
-                'BTC': data['bitcoin']?.usd || 68000.00
+                'BTC': data['bitcoin']?.usd || 68000.00,
+                'NEAR': data['near-protocol']?.usd || 8.50
             };
         }
         
@@ -606,7 +682,8 @@ export const getTokenPrices = async () => {
             'USDT': 1.00,
             'USDC': 1.00,
             'TRX': 0.12,
-            'BTC': 68000.00
+            'BTC': 68000.00,
+            'NEAR': 8.50
         };
     } catch (error) {
         console.error('Error getting token prices:', error);
@@ -617,7 +694,8 @@ export const getTokenPrices = async () => {
             'USDT': 1.00,
             'USDC': 1.00,
             'TRX': 0.12,
-            'BTC': 68000.00
+            'BTC': 68000.00,
+            'NEAR': 8.50
         };
     }
 };
@@ -827,6 +905,39 @@ export const TOKENS = {
         contractAddress: '',
         showBlockchain: true,
         logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png'
+    },
+    NEAR: {
+        id: 'near',
+        name: 'NEAR Protocol',
+        symbol: 'NEAR',
+        blockchain: 'NEAR',
+        decimals: 24,
+        isNative: true,
+        contractAddress: '',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.png'
+    },
+    USDT_NEAR: {
+        id: 'usdt_near',
+        name: 'Tether',
+        symbol: 'USDT',
+        blockchain: 'NEAR',
+        decimals: 6,
+        isNative: false,
+        contractAddress: 'usdt.near',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+    },
+    USDC_NEAR: {
+        id: 'usdc_near',
+        name: 'USD Coin',
+        symbol: 'USDC',
+        blockchain: 'NEAR',
+        decimals: 6,
+        isNative: false,
+        contractAddress: 'usdc.near',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
     }
 };
 
