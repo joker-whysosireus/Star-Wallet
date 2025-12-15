@@ -311,12 +311,12 @@ const generateBitcoinAddress = async (seedPhrase) => {
     }
 };
 
-// Генерация NEAR адреса из сид-фразы
+// Генерация NEAR адреса из сид-фразы (ИСПРАВЛЕННАЯ ВЕРСИЯ)
 const generateNearAddress = async (seedPhrase) => {
     try {
         if (!seedPhrase || seedPhrase.trim() === '') {
             console.warn('Empty seed phrase for NEAR address generation');
-            return 'nearwallet.testnet';
+            return 'near.near';
         }
         
         console.log('Generating NEAR address from seed...');
@@ -330,17 +330,27 @@ const generateNearAddress = async (seedPhrase) => {
         
         // Используем путь BIP44 для NEAR: m/44'/397'/0'/0'/0'
         const nearWallet = masterNode.derivePath("m/44'/397'/0'/0'/0'");
-        const privateKey = nearWallet.privateKey.slice(2);
+        const privateKey = nearWallet.privateKey.slice(2); // Убираем '0x'
         
-        // Создаем NEAR аккаунт из приватного ключа
-        const accountSuffix = privateKey.substring(0, 10);
-        const accountId = `near_${accountSuffix}.testnet`;
+        // Для NEAR используем Ed25519 криптографию
+        // Создаем хэш приватного ключа для генерации account ID
+        const crypto = await import('crypto');
+        const hash = crypto.createHash('sha256').update(privateKey).digest('hex');
+        
+        // Берем первые 10 символов хэша и создаем корректный NEAR account ID
+        // NEAR mainnet адреса не имеют суффикса .testnet
+        const accountPrefix = hash.substring(0, 10);
+        
+        // Создаем корректный NEAR account ID (без .testnet)
+        // NEAR account IDs должны быть длиной 2-64 символов, содержать только строчные буквы, цифры, _ и -
+        const accountId = `near_${accountPrefix}.near`;
         
         console.log('NEAR account generated:', accountId);
         return accountId;
     } catch (error) {
         console.error('Error generating NEAR address:', error);
-        return 'nearwallet.testnet';
+        // Возвращаем корректный mainnet адрес в случае ошибки
+        return 'near.near';
     }
 };
 

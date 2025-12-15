@@ -12,7 +12,7 @@ const PinCodeScreen = ({
     const [loading, setLoading] = useState(false);
     const [title, setTitle] = useState('');
     const [subtitle, setSubtitle] = useState('');
-    const [confirmPin, setConfirmPin] = useState(''); //sdasdasdads
+    const [confirmPin, setConfirmPin] = useState('');
     const [step, setStep] = useState(1);
 
     useEffect(() => {
@@ -26,7 +26,7 @@ const PinCodeScreen = ({
             }
         } else {
             setTitle('Enter PIN Code');
-            setSubtitle('Enter your 4-digit PIN to continue');
+            setSubtitle('');
         }
     }, [mode, step]);
 
@@ -159,7 +159,8 @@ const PinCodeScreen = ({
                 {[1, 2, 3, 4].map((i) => (
                     <div 
                         key={i} 
-                        className={`pin-circle ${i <= pin.length ? 'filled' : ''}`}
+                        className={`pin-circle ${i <= pin.length ? 'filled' : ''} ${loading ? 'bounce' : ''}`}
+                        style={{ animationDelay: loading ? `${(i-1)*0.1}s` : '0s' }}
                     />
                 ))}
             </div>
@@ -168,88 +169,83 @@ const PinCodeScreen = ({
 
     return (
         <div className="pin-screen">
-            <div className="pin-header">
-                <h1 className="pin-title">{title}</h1>
-                <p className="pin-subtitle">{subtitle}</p>
-            </div>
+            <div className="pin-container">
+                <div className="pin-header">
+                    <h1 className="pin-title">{title}</h1>
+                    {subtitle && <p className="pin-subtitle">{subtitle}</p>}
+                </div>
 
-            <div className="pin-content">
-                {renderPinCircles()}
-                
-                {error && (
-                    <div className="pin-error">
-                        <span className="error-icon">!</span>
-                        <span className="error-text">{error}</span>
+                <div className="pin-content">
+                    {renderPinCircles()}
+                    
+                    {error && (
+                        <div className="pin-error">
+                            <span className="error-icon">!</span>
+                            <span className="error-text">{error}</span>
+                        </div>
+                    )}
+                </div>
+
+                <div className="pin-keypad">
+                    <div className="keypad-row">
+                        {[1, 2, 3].map(num => (
+                            <button
+                                key={num}
+                                className="pin-key"
+                                onClick={() => handleNumberClick(num.toString())}
+                                disabled={loading}
+                            >
+                                {num}
+                            </button>
+                        ))}
                     </div>
-                )}
-
-                {loading && (
-                    <div className="pin-loading">
-                        <div className="loading-spinner"></div>
-                        <span className="loading-text">Verifying...</span>
+                    <div className="keypad-row">
+                        {[4, 5, 6].map(num => (
+                            <button
+                                key={num}
+                                className="pin-key"
+                                onClick={() => handleNumberClick(num.toString())}
+                                disabled={loading}
+                            >
+                                {num}
+                            </button>
+                        ))}
                     </div>
-                )}
-            </div>
-
-            <div className="pin-keypad">
-                <div className="keypad-row">
-                    {[1, 2, 3].map(num => (
-                        <button
-                            key={num}
-                            className="pin-key"
-                            onClick={() => handleNumberClick(num.toString())}
+                    <div className="keypad-row">
+                        {[7, 8, 9].map(num => (
+                            <button
+                                key={num}
+                                className="pin-key"
+                                onClick={() => handleNumberClick(num.toString())}
+                                disabled={loading}
+                            >
+                                {num}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="keypad-row">
+                        <button 
+                            className="pin-key clear-key"
+                            onClick={handleClear}
                             disabled={loading}
                         >
-                            {num}
+                            Clear
                         </button>
-                    ))}
-                </div>
-                <div className="keypad-row">
-                    {[4, 5, 6].map(num => (
                         <button
-                            key={num}
                             className="pin-key"
-                            onClick={() => handleNumberClick(num.toString())}
+                            onClick={() => handleNumberClick('0')}
                             disabled={loading}
                         >
-                            {num}
+                            0
                         </button>
-                    ))}
-                </div>
-                <div className="keypad-row">
-                    {[7, 8, 9].map(num => (
-                        <button
-                            key={num}
-                            className="pin-key"
-                            onClick={() => handleNumberClick(num.toString())}
-                            disabled={loading}
+                        <button 
+                            className="pin-key delete-key"
+                            onClick={handleDelete}
+                            disabled={loading || pin.length === 0}
                         >
-                            {num}
+                            ←
                         </button>
-                    ))}
-                </div>
-                <div className="keypad-row">
-                    <button 
-                        className="pin-key clear-key"
-                        onClick={handleClear}
-                        disabled={loading}
-                    >
-                        Clear
-                    </button>
-                    <button
-                        className="pin-key"
-                        onClick={() => handleNumberClick('0')}
-                        disabled={loading}
-                    >
-                        0
-                    </button>
-                    <button 
-                        className="pin-key delete-key"
-                        onClick={handleDelete}
-                        disabled={loading || pin.length === 0}
-                    >
-                        ←
-                    </button>
+                    </div>
                 </div>
             </div>
         </div>
