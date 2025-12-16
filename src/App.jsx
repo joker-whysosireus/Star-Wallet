@@ -9,7 +9,8 @@ import Stake from './Pages/Stake/Stake';
 import SendToken from './Pages/Wallet/Subpages/Send/SendToken';
 import ReceiveToken from './Pages/Wallet/Subpages/Receive/ReceiveToken';
 import BackupSeedPhrase from './Pages/Wallet/Subpages/BackupSeedPhrase/BackupSeedPhrase';
-import PinCodeScreen from './assets/PIN/PinCodeScreen'; //szx
+import PinCodeScreen from './assets/PIN/PinCodeScreen.jsx';
+import Loader from './assets/Loader/Loader.jsx';
 import { initializeUserWallets } from './Pages/Wallet/Services/walletService';
 
 const AUTH_FUNCTION_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions/auth';
@@ -23,6 +24,7 @@ const App = () => {
     const [showPinScreen, setShowPinScreen] = useState(false);
     const [pinMode, setPinMode] = useState('verify');
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [isLoading, setIsLoading] = useState(true); // Добавляем состояние загрузки
 
     useEffect(() => {
         const isTelegramWebApp = () => {
@@ -124,11 +126,16 @@ const App = () => {
                     if (data.isValid && data.userData) {
                         setUserData(data.userData);
                         await checkPinStatus(data.userData);
+                    } else {
+                        setIsLoading(false);
                     }
                 })
                 .catch(error => {
                     console.error("App.jsx: Authentication error:", error);
+                    setIsLoading(false);
                 });
+        } else {
+            setIsLoading(false);
         }
     }, []);
 
@@ -161,6 +168,8 @@ const App = () => {
             
         } catch (error) {
             setShowPinScreen(true);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -196,6 +205,11 @@ const App = () => {
         }
     };
 
+    // Показываем Loader во время загрузки
+    if (isLoading) {
+        return <Loader />;
+    }
+
     if (showPinScreen && userData) {
         return (
             <PinCodeScreen
@@ -207,7 +221,7 @@ const App = () => {
         );
     }
 
-    
+    if (isAuthenticated && userData) {
         return (
             <Routes location={location}>
                 <Route path="/" element={
@@ -245,13 +259,9 @@ const App = () => {
                 <Route path="/stake" element={
                     <Stake isActive={isActive} userData={userData} />
                 } />
-
-                <Route path="/pin" element={
-                    <PinCodeScreen isActive={isActive} userData={userData} />
-                } />
             </Routes>
         );
-    
+    }
 
     return null;
 };

@@ -72,7 +72,7 @@ const TokenDetail = () => {
             'Ethereum': { color: '#8c8cff', text: 'ETH' },
             'Tron': { color: '#ff0000', text: 'TRX' },
             'Bitcoin': { color: '#f7931a', text: 'BTC' },
-            'Near': { color: '#0b4731ff', text: 'NEAR' },
+            'NEAR': { color: '#0b4731ff', text: 'NEAR' },
         };
         
         return badges[blockchain] || { color: '#666', text: blockchain };
