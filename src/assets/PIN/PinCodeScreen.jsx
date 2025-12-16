@@ -25,7 +25,7 @@ const PinCodeScreen = ({
                 setSubtitle('Re-enter your PIN to confirm');
             }
         } else {
-            setTitle('Enter PIN Code');
+            setTitle('');
             setSubtitle('');
         }
     }, [mode, step]);

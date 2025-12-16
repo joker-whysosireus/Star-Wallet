@@ -64,8 +64,8 @@
 }
 
 .pin-circle.filled {
-    background: #ffffff;
-    border-color: #ffffff;
+    background: gold;
+    border-color: gold;
     box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
 }
 
@@ -109,9 +109,9 @@
     width: 70px;
     height: 70px;
     border-radius: 35px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #ffffff;
+    background: black;
+    border: none;
+    color: white;
     font-size: 28px;
     font-weight: 400;
     display: flex;
@@ -142,7 +142,7 @@
 .delete-key {
     font-size: 18px;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.6);
+    color: rgb(220, 202, 101);
 }
 
 .delete-key {
