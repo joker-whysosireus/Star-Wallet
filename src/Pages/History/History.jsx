@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Menu from "../../assets/Menus/Menu/Menu";
 import Header from "../../assets/Header/Header";
-import { 
-    getTransactionHistory,
-    getAllTokens
-} from './Services/storageService';
+import { getTransactionHistory, getAllTokens} from '../Wallet/Services/storageService';
 import './History.css';
 
 function History({ userData }) {
