@@ -9,7 +9,7 @@ import {
 } from '../../Services/storageService';
 import './TokenDetail.css';
 
-const TokenDetail = () => {
+const TokenDetail = ({ userData }) => {
     const { symbol } = useParams();
     const location = useLocation();
     const navigate = useNavigate();
@@ -114,7 +114,7 @@ const TokenDetail = () => {
 
     return (
         <div className="page-container">
-            <Header />
+            <Header userData={userData} />
             
             <div className="page-content">
                 <div className="token-icon-container">
@@ -181,7 +181,12 @@ const TokenDetail = () => {
                             transition: 'all 0.2s ease',
                             maxWidth: '100px'
                         }}
-                        onClick={() => navigate('/receive', { state: { wallet } })}
+                        onClick={() => navigate('/receive', { 
+                            state: { 
+                                wallet,
+                                userData: userData 
+                            } 
+                        })}
                     >
                         <span style={{
                             fontSize: '18px',
@@ -214,7 +219,12 @@ const TokenDetail = () => {
                             transition: 'all 0.2s ease',
                             maxWidth: '100px'
                         }}
-                        onClick={() => navigate('/send', { state: { wallet } })}
+                        onClick={() => navigate('/send', { 
+                            state: { 
+                                wallet,
+                                userData: userData 
+                            } 
+                        })}
                     >
                         <span style={{
                             fontSize: '18px',
@@ -247,7 +257,12 @@ const TokenDetail = () => {
                             transition: 'all 0.2s ease',
                             maxWidth: '100px'
                         }}
-                        onClick={() => navigate('/swap')}
+                        onClick={() => navigate('/swap', { 
+                            state: { 
+                                fromToken: wallet,
+                                userData: userData 
+                            } 
+                        })}
                     >
                         <span style={{
                             fontSize: '18px',

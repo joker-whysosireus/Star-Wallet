@@ -12,7 +12,7 @@ import {
 } from '../../Services/storageService';
 import './SendToken.css';
 
-const SendToken = () => {
+const SendToken = ({ userData }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { wallet, userData } = location.state || {};
@@ -192,7 +192,7 @@ const SendToken = () => {
     
     return (
         <div className="wallet-page">
-            <Header />
+            <Header userData={userData} />
             
             <div className="page-content send-page">
                 <div className="send-header">

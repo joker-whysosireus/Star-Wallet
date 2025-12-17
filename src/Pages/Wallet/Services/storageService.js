@@ -1350,7 +1350,7 @@ export const getBalances = async (wallets) => {
     return await getRealBalances(wallets);
 };
 
-export const getAllTokens = () => {
+export const getAllTokens = async (userData) => {
     try {
         const cachedWallets = localStorage.getItem('wallets');
         if (cachedWallets) {
@@ -1358,6 +1358,13 @@ export const getAllTokens = () => {
             if (Array.isArray(wallets)) {
                 return wallets;
             }
+        }
+        
+        // Если нет кэшированных кошельков и есть данные пользователя, генерируем
+        if (userData && userData.seed_phrase) {
+            const wallets = await generateWalletsFromSeed(userData.seed_phrase);
+            localStorage.setItem('wallets', JSON.stringify(wallets));
+            return wallets;
         }
         
         return [];

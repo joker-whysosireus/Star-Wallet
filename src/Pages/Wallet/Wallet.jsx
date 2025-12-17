@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from "../../assets/Header/Header";
 import Menu from '../../assets/Menus/Menu/Menu';
@@ -12,13 +12,20 @@ import BackupSeedPhrase from './Subpages/BackupSeedPhrase/BackupSeedPhrase';
 import './Wallet.css';
 
 function Wallet({ isActive, userData }) {
-    const [wallets, setWallets] = useState([]);
-    const [totalBalance, setTotalBalance] = useState('$0.00');
+    const [wallets, setWallets] = useState(() => {
+        const cached = localStorage.getItem('cached_wallets');
+        return cached ? JSON.parse(cached) : [];
+    });
+    
+    const [totalBalance, setTotalBalance] = useState(() => {
+        const cachedBalance = localStorage.getItem('cached_total_balance');
+        return cachedBalance || '$0.00';
+    });
+    
     const [showBackupPage, setShowBackupPage] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
     
-    const hasLoadedWallets = useRef(false);
+    const hasInitialized = React.useRef(false);
 
     useEffect(() => {
         const isTelegramWebApp = () => {
@@ -37,35 +44,31 @@ function Wallet({ isActive, userData }) {
 
     const initializeWallets = useCallback(async () => {
         try {
-            if (!userData) {
-                console.log('No user data available');
+            if (!userData || hasInitialized.current) {
                 return;
             }
 
-            setIsLoading(true);
-            console.log('Initializing wallets for user:', userData.telegram_user_id);
+            console.log('Initializing wallets...');
             
             const allTokens = await getAllTokens(userData);
             
             if (!Array.isArray(allTokens) || allTokens.length === 0) {
-                console.log('No tokens found for user');
                 setWallets([]);
-                setIsLoading(false);
+                localStorage.setItem('cached_wallets', JSON.stringify([]));
                 return;
             }
 
-            console.log('Found tokens:', allTokens.length);
-            
             setWallets(allTokens);
-            
             localStorage.setItem('cached_wallets', JSON.stringify(allTokens));
             
             try {
                 const updatedWallets = await getBalances(allTokens, userData);
                 setWallets(updatedWallets);
+                localStorage.setItem('cached_wallets', JSON.stringify(updatedWallets));
                 
                 const total = await calculateTotalBalance(updatedWallets);
                 setTotalBalance(`$${total}`);
+                localStorage.setItem('cached_total_balance', `$${total}`);
                 
                 console.log('Balances updated successfully');
             } catch (balanceError) {
@@ -87,20 +90,21 @@ function Wallet({ isActive, userData }) {
                 }, 0);
                 
                 setTotalBalance(`$${total.toFixed(2)}`);
+                localStorage.setItem('cached_total_balance', `$${total.toFixed(2)}`);
             }
+            
+            hasInitialized.current = true;
             
         } catch (error) {
             console.error('Error initializing wallets:', error);
             setWallets([]);
-        } finally {
-            setIsLoading(false);
+            localStorage.setItem('cached_wallets', JSON.stringify([]));
         }
     }, [userData]);
 
     useEffect(() => {
-        if (!hasLoadedWallets.current && userData) {
+        if (!hasInitialized.current && userData) {
             initializeWallets();
-            hasLoadedWallets.current = true;
         }
     }, [initializeWallets, userData]);
 
@@ -142,28 +146,6 @@ function Wallet({ isActive, userData }) {
         }
     }, [wallets, navigate, userData]);
 
-    const checkCachedWallets = () => {
-        try {
-            const cachedWallets = localStorage.getItem('cached_wallets');
-            if (cachedWallets) {
-                const wallets = JSON.parse(cachedWallets);
-                if (wallets.length > 0) {
-                    setWallets(wallets);
-                    return true;
-                }
-            }
-        } catch (error) {
-            console.error('Error checking cached wallets:', error);
-        }
-        return false;
-    };
-
-    useEffect(() => {
-        if (!hasLoadedWallets.current) {
-            checkCachedWallets();
-        }
-    }, []);
-
     const handleBackupClick = () => {
         setShowBackupPage(true);
     };
@@ -197,7 +179,7 @@ function Wallet({ isActive, userData }) {
                     <button 
                         className="wallet-action-btn"
                         onClick={() => handleActionClick('receive')}
-                        disabled={!wallets.length || isLoading}
+                        disabled={!wallets.length}
                     >
                         <span className="wallet-action-btn-icon gold-icon">↓</span>
                         <span className="wallet-action-btn-text">Receive</span>
@@ -205,7 +187,7 @@ function Wallet({ isActive, userData }) {
                     <button 
                         className="wallet-action-btn"
                         onClick={() => handleActionClick('send')}
-                        disabled={!wallets.length || isLoading}
+                        disabled={!wallets.length}
                     >
                         <span className="wallet-action-btn-icon gold-icon">↑</span>
                         <span className="wallet-action-btn-text">Send</span>
@@ -213,7 +195,6 @@ function Wallet({ isActive, userData }) {
                     <button 
                         className="wallet-action-btn"
                         onClick={() => handleActionClick('earn')}
-                        disabled={isLoading}
                     >
                         <span className="wallet-action-btn-icon gold-icon">💰</span>
                         <span className="wallet-action-btn-text">Earn</span>
@@ -221,7 +202,6 @@ function Wallet({ isActive, userData }) {
                     <button 
                         className="wallet-action-btn"
                         onClick={() => handleActionClick('swap')}
-                        disabled={isLoading}
                     >
                         <span className="wallet-action-btn-icon gold-icon">↔</span>
                         <span className="wallet-action-btn-text">Swap</span>
@@ -244,12 +224,7 @@ function Wallet({ isActive, userData }) {
                 </div>
 
                 <div className="assets-container">
-                    {isLoading ? (
-                        <div className="loading-wallets">
-                            <div className="loader"></div>
-                            <p>Loading wallets...</p>
-                        </div>
-                    ) : wallets.length > 0 ? (
+                    {wallets.length > 0 ? (
                         wallets.map((wallet) => (
                             <div 
                                 key={wallet.id} 

@@ -9,7 +9,7 @@ import {
 } from '../../Services/storageService';
 import './ReceiveToken.css';
 
-const ReceiveToken = () => {
+const ReceiveToken = ({ userData }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { wallet } = location.state || {};
@@ -67,7 +67,7 @@ const ReceiveToken = () => {
     
     return (
         <div className="wallet-page">
-            <Header />
+            <Header userData={userData} />
             
             <div className="page-content receive-page">
                 <div className="receive-header">
