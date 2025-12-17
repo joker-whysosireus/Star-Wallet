@@ -9,17 +9,17 @@ import {
 } from '../../Services/storageService';
 import './ReceiveToken.css';
 
-const ReceiveToken = ({ userData }) => {
+const ReceiveToken = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { wallet } = location.state || {};
+    const { wallet, userData } = location.state || {};
     
     const [token, setToken] = useState(wallet);
     const [usdValue, setUsdValue] = useState('0.00');
     const [copied, setCopied] = useState(false);
     
     useEffect(() => {
-        if (!wallet) {
+        if (!wallet || !userData) {
             navigate('/wallet');
             return;
         }
@@ -29,7 +29,7 @@ const ReceiveToken = ({ userData }) => {
     
     const loadBalances = async () => {
         try {
-            const updatedWallets = await getBalances([token]);
+            const updatedWallets = await getBalances([token], userData);
             if (updatedWallets && updatedWallets.length > 0) {
                 setToken(updatedWallets[0]);
                 const prices = await getTokenPrices();
@@ -52,10 +52,10 @@ const ReceiveToken = ({ userData }) => {
         }
     };
     
-    if (!token) {
+    if (!token || !userData) {
         return (
             <div className="wallet-page">
-                <Header />
+                <Header userData={userData} />
                 <div className="loading-container">
                     <div className="loader"></div>
                     <p>Loading...</p>

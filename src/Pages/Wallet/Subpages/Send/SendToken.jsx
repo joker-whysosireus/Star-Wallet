@@ -12,7 +12,7 @@ import {
 } from '../../Services/storageService';
 import './SendToken.css';
 
-const SendToken = ({ userData }) => {
+const SendToken = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const { wallet, userData } = location.state || {};
@@ -180,7 +180,7 @@ const SendToken = ({ userData }) => {
     if (!token || !userData) {
         return (
             <div className="wallet-page">
-                <Header />
+                <Header userData={userData} />
                 <div className="loading-container">
                     <div className="loader"></div>
                     <p>Loading...</p>

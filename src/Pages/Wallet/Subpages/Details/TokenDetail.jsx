@@ -9,7 +9,7 @@ import {
 } from '../../Services/storageService';
 import './TokenDetail.css';
 
-const TokenDetail = ({ userData }) => {
+const TokenDetail = () => {
     const { symbol } = useParams();
     const location = useLocation();
     const navigate = useNavigate();
@@ -84,7 +84,7 @@ const TokenDetail = ({ userData }) => {
     if (isLoading && !wallet) {
         return (
             <div className="page-container">
-                <Header />
+                <Header userData={userData} />
                 <div className="loading-container">
                     <div className="loader"></div>
                     <p>Loading token details...</p>
@@ -97,7 +97,7 @@ const TokenDetail = ({ userData }) => {
     if (!wallet) {
         return (
             <div className="page-container">
-                <Header />
+                <Header userData={userData} />
                 <div className="page-content">
                     <h1 style={{ color: 'white' }}>Token not found</h1>
                     <button 
