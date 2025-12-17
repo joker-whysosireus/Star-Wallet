@@ -15,6 +15,7 @@ function Wallet({ isActive, userData }) {
     const [wallets, setWallets] = useState([]);
     const [totalBalance, setTotalBalance] = useState('$0.00');
     const [showBackupPage, setShowBackupPage] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
     
     const hasLoadedWallets = useRef(false);
@@ -41,31 +42,28 @@ function Wallet({ isActive, userData }) {
                 return;
             }
 
+            setIsLoading(true);
             console.log('Initializing wallets for user:', userData.telegram_user_id);
             
-            // Получаем все токены пользователя
             const allTokens = await getAllTokens(userData);
             
             if (!Array.isArray(allTokens) || allTokens.length === 0) {
                 console.log('No tokens found for user');
                 setWallets([]);
+                setIsLoading(false);
                 return;
             }
 
             console.log('Found tokens:', allTokens.length);
             
-            // Устанавливаем начальные кошельки
             setWallets(allTokens);
             
-            // Кэшируем в localStorage
             localStorage.setItem('cached_wallets', JSON.stringify(allTokens));
             
             try {
-                // Получаем актуальные балансы
-                const updatedWallets = await getBalances(allTokens);
+                const updatedWallets = await getBalances(allTokens, userData);
                 setWallets(updatedWallets);
                 
-                // Рассчитываем общий баланс
                 const total = await calculateTotalBalance(updatedWallets);
                 setTotalBalance(`$${total}`);
                 
@@ -73,7 +71,6 @@ function Wallet({ isActive, userData }) {
             } catch (balanceError) {
                 console.error('Error updating balances:', balanceError);
                 
-                // Используем fallback расчет
                 const prices = {
                     'TON': 6.24,
                     'SOL': 172.34,
@@ -95,6 +92,8 @@ function Wallet({ isActive, userData }) {
         } catch (error) {
             console.error('Error initializing wallets:', error);
             setWallets([]);
+        } finally {
+            setIsLoading(false);
         }
     }, [userData]);
 
@@ -120,40 +119,22 @@ function Wallet({ isActive, userData }) {
     const handleActionClick = useCallback((action) => {
         if (!userData || !wallets.length) return;
 
+        const firstWallet = wallets.find(w => w.address) || wallets[0];
+        
         if (action === 'receive') {
-            const firstWallet = wallets.find(w => w.address);
-            if (firstWallet) {
-                navigate('/receive', { 
-                    state: { 
-                        wallet: firstWallet,
-                        userData: userData 
-                    } 
-                });
-            } else {
-                navigate('/wallet/token/' + wallets[0].symbol, { 
-                    state: { 
-                        ...wallets[0],
-                        userData: userData 
-                    } 
-                });
-            }
+            navigate('/receive', { 
+                state: { 
+                    wallet: firstWallet,
+                    userData: userData 
+                } 
+            });
         } else if (action === 'send') {
-            const firstWallet = wallets.find(w => w.address);
-            if (firstWallet) {
-                navigate('/send', { 
-                    state: { 
-                        wallet: firstWallet,
-                        userData: userData 
-                    } 
-                });
-            } else {
-                navigate('/wallet/token/' + wallets[0].symbol, { 
-                    state: { 
-                        ...wallets[0],
-                        userData: userData 
-                    } 
-                });
-            }
+            navigate('/send', { 
+                state: { 
+                    wallet: firstWallet,
+                    userData: userData 
+                } 
+            });
         } else if (action === 'earn') {
             navigate('/stake', { state: { userData } });
         } else if (action === 'swap') {
@@ -191,7 +172,6 @@ function Wallet({ isActive, userData }) {
         setShowBackupPage(false);
     };
 
-    // Если показываем страницу BackupSeedPhrase
     if (showBackupPage) {
         return (
             <BackupSeedPhrase 
@@ -217,7 +197,7 @@ function Wallet({ isActive, userData }) {
                     <button 
                         className="wallet-action-btn"
                         onClick={() => handleActionClick('receive')}
-                        disabled={!wallets.length}
+                        disabled={!wallets.length || isLoading}
                     >
                         <span className="wallet-action-btn-icon gold-icon">↓</span>
                         <span className="wallet-action-btn-text">Receive</span>
@@ -225,7 +205,7 @@ function Wallet({ isActive, userData }) {
                     <button 
                         className="wallet-action-btn"
                         onClick={() => handleActionClick('send')}
-                        disabled={!wallets.length}
+                        disabled={!wallets.length || isLoading}
                     >
                         <span className="wallet-action-btn-icon gold-icon">↑</span>
                         <span className="wallet-action-btn-text">Send</span>
@@ -233,6 +213,7 @@ function Wallet({ isActive, userData }) {
                     <button 
                         className="wallet-action-btn"
                         onClick={() => handleActionClick('earn')}
+                        disabled={isLoading}
                     >
                         <span className="wallet-action-btn-icon gold-icon">💰</span>
                         <span className="wallet-action-btn-text">Earn</span>
@@ -240,13 +221,13 @@ function Wallet({ isActive, userData }) {
                     <button 
                         className="wallet-action-btn"
                         onClick={() => handleActionClick('swap')}
+                        disabled={isLoading}
                     >
                         <span className="wallet-action-btn-icon gold-icon">↔</span>
                         <span className="wallet-action-btn-text">Swap</span>
                     </button>
                 </div>
 
-                {/* Security Section */}
                 <div 
                     className="security-block"
                     onClick={handleBackupClick}
@@ -263,7 +244,12 @@ function Wallet({ isActive, userData }) {
                 </div>
 
                 <div className="assets-container">
-                    {wallets.length > 0 ? (
+                    {isLoading ? (
+                        <div className="loading-wallets">
+                            <div className="loader"></div>
+                            <p>Loading wallets...</p>
+                        </div>
+                    ) : wallets.length > 0 ? (
                         wallets.map((wallet) => (
                             <div 
                                 key={wallet.id} 

@@ -3,7 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import QRCode from 'react-qr-code';
 import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
-import { getBalances, getTokenPrices } from '../../Services/storageService';
+import { 
+    getBalances, 
+    getTokenPrices
+} from '../../Services/storageService';
 import './ReceiveToken.css';
 
 const ReceiveToken = () => {
@@ -13,6 +16,7 @@ const ReceiveToken = () => {
     
     const [token, setToken] = useState(wallet);
     const [usdValue, setUsdValue] = useState('0.00');
+    const [copied, setCopied] = useState(false);
     
     useEffect(() => {
         if (!wallet) {
@@ -42,7 +46,8 @@ const ReceiveToken = () => {
         if (token?.address) {
             navigator.clipboard.writeText(token.address)
                 .then(() => {
-                    alert('Address copied to clipboard!');
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
                 });
         }
     };
@@ -104,7 +109,7 @@ const ReceiveToken = () => {
                     onClick={handleCopyAddress}
                     disabled={!token.address}
                 >
-                    Copy Address
+                    {copied ? 'Copied!' : 'Copy Address'}
                 </button>
             </div>
             

@@ -3,13 +3,19 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import QRScannerModal from './Components/QR/QRScannerModal';
 import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
-import { getBalances, getTokenPrices } from '../../Services/storageService';
+import { 
+    getBalances, 
+    getTokenPrices, 
+    sendTransaction,
+    validateAddress,
+    estimateTransactionFee
+} from '../../Services/storageService';
 import './SendToken.css';
 
 const SendToken = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { wallet } = location.state || {};
+    const { wallet, userData } = location.state || {};
     
     const [token, setToken] = useState(wallet);
     const [amount, setAmount] = useState('');
@@ -19,9 +25,12 @@ const SendToken = () => {
     const [showQRScanner, setShowQRScanner] = useState(false);
     const [transactionStatus, setTransactionStatus] = useState(null);
     const [usdValue, setUsdValue] = useState('0.00');
+    const [transactionFee, setTransactionFee] = useState('0');
+    const [isAddressValid, setIsAddressValid] = useState(true);
+    const [balance, setBalance] = useState('0');
     
     useEffect(() => {
-        if (!wallet) {
+        if (!wallet || !userData) {
             navigate('/wallet');
             return;
         }
@@ -29,18 +38,59 @@ const SendToken = () => {
         loadBalances();
     }, []);
     
+    useEffect(() => {
+        if (toAddress && token) {
+            validateAddressAsync();
+        }
+    }, [toAddress, token]);
+    
+    useEffect(() => {
+        if (amount && token && toAddress && isAddressValid) {
+            estimateFeeAsync();
+        }
+    }, [amount, token, toAddress, isAddressValid]);
+    
     const loadBalances = async () => {
         try {
-            const updatedWallets = await getBalances([token]);
+            const updatedWallets = await getBalances([token], userData);
             if (updatedWallets && updatedWallets.length > 0) {
-                setToken(updatedWallets[0]);
+                const updatedToken = updatedWallets[0];
+                setToken(updatedToken);
+                setBalance(updatedToken.balance || '0');
+                
                 const prices = await getTokenPrices();
                 const price = prices[token.symbol] || 1;
-                const usd = parseFloat(updatedWallets[0].balance) * price;
+                const usd = parseFloat(updatedToken.balance || 0) * price;
                 setUsdValue(usd.toFixed(2));
             }
         } catch (error) {
             console.error('Error loading balances:', error);
+        }
+    };
+    
+    const validateAddressAsync = async () => {
+        try {
+            const isValid = await validateAddress(token.blockchain, toAddress);
+            setIsAddressValid(isValid);
+        } catch (error) {
+            console.error('Address validation error:', error);
+            setIsAddressValid(false);
+        }
+    };
+    
+    const estimateFeeAsync = async () => {
+        try {
+            const fee = await estimateTransactionFee(
+                token.blockchain,
+                token.address,
+                toAddress,
+                amount,
+                token.symbol
+            );
+            setTransactionFee(fee);
+        } catch (error) {
+            console.error('Fee estimation error:', error);
+            setTransactionFee('0');
         }
     };
     
@@ -50,7 +100,13 @@ const SendToken = () => {
             return;
         }
 
-        if (parseFloat(amount) > parseFloat(token.balance || 0)) {
+        if (!isAddressValid) {
+            setTransactionStatus({ type: 'error', message: 'Invalid recipient address' });
+            return;
+        }
+
+        const totalAmount = parseFloat(amount) + parseFloat(transactionFee || 0);
+        if (totalAmount > parseFloat(balance || 0)) {
             setTransactionStatus({ type: 'error', message: 'Insufficient balance' });
             return;
         }
@@ -58,19 +114,47 @@ const SendToken = () => {
         setIsLoading(true);
         setTransactionStatus(null);
 
-        setTimeout(() => {
-            setIsLoading(false);
-            setTransactionStatus({ 
-                type: 'success', 
-                message: `Successfully sent ${amount} ${token.symbol} to ${toAddress.substring(0, 10)}...` 
+        try {
+            const result = await sendTransaction({
+                blockchain: token.blockchain,
+                fromAddress: token.address,
+                toAddress: toAddress,
+                amount: amount,
+                symbol: token.symbol,
+                contractAddress: token.contractAddress,
+                memo: comment,
+                privateKey: userData.private_key,
+                seedPhrase: userData.seed_phrase
             });
-            setAmount('');
-            setToAddress('');
-            setComment('');
-            
-            const newBalance = parseFloat(token.balance) - parseFloat(amount);
-            setToken({ ...token, balance: newBalance.toFixed(4) });
-        }, 2000);
+
+            if (result.success) {
+                setTransactionStatus({ 
+                    type: 'success', 
+                    message: `Successfully sent ${amount} ${token.symbol}`,
+                    hash: result.hash
+                });
+                
+                await loadBalances();
+                
+                setTimeout(() => {
+                    setAmount('');
+                    setToAddress('');
+                    setComment('');
+                }, 3000);
+            } else {
+                setTransactionStatus({ 
+                    type: 'error', 
+                    message: `Transaction failed: ${result.error}` 
+                });
+            }
+        } catch (error) {
+            setTransactionStatus({ 
+                type: 'error', 
+                message: `Error: ${error.message}` 
+            });
+        } finally {
+            setIsLoading(false);
+        }
     };
     
     const handleScanQR = (scannedData) => {
@@ -79,19 +163,21 @@ const SendToken = () => {
     };
     
     const handleMaxAmount = () => {
-        if (token?.balance) {
-            setAmount(token.balance);
+        if (balance) {
+            const maxAmount = Math.max(0, parseFloat(balance) - parseFloat(transactionFee || 0));
+            setAmount(maxAmount.toFixed(6));
         }
     };
     
     const handleSetAmount = (percent) => {
-        if (token?.balance) {
-            const value = (parseFloat(token.balance) * percent / 100).toFixed(6);
-            setAmount(value);
+        if (balance) {
+            const availableBalance = parseFloat(balance) - parseFloat(transactionFee || 0);
+            const value = (availableBalance * percent / 100).toFixed(6);
+            setAmount(Math.max(0, parseFloat(value)).toString());
         }
     };
     
-    if (!token) {
+    if (!token || !userData) {
         return (
             <div className="wallet-page">
                 <Header />
@@ -110,7 +196,7 @@ const SendToken = () => {
             
             <div className="page-content send-page">
                 <div className="send-header">
-                    <h2>Send {token.symbol} on {token.blockchain}</h2>
+                    <h2>Send {token.symbol}</h2>
                     <p>Choose recipient</p>
                 </div>
                 
@@ -121,8 +207,8 @@ const SendToken = () => {
                                 type="text"
                                 value={toAddress}
                                 onChange={(e) => setToAddress(e.target.value)}
-                                placeholder="Enter recipient address"
-                                className="address-input"
+                                placeholder={`Enter ${token.blockchain} address`}
+                                className={`address-input ${!isAddressValid && toAddress ? 'invalid' : ''}`}
                             />
                             <div className="address-divider"></div>
                             <button 
@@ -144,7 +230,7 @@ const SendToken = () => {
                                     <span className="token-symbol-small">{token.symbol}</span>
                                 </div>
                                 <div className="usd-display">
-                                    ${(parseFloat(amount || 0) * (parseFloat(usdValue) / parseFloat(token.balance || 1))).toFixed(2)}
+                                    ${(parseFloat(amount || 0) * (parseFloat(usdValue) / parseFloat(balance || 1))).toFixed(2)}
                                 </div>
                             </div>
                             <div className="amount-right">
@@ -152,7 +238,7 @@ const SendToken = () => {
                                     Max
                                 </button>
                                 <div className="balance-display">
-                                    Balance: ${usdValue}
+                                    Balance: {balance} {token.symbol}
                                 </div>
                             </div>
                         </div>
@@ -196,7 +282,7 @@ const SendToken = () => {
                                 placeholder="0.0"
                                 className="amount-input"
                                 min="0"
-                                max={token.balance}
+                                max={balance}
                                 step="0.000001"
                             />
                         </div>
@@ -220,7 +306,7 @@ const SendToken = () => {
                 <button 
                     className="send-button"
                     onClick={handleSend}
-                    disabled={isLoading || !toAddress || !amount}
+                    disabled={isLoading || !toAddress || !amount || !isAddressValid}
                 >
                     {isLoading ? 'Sending...' : 'Send'}
                 </button>

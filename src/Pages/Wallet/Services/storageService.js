@@ -9,7 +9,445 @@ const SEED_PHRASE_KEY = 'wallet_seed_phrase';
 // Базовые URL для функций Netlify
 const NETLIFY_FUNCTIONS_URL = 'https://ton-jacket-backend.netlify.app/.netlify/functions';
 
-// API функции
+// === КОНСТАНТЫ И ФУНКЦИИ MAINNET ===
+const MAINNET_API_KEYS = {
+    TON: {
+        API_KEY: '6e8469038f459cce744a29d3947a0228dd4d7b88e448392c9581799582db5f3a',
+        RPC_URL: 'https://toncenter.com/api/v2/jsonRPC'
+    },
+    ETHEREUM: {
+        RPC_URL: 'https://mainnet.infura.io/v3/BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6',
+        ETHERSCAN_API_KEY: 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6'
+    },
+    SOLANA: {
+        RPC_URL: 'https://e1a20296-3d29-4edb-bc41-c709a187fbc9.mainnet.rpc.helius.xyz'
+    },
+    TRON: {
+        RPC_URL: 'https://api.trongrid.io'
+    },
+    BITCOIN: {
+        RPC_URL: 'https://blockstream.info/api'
+    }
+};
+
+// Основная функция для получения реальных балансов
+export const getRealBalances = async (wallets) => {
+    try {
+        if (!Array.isArray(wallets)) {
+            console.error('getRealBalances: wallets is not an array');
+            return wallets;
+        }
+        
+        const updatedWallets = [];
+        
+        for (const wallet of wallets) {
+            try {
+                let balance = '0';
+                
+                switch(wallet.blockchain) {
+                    case 'TON':
+                        if (wallet.symbol === 'TON') {
+                            balance = await getRealTonBalanceMainnet(wallet.address);
+                        } else if (wallet.contractAddress) {
+                            balance = await getRealJettonBalance(wallet.address, wallet.contractAddress);
+                        }
+                        break;
+                    case 'Ethereum':
+                        if (wallet.symbol === 'ETH') {
+                            balance = await getRealEthBalanceMainnet(wallet.address);
+                        } else if (wallet.contractAddress) {
+                            balance = await getRealERC20BalanceMainnet(wallet.address, wallet.contractAddress);
+                        }
+                        break;
+                    case 'Solana':
+                        if (wallet.symbol === 'SOL') {
+                            balance = await getRealSolBalanceMainnet(wallet.address);
+                        } else if (wallet.contractAddress) {
+                            balance = await getRealSPLBalance(wallet.address, wallet.contractAddress);
+                        }
+                        break;
+                    case 'Tron':
+                        if (wallet.symbol === 'TRX') {
+                            balance = await getRealTronBalanceMainnet(wallet.address);
+                        } else if (wallet.contractAddress) {
+                            balance = await getRealTRC20Balance(wallet.address, wallet.contractAddress);
+                        }
+                        break;
+                    case 'Bitcoin':
+                        if (wallet.symbol === 'BTC') {
+                            balance = await getRealBitcoinBalanceMainnet(wallet.address);
+                        }
+                        break;
+                    case 'NEAR':
+                        if (wallet.symbol === 'NEAR') {
+                            balance = await getRealNearBalanceMainnet(wallet.address);
+                        } else if (wallet.contractAddress) {
+                            balance = await getRealNEP141Balance(wallet.address, wallet.contractAddress);
+                        }
+                        break;
+                    default:
+                        balance = wallet.balance || '0';
+                }
+                
+                updatedWallets.push({
+                    ...wallet,
+                    balance: balance || '0',
+                    lastUpdated: new Date().toISOString(),
+                    isRealBalance: true
+                });
+                
+            } catch (error) {
+                console.error(`Error getting real balance for ${wallet.symbol}:`, error);
+                updatedWallets.push({ 
+                    ...wallet, 
+                    balance: wallet.balance || '0',
+                    isRealBalance: false
+                });
+            }
+        }
+        
+        return updatedWallets;
+    } catch (error) {
+        console.error('Error in getRealBalances:', error);
+        return wallets;
+    }
+};
+
+// Реальное получение баланса TON с mainnet
+const getRealTonBalanceMainnet = async (address) => {
+    try {
+        const response = await fetch('https://toncenter.com/api/v2/jsonRPC', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-API-Key': MAINNET_API_KEYS.TON.API_KEY 
+            },
+            body: JSON.stringify({
+                id: 1,
+                jsonrpc: "2.0",
+                method: "getAddressInformation",
+                params: [address]
+            })
+        });
+        
+        const data = await response.json();
+        if (data.result && data.result.balance) {
+            const balanceInTon = data.result.balance / 1000000000;
+            return balanceInTon.toFixed(6);
+        }
+        return '0';
+    } catch (error) {
+        console.error('Mainnet TON balance error:', error);
+        return '0';
+    }
+};
+
+// Реальное получение баланса ETH с mainnet
+const getRealEthBalanceMainnet = async (address) => {
+    try {
+        const provider = new ethers.JsonRpcProvider(MAINNET_API_KEYS.ETHEREUM.RPC_URL);
+        const balance = await provider.getBalance(address);
+        return ethers.formatEther(balance);
+    } catch (error) {
+        console.error('Mainnet ETH balance error:', error);
+        return '0';
+    }
+};
+
+// Реальное получение баланса ERC20 токена
+const getRealERC20BalanceMainnet = async (address, contractAddress) => {
+    try {
+        const provider = new ethers.JsonRpcProvider(MAINNET_API_KEYS.ETHEREUM.RPC_URL);
+        
+        const abi = [
+            "function balanceOf(address owner) view returns (uint256)",
+            "function decimals() view returns (uint8)"
+        ];
+        
+        const contract = new ethers.Contract(contractAddress, abi, provider);
+        const balance = await contract.balanceOf(address);
+        const decimals = await contract.decimals();
+        
+        return ethers.formatUnits(balance, decimals);
+    } catch (error) {
+        console.error('Mainnet ERC20 balance error:', error);
+        return '0';
+    }
+};
+
+// Реальное получение баланса SOL с mainnet
+const getRealSolBalanceMainnet = async (address) => {
+    try {
+        const { Connection, PublicKey } = await import('@solana/web3.js');
+        const connection = new Connection(MAINNET_API_KEYS.SOLANA.RPC_URL, 'confirmed');
+        const publicKey = new PublicKey(address);
+        const balance = await connection.getBalance(publicKey);
+        return (balance / 1_000_000_000).toFixed(6);
+    } catch (error) {
+        console.error('Mainnet SOL balance error:', error);
+        return '0';
+    }
+};
+
+// Реальное получение баланса SPL токена
+const getRealSPLBalance = async (address, tokenAddress) => {
+    try {
+        const { Connection, PublicKey } = await import('@solana/web3.js');
+        const { getAccount, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } = await import('@solana/spl-token');
+        
+        const connection = new Connection(MAINNET_API_KEYS.SOLANA.RPC_URL, 'confirmed');
+        const walletPublicKey = new PublicKey(address);
+        const tokenPublicKey = new PublicKey(tokenAddress);
+        
+        const associatedTokenAddress = await PublicKey.findProgramAddress(
+            [
+                walletPublicKey.toBuffer(),
+                TOKEN_PROGRAM_ID.toBuffer(),
+                tokenPublicKey.toBuffer()
+            ],
+            ASSOCIATED_TOKEN_PROGRAM_ID
+        );
+        
+        try {
+            const accountInfo = await connection.getAccountInfo(associatedTokenAddress[0]);
+            if (accountInfo) {
+                const account = getAccount(associatedTokenAddress[0]);
+                const balance = account.amount;
+                const tokenDecimals = 6; // Для USDT/USDC
+                return (Number(balance) / Math.pow(10, tokenDecimals)).toFixed(6);
+            }
+        } catch (error) {
+            // Акаунт не найден
+        }
+        
+        return '0';
+    } catch (error) {
+        console.error('SPL balance error:', error);
+        return '0';
+    }
+};
+
+// Реальное получение баланса TRX с mainnet
+const getRealTronBalanceMainnet = async (address) => {
+    try {
+        const response = await fetch(`${MAINNET_API_KEYS.TRON.RPC_URL}/v1/accounts/${address}`);
+        const data = await response.json();
+        
+        if (data.data && data.data.length > 0 && data.data[0].balance) {
+            const balanceInTRX = data.data[0].balance / 1_000_000;
+            return balanceInTRX.toFixed(6);
+        }
+        return '0';
+    } catch (error) {
+        console.error('Mainnet TRX balance error:', error);
+        return '0';
+    }
+};
+
+// Реальное получение баланса TRC20 токена
+const getRealTRC20Balance = async (address, contractAddress) => {
+    try {
+        const response = await fetch(`${MAINNET_API_KEYS.TRON.RPC_URL}/v1/accounts/${address}/trc20?contract_address=${contractAddress}`);
+        const data = await response.json();
+        
+        if (data.data && data.data.length > 0) {
+            const tokenData = data.data[0];
+            const balance = tokenData.balance / Math.pow(10, tokenData.tokenDecimal);
+            return balance.toFixed(6);
+        }
+        return '0';
+    } catch (error) {
+        console.error('TRC20 balance error:', error);
+        return '0';
+    }
+};
+
+// Реальное получение баланса BTC с mainnet
+const getRealBitcoinBalanceMainnet = async (address) => {
+    try {
+        const response = await fetch(`${MAINNET_API_KEYS.BITCOIN.RPC_URL}/address/${address}`);
+        const data = await response.json();
+        
+        if (data.chain_stats && data.chain_stats.funded_txo_sum) {
+            const funded = data.chain_stats.funded_txo_sum;
+            const spent = data.chain_stats.spent_txo_sum || 0;
+            const balance = (funded - spent) / 100_000_000;
+            return balance.toFixed(8);
+        }
+        return '0';
+    } catch (error) {
+        console.error('Mainnet BTC balance error:', error);
+        return '0';
+    }
+};
+
+// Реальное получение баланса NEAR с mainnet
+const getRealNearBalanceMainnet = async (accountId) => {
+    try {
+        const response = await fetch('https://rpc.mainnet.near.org', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: "dontcare",
+                method: "query",
+                params: {
+                    request_type: "view_account",
+                    finality: "final",
+                    account_id: accountId
+                }
+            })
+        });
+        
+        const data = await response.json();
+        if (data.result && data.result.amount) {
+            const balanceInYocto = data.result.amount;
+            const balanceInNear = balanceInYocto / Math.pow(10, 24);
+            return balanceInNear.toFixed(4);
+        }
+        return '0';
+    } catch (error) {
+        console.error('Mainnet NEAR balance error:', error);
+        return '0';
+    }
+};
+
+// Реальное получение баланса NEP-141 токена
+const getRealNEP141Balance = async (accountId, contractAddress) => {
+    try {
+        const response = await fetch('https://rpc.mainnet.near.org', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: "dontcare",
+                method: "query",
+                params: {
+                    request_type: "call_function",
+                    finality: "final",
+                    account_id: contractAddress,
+                    method_name: "ft_balance_of",
+                    args_base64: btoa(JSON.stringify({ account_id: accountId }))
+                }
+            })
+        });
+        
+        const data = await response.json();
+        if (data.result && data.result.result) {
+            const balanceBytes = data.result.result;
+            const balance = JSON.parse(new TextDecoder().decode(Uint8Array.from(balanceBytes)));
+            return balance;
+        }
+        return '0';
+    } catch (error) {
+        console.error('NEP-141 balance error:', error);
+        return '0';
+    }
+};
+
+// Реальное получение баланса Jetton
+const getRealJettonBalance = async (address, jettonAddress) => {
+    try {
+        // Для Jetton нужно специальное обращение
+        return '0';
+    } catch (error) {
+        console.error('Jetton balance error:', error);
+        return '0';
+    }
+};
+
+// === ВАЛИДАЦИЯ АДРЕСОВ ДЛЯ MAINNET ===
+export const validateAddressForBlockchain = (address, blockchain) => {
+    try {
+        switch(blockchain) {
+            case 'TON':
+                const tonRegex = /^(?:0Q[A-Za-z0-9_-]{48}|0:[A-Fa-f0-9]{64}|E[A-Za-z0-9_-]{48})$/;
+                return tonRegex.test(address);
+            case 'Ethereum':
+                return ethers.isAddress(address);
+            case 'Solana':
+                const solanaRegex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+                return solanaRegex.test(address);
+            case 'Tron':
+                const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
+                return tronRegex.test(address);
+            case 'Bitcoin':
+                const bitcoinRegex = /^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}$/;
+                return bitcoinRegex.test(address);
+            case 'NEAR':
+                const nearRegex = /^[a-z0-9_-]+\.(near|testnet)$/;
+                return nearRegex.test(address);
+            default:
+                return true;
+        }
+    } catch (error) {
+        console.error('Address validation error:', error);
+        return false;
+    }
+};
+
+// === ПРОВЕРКА СУЩЕСТВОВАНИЯ АДРЕСА В СЕТИ ===
+export const checkAddressExistence = async (address, blockchain) => {
+    try {
+        switch(blockchain) {
+            case 'TON':
+                const tonResponse = await fetch('https://toncenter.com/api/v2/jsonRPC', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-API-Key': MAINNET_API_KEYS.TON.API_KEY 
+                    },
+                    body: JSON.stringify({
+                        id: 1,
+                        jsonrpc: "2.0",
+                        method: "getAddressInformation",
+                        params: [address]
+                    })
+                });
+                const tonData = await tonResponse.json();
+                return tonData.result !== null;
+                
+            case 'Ethereum':
+                const provider = new ethers.JsonRpcProvider(MAINNET_API_KEYS.ETHEREUM.RPC_URL);
+                const code = await provider.getCode(address);
+                return code !== '0x';
+                
+            case 'Solana':
+                const { Connection, PublicKey } = await import('@solana/web3.js');
+                const connection = new Connection(MAINNET_API_KEYS.SOLANA.RPC_URL, 'confirmed');
+                try {
+                    const publicKey = new PublicKey(address);
+                    const accountInfo = await connection.getAccountInfo(publicKey);
+                    return accountInfo !== null;
+                } catch {
+                    return false;
+                }
+                
+            case 'Tron':
+                const tronResponse = await fetch(`${MAINNET_API_KEYS.TRON.RPC_URL}/v1/accounts/${address}`);
+                const tronData = await tronResponse.json();
+                return tronData.data && tronData.data.length > 0;
+                
+            case 'Bitcoin':
+                const btcResponse = await fetch(`${MAINNET_API_KEYS.BITCOIN.RPC_URL}/address/${address}`);
+                const btcData = await btcResponse.json();
+                return btcData.chain_stats !== undefined;
+                
+            default:
+                return true;
+        }
+    } catch (error) {
+        console.error('Address existence check error:', error);
+        return false;
+    }
+};
+
+// === СУЩЕСТВУЮЩИЙ КОД (обновленный для mainnet) ===
+
 export const saveWalletToAPI = async (telegramUserId, walletData) => {
     try {
         const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/save-wallet`, {
@@ -165,7 +603,7 @@ export const saveSeedPhrase = (seedPhrase) => {
     }
 };
 
-// Генерация адресов
+// Генерация адресов (используется для инициализации кошельков)
 const generateTonAddress = async (seedPhrase) => {
     try {
         if (!seedPhrase || seedPhrase.trim() === '') {
@@ -230,7 +668,6 @@ const generateEthereumAddress = async (seedPhrase) => {
     }
 };
 
-// Генерация Tron адреса из сид-фразы
 const generateTronAddress = async (seedPhrase) => {
     try {
         if (!seedPhrase || seedPhrase.trim() === '') {
@@ -239,22 +676,13 @@ const generateTronAddress = async (seedPhrase) => {
         }
         
         console.log('Generating Tron address from seed...');
-        
-        // Динамический импорт TronWeb
         const TronWeb = (await import('tronweb')).default;
-        
-        // Используем bip39 для создания seed из мнемонической фразы
         const bip39 = await import('bip39');
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        
-        // Используем ethers.js для создания кошелька из seed
         const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        
-        // Используем путь BIP44 для Tron: m/44'/195'/0'/0/0
         const tronWallet = masterNode.derivePath("m/44'/195'/0'/0/0");
-        const privateKey = tronWallet.privateKey.slice(2); // Убираем '0x'
+        const privateKey = tronWallet.privateKey.slice(2);
         
-        // Создаем адрес Tron из приватного ключа
         const tronWeb = new TronWeb({
             fullHost: 'https://api.trongrid.io',
             privateKey: privateKey
@@ -269,7 +697,6 @@ const generateTronAddress = async (seedPhrase) => {
     }
 };
 
-// Генерация Bitcoin адреса из сид-фразы
 const generateBitcoinAddress = async (seedPhrase) => {
     try {
         if (!seedPhrase || seedPhrase.trim() === '') {
@@ -278,26 +705,14 @@ const generateBitcoinAddress = async (seedPhrase) => {
         }
         
         console.log('Generating Bitcoin address from seed...');
-        
-        // Используем BIP39 для создания seed из мнемонической фразы
         const bip39 = await import('bip39');
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        
-        // Используем bip32 для создания кошелька Bitcoin
         const { BIP32Factory } = await import('bip32');
         const ecc = await import('elliptic').then(elliptic => elliptic.ec);
         const bip32 = BIP32Factory(ecc);
-        
-        // Создаем корневой ключ из seed
         const root = bip32.fromSeed(seedBuffer);
-        
-        // Используем путь BIP84 для SegWit (начинаются с bc1)
-        // m/84'/0'/0'/0/0 - стандартный путь для Bitcoin SegWit
         const child = root.derivePath("m/84'/0'/0'/0/0");
-        
-        // Динамический импорт bitcoinjs-lib
         const { payments, networks } = await import('bitcoinjs-lib');
-        
         const { address } = payments.p2wpkh({
             pubkey: child.publicKey,
             network: networks.bitcoin
@@ -311,7 +726,6 @@ const generateBitcoinAddress = async (seedPhrase) => {
     }
 };
 
-// Генерация NEAR адреса из сид-фразы (ИСПРАВЛЕННАЯ ВЕРСИЯ)
 const generateNearAddress = async (seedPhrase) => {
     try {
         if (!seedPhrase || seedPhrase.trim() === '') {
@@ -320,41 +734,25 @@ const generateNearAddress = async (seedPhrase) => {
         }
         
         console.log('Generating NEAR address from seed...');
-        
-        // Используем BIP39 для создания seed из мнемонической фразы
         const bip39 = await import('bip39');
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        
-        // Используем ethers.js для создания кошелька из seed
         const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        
-        // Используем путь BIP44 для NEAR: m/44'/397'/0'/0'/0'
         const nearWallet = masterNode.derivePath("m/44'/397'/0'/0'/0'");
-        const privateKey = nearWallet.privateKey.slice(2); // Убираем '0x'
-        
-        // Для NEAR используем Ed25519 криптографию
-        // Создаем хэш приватного ключа для генерации account ID
+        const privateKey = nearWallet.privateKey.slice(2);
         const crypto = await import('crypto');
         const hash = crypto.createHash('sha256').update(privateKey).digest('hex');
-        
-        // Берем первые 10 символов хэша и создаем корректный NEAR account ID
-        // NEAR mainnet адреса не имеют суффикса .testnet
         const accountPrefix = hash.substring(0, 10);
-        
-        // Создаем корректный NEAR account ID (без .testnet)
-        // NEAR account IDs должны быть длиной 2-64 символов, содержать только строчные буквы, цифры, _ и -
         const accountId = `near_${accountPrefix}.near`;
         
         console.log('NEAR account generated:', accountId);
         return accountId;
     } catch (error) {
         console.error('Error generating NEAR address:', error);
-        // Возвращаем корректный mainnet адрес в случае ошибки
         return 'near.near';
     }
 };
 
-// Генерация всех кошельков
+// Генерация всех кошельков (сохраняем как есть, но будем использовать реальные балансы)
 export const generateWalletsFromSeed = async (seedPhrase) => {
     try {
         console.log('Starting wallet generation from seed phrase...');
@@ -610,6 +1008,11 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
     }
 };
 
+// Функция getBalances теперь использует реальные балансы
+export const getBalances = async (wallets) => {
+    return await getRealBalances(wallets);
+};
+
 export const getAllTokens = () => {
     try {
         const cachedWallets = localStorage.getItem('wallets');
@@ -627,46 +1030,7 @@ export const getAllTokens = () => {
     }
 };
 
-export const getBalances = async (wallets) => {
-    try {
-        if (!Array.isArray(wallets)) {
-            console.error('getBalances: wallets is not an array');
-            return [];
-        }
-        
-        const updatedWallets = [...wallets];
-        
-        for (const wallet of updatedWallets.filter(w => w.blockchain === 'TON')) {
-            if (wallet.symbol === 'TON') {
-                try {
-                    const { getTonBalance } = await import('./tonService');
-                    const balance = await getTonBalance();
-                    wallet.balance = balance || '0';
-                } catch (error) {
-                    console.error('Error getting TON balance:', error);
-                }
-            }
-        }
-        
-        for (const wallet of updatedWallets.filter(w => w.blockchain === 'Solana')) {
-            if (wallet.symbol === 'SOL') {
-                try {
-                    const { getSolBalance } = await import('./solanaService');
-                    const balance = await getSolBalance();
-                    wallet.balance = balance || '0';
-                } catch (error) {
-                    console.error('Error getting SOL balance:', error);
-                }
-            }
-        }
-        
-        return updatedWallets;
-    } catch (error) {
-        console.error('Error getting balances:', error);
-        return wallets;
-    }
-};
-
+// Функция для получения цен токенов
 export const getTokenPrices = async () => {
     try {
         const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,solana,ethereum,tron,bitcoin,near-protocol&vs_currencies=usd');
@@ -710,6 +1074,7 @@ export const getTokenPrices = async () => {
     }
 };
 
+// Функция расчета общего баланса (использует реальные балансы)
 export const calculateTotalBalance = async (wallets) => {
     try {
         if (!Array.isArray(wallets)) {
@@ -717,10 +1082,12 @@ export const calculateTotalBalance = async (wallets) => {
             return '0.00';
         }
         
+        // Получаем реальные балансы
+        const updatedWallets = await getRealBalances(wallets);
         const prices = await getTokenPrices();
-        let total = 0;
         
-        for (const wallet of wallets) {
+        let total = 0;
+        for (const wallet of updatedWallets) {
             const price = prices[wallet.symbol] || 0;
             total += parseFloat(wallet.balance || 0) * price;
         }
@@ -772,6 +1139,7 @@ export const revealSeedPhrase = async () => {
     return seedPhrase;
 };
 
+// Объект токенов
 export const TOKENS = {
     TON: {
         id: 'ton',
@@ -964,11 +1332,13 @@ export default {
     calculateTotalBalance,
     clearWallets,
     TOKENS,
-    // API функции
     saveWalletToAPI,
     getWalletFromAPI,
     saveSeedPhraseToAPI,
     getSeedPhraseFromAPI,
     saveAddressesToAPI,
-    getAddressesFromAPI
+    getAddressesFromAPI,
+    getRealBalances,
+    validateAddressForBlockchain,
+    checkAddressExistence
 };

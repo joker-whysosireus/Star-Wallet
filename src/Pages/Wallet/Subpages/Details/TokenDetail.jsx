@@ -17,6 +17,7 @@ const TokenDetail = () => {
     const [wallet, setWallet] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [usdValue, setUsdValue] = useState('0.00');
+    const userData = location.state?.userData || location.state?.userData;
     
     useEffect(() => {
         const walletData = location.state?.wallet || location.state;
@@ -42,10 +43,10 @@ const TokenDetail = () => {
     }, [symbol, location.state]);
 
     const loadBalances = async () => {
-        if (!wallet) return;
+        if (!wallet || !userData) return;
         
         try {
-            const updatedWallets = await getBalances([wallet]);
+            const updatedWallets = await getBalances([wallet], userData);
             if (updatedWallets && updatedWallets.length > 0) {
                 setWallet(updatedWallets[0]);
                 const prices = await getTokenPrices();

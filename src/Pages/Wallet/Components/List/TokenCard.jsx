@@ -21,7 +21,6 @@ const TokenCard = ({ wallet }) => {
     
     const badge = getBlockchainBadge(wallet.blockchain);
     
-    // Вычисляем USD баланс
     const getUsdBalance = () => {
         const prices = {
             'TON': 6.24,
@@ -47,7 +46,6 @@ const TokenCard = ({ wallet }) => {
         }
     };
 
-    // Исправленная ссылка для TON
     const getLogoUrl = () => {
         if (wallet.symbol === 'TON') {
             return 'https://ton.org/download/ton_symbol.svg';
