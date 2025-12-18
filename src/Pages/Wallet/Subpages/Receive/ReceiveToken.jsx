@@ -31,10 +31,13 @@ const ReceiveToken = () => {
         try {
             const updatedWallets = await getBalances([token], userData);
             if (updatedWallets && updatedWallets.length > 0) {
-                setToken(updatedWallets[0]);
+                const updatedToken = updatedWallets[0];
+                setToken(updatedToken);
+                
+                // Получаем актуальные цены токенов
                 const prices = await getTokenPrices();
                 const price = prices[token.symbol] || 1;
-                const usd = parseFloat(updatedWallets[0].balance) * price;
+                const usd = parseFloat(updatedToken.balance || 0) * price;
                 setUsdValue(usd.toFixed(2));
             }
         } catch (error) {

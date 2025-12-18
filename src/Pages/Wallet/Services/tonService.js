@@ -1,4 +1,3 @@
-// Services/tonService.js
 import { mnemonicToWalletKey } from '@ton/crypto';
 import { WalletContractV4, TonClient, internal, fromNano, toNano } from '@ton/ton';
 
@@ -125,40 +124,6 @@ const createTonClient = () => {
         endpoint: TON_RPC_URL,
         apiKey: TON_API_KEY
     });
-};
-
-// Получаем кошелек из сид-фразы и адреса
-const getWalletFromSeed = async (seedPhrase, address) => {
-    try {
-        if (!seedPhrase) {
-            throw new Error('Seed phrase is required');
-        }
-
-        const keyPair = await mnemonicToWalletKey(seedPhrase.split(' '));
-        const wallet = WalletContractV4.create({
-            publicKey: keyPair.publicKey,
-            workchain: 0
-        });
-
-        const client = createTonClient();
-        const walletContract = client.open(wallet);
-        
-        // Проверяем, соответствует ли адрес
-        const walletAddress = walletContract.address.toString();
-        if (address && walletAddress !== address) {
-            console.warn('Provided address does not match generated wallet address');
-        }
-
-        return { 
-            walletContract, 
-            keyPair,
-            client,
-            address: walletAddress
-        };
-    } catch (error) {
-        console.error('Error getting wallet from seed:', error);
-        throw error;
-    }
 };
 
 /**

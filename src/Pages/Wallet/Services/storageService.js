@@ -31,6 +31,10 @@ const MAINNET_API_KEYS = {
         RPC_URL: 'https://mainnet.infura.io/v3/BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6',
         ETHERSCAN_API_KEY: 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6'
     },
+    BSC: {
+        RPC_URL: 'https://bsc-dataseed.binance.org/',
+        BSCSCAN_API_KEY: '8X9S7Q8J4T5V3C2W1B5N6M7P8Q9R0T1U2V3W4X5Y6Z7A8B9C0D1E2F3G4H5'
+    },
     SOLANA: {
         RPC_URL: 'https://e1a20296-3d29-4edb-bc41-c709a187fbc9.mainnet.rpc.helius.xyz'
     },
@@ -42,416 +46,91 @@ const MAINNET_API_KEYS = {
     }
 };
 
-// === БИТКОИН ФУНКЦИИ ===
+// === ГЕНЕРАЦИЯ АДРЕСОВ ===
 
-// Реальная функция отправки Bitcoin транзакции
-export const sendBitcoinTransactionReal = async (fromAddress, toAddress, amount, seedPhrase, feeRate = 10) => {
+// Генерация TON адреса
+const generateTonAddress = async (seedPhrase) => {
     try {
-        // 1. Получаем UTXO (непотраченные выходы)
-        const utxos = await getBitcoinUTXOs(fromAddress);
-        
-        if (utxos.length === 0) {
-            throw new Error('No UTXOs found for this address');
-        }
-
-        // 2. Генерируем приватный ключ из seed фразы
-        const privateKey = await getBitcoinPrivateKey(seedPhrase);
-        
-        // 3. Создаем транзакцию
-        const transaction = await createBitcoinTransaction(
-            fromAddress,
-            toAddress,
-            amount,
-            utxos,
-            privateKey,
-            feeRate
-        );
-
-        // 4. Отправляем транзакцию в сеть
-        const result = await broadcastBitcoinTransaction(transaction.hex);
-        
-        if (result) {
-            return {
-                success: true,
-                hash: result,
-                explorerUrl: `https://blockstream.info/tx/${result}`,
-                fee: transaction.fee,
-                inputs: transaction.inputs,
-                outputs: transaction.outputs
-            };
-        } else {
-            return {
-                success: false,
-                error: 'Failed to broadcast transaction'
-            };
-        }
-
-    } catch (error) {
-        console.error('Bitcoin transaction error:', error);
-        return {
-            success: false,
-            error: error.message
-        };
-    }
-};
-
-// Получение UTXO для адреса Bitcoin
-const getBitcoinUTXOs = async (address) => {
-    try {
-        const response = await fetch(`${MAINNET_API_KEYS.BITCOIN.RPC_URL}/address/${address}/utxo`);
-        
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
+        if (!seedPhrase || seedPhrase.trim() === '') {
+            console.warn('Empty seed phrase for TON address generation');
+            return 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
         }
         
-        const utxos = await response.json();
-        
-        // Форматируем UTXO для bitcoinjs-lib
-        return utxos.map(utxo => ({
-            hash: utxo.txid,
-            index: utxo.vout,
-            value: utxo.value,
-            script: utxo.scriptpubkey,
-            address: utxo.address || address
-        }));
-    } catch (error) {
-        console.error('Error fetching UTXOs:', error);
-        throw error;
-    }
-};
-
-// Генерация приватного ключа Bitcoin из seed фразы
-const getBitcoinPrivateKey = async (seedPhrase, derivationPath = "m/84'/0'/0'/0/0") => {
-    try {
-        // Преобразуем мнемонику в seed
-        const seed = await bip39.mnemonicToSeed(seedPhrase);
-        
-        // Создаем корневой узел из seed
-        const root = bip32.fromSeed(seed, bitcoin.networks.bitcoin);
-        
-        // Получаем дочерний ключ по пути деривации
-        const child = root.derivePath(derivationPath);
-        
-        // Возвращаем приватный ключ
-        return {
-            privateKey: child.privateKey,
-            publicKey: child.publicKey,
-            network: bitcoin.networks.bitcoin
-        };
-    } catch (error) {
-        console.error('Error generating Bitcoin private key:', error);
-        throw error;
-    }
-};
-
-// Создание Bitcoin транзакции
-const createBitcoinTransaction = async (fromAddress, toAddress, amount, utxos, privateKeyData, feeRate = 10) => {
-    try {
-        const network = bitcoin.networks.bitcoin;
-        
-        // Конвертируем сумму в сатоши (1 BTC = 100,000,000 сатоши)
-        const amountSatoshi = Math.floor(amount * 100000000);
-        
-        // Создаем PSBT (Partially Signed Bitcoin Transaction)
-        const psbt = new bitcoin.Psbt({ network });
-        
-        // Выбираем UTXO для транзакции (простой алгоритм "все, что есть")
-        let totalInput = 0;
-        let selectedUtxos = [];
-        
-        // Простой выбор UTXO - берем первый подходящий
-        for (const utxo of utxos) {
-            if (totalInput >= amountSatoshi) break;
-            
-            // Добавляем UTXO как вход
-            psbt.addInput({
-                hash: utxo.hash,
-                index: utxo.index,
-                // Для P2WPKH (segwit) используем это:
-                witnessUtxo: {
-                    script: Buffer.from(utxo.script, 'hex'),
-                    value: utxo.value
-                }
-            });
-            
-            totalInput += utxo.value;
-            selectedUtxos.push(utxo);
-        }
-        
-        // Проверяем достаточно ли средств
-        if (totalInput < amountSatoshi) {
-            throw new Error(`Insufficient funds. Available: ${totalInput / 100000000} BTC, Needed: ${amount} BTC`);
-        }
-        
-        // Рассчитываем комиссию
-        // Примерная оценка размера транзакции: 140 байт на вход + 34 байта на выход
-        const estimatedSize = (selectedUtxos.length * 140) + (2 * 34);
-        const fee = Math.ceil(estimatedSize * feeRate);
-        
-        // Вычисляем сдачу
-        const change = totalInput - amountSatoshi - fee;
-        
-        // Добавляем выход получателю
-        psbt.addOutput({
-            address: toAddress,
-            value: amountSatoshi
+        console.log('Generating TON address from seed...');
+        const tonKeyPair = await mnemonicToWalletKey(seedPhrase.split(' '));
+        const tonWallet = WalletContractV4.create({
+            publicKey: tonKeyPair.publicKey,
+            workchain: 0
         });
-        
-        // Добавляем выход для сдачи (если есть)
-        if (change > 0) {
-            psbt.addOutput({
-                address: fromAddress, // Сдачу возвращаем на исходный адрес
-                value: change
-            });
-        }
-        
-        // Подписываем все входы
-        for (let i = 0; i < selectedUtxos.length; i++) {
-            psbt.signInput(i, privateKeyData.privateKey);
-        }
-        
-        // Валидируем подписи
-        psbt.validateSignaturesOfAllInputs();
-        
-        // Финализируем транзакцию
-        psbt.finalizeAllInputs();
-        
-        // Получаем сырую транзакцию в hex
-        const transaction = psbt.extractTransaction();
-        const hex = transaction.toHex();
-        
-        return {
-            hex: hex,
-            txid: transaction.getId(),
-            fee: fee,
-            inputs: selectedUtxos.length,
-            outputs: change > 0 ? 2 : 1,
-            size: estimatedSize,
-            amount: amountSatoshi,
-            change: change
-        };
-        
+        const address = tonWallet.address.toString();
+        console.log('TON address generated:', address);
+        return address;
     } catch (error) {
-        console.error('Error creating Bitcoin transaction:', error);
-        throw error;
+        console.error('Error generating TON address:', error);
+        return 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
     }
 };
 
-// Отправка транзакции в сеть Bitcoin
-const broadcastBitcoinTransaction = async (transactionHex) => {
+// Генерация Solana адреса
+const generateSolanaAddress = async (seedPhrase) => {
     try {
-        const response = await fetch(`${MAINNET_API_KEYS.BITCOIN.RPC_URL}/tx`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/octet-stream',
-            },
-            body: transactionHex
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Broadcast failed: ${response.status} - ${errorText}`);
+        if (!seedPhrase || seedPhrase.trim() === '') {
+            console.warn('Empty seed phrase for Solana address generation');
+            return 'So11111111111111111111111111111111111111112';
         }
         
-        const txid = await response.text();
-        return txid;
-        
+        console.log('Generating Solana address from seed...');
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const solanaSeed = new Uint8Array(seedBuffer.slice(0, 32));
+        const solanaKeypair = Keypair.fromSeed(solanaSeed);
+        const address = solanaKeypair.publicKey.toBase58();
+        console.log('Solana address generated:', address);
+        return address;
     } catch (error) {
-        console.error('Error broadcasting Bitcoin transaction:', error);
-        
-        // Альтернативный способ отправки через mempool.space
-        try {
-            const altResponse = await fetch('https://mempool.space/api/tx', {
-                method: 'POST',
-                body: transactionHex
-            });
-            
-            if (altResponse.ok) {
-                return await altResponse.text();
-            }
-        } catch (altError) {
-            console.error('Alternative broadcast also failed:', altError);
-        }
-        
-        throw error;
+        console.error('Error generating Solana address:', error);
+        return 'So11111111111111111111111111111111111111112';
     }
 };
 
-// === ОСНОВНАЯ ФУНКЦИЯ ОТПРАВКИ ТРАНЗАКЦИЙ ===
-export const sendTransaction = async (transactionData) => {
-    const { blockchain, fromAddress, toAddress, amount, symbol, memo, privateKey, seedPhrase } = transactionData;
-    
+// Генерация Ethereum адреса
+const generateEthereumAddress = async (seedPhrase) => {
     try {
-        let result;
-        
-        switch(blockchain) {
-            case 'Bitcoin':
-                result = await sendBitcoinTransactionReal(
-                    fromAddress,
-                    toAddress,
-                    parseFloat(amount),
-                    seedPhrase,
-                    15 // feeRate в сатоши за байт
-                );
-                break;
-                
-            case 'TON':
-                // Реальная отправка TON транзакции
-                try {
-                    const response = await fetch('https://toncenter.com/api/v2/jsonRPC', {
-                        method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'X-API-Key': MAINNET_API_KEYS.TON.API_KEY 
-                        },
-                        body: JSON.stringify({
-                            id: 1,
-                            jsonrpc: "2.0",
-                            method: "sendTransaction",
-                            params: {
-                                address: fromAddress,
-                                amount: amount * 1000000000, // Конвертация в nanoTON
-                                to_address: toAddress,
-                                message: memo || ''
-                            }
-                        })
-                    });
-                    
-                    const data = await response.json();
-                    if (data.result) {
-                        result = {
-                            success: true,
-                            hash: data.result,
-                            explorerUrl: `https://tonscan.org/tx/${data.result}`
-                        };
-                    } else {
-                        result = {
-                            success: false,
-                            error: data.error?.message || 'Unknown error'
-                        };
-                    }
-                } catch (error) {
-                    result = {
-                        success: false,
-                        error: error.message
-                    };
-                }
-                break;
-                
-            case 'Ethereum':
-                try {
-                    const provider = new ethers.JsonRpcProvider(MAINNET_API_KEYS.ETHEREUM.RPC_URL);
-                    const wallet = new ethers.Wallet(privateKey, provider);
-                    
-                    const tx = {
-                        to: toAddress,
-                        value: ethers.parseEther(amount.toString()),
-                        data: memo ? ethers.toUtf8Bytes(memo) : '0x'
-                    };
-                    
-                    const transaction = await wallet.sendTransaction(tx);
-                    const receipt = await transaction.wait();
-                    
-                    result = {
-                        success: true,
-                        hash: transaction.hash,
-                        explorerUrl: `https://etherscan.io/tx/${transaction.hash}`
-                    };
-                } catch (error) {
-                    result = {
-                        success: false,
-                        error: error.message
-                    };
-                }
-                break;
-                
-            case 'Solana':
-                try {
-                    const { Connection, Keypair, Transaction, SystemProgram, sendAndConfirmTransaction } = await import('@solana/web3.js');
-                    
-                    const connection = new Connection(MAINNET_API_KEYS.SOLANA.RPC_URL, 'confirmed');
-                    
-                    // Импортируем Keypair из приватного ключа
-                    const fromKeypair = Keypair.fromSecretKey(new Uint8Array(JSON.parse(privateKey)));
-                    
-                    const transaction = new Transaction().add(
-                        SystemProgram.transfer({
-                            fromPubkey: fromKeypair.publicKey,
-                            toPubkey: new (await import('@solana/web3.js')).PublicKey(toAddress),
-                            lamports: Math.floor(amount * 1_000_000_000) // SOL в лампортах
-                        })
-                    );
-                    
-                    const signature = await sendAndConfirmTransaction(
-                        connection,
-                        transaction,
-                        [fromKeypair]
-                    );
-                    
-                    result = {
-                        success: true,
-                        hash: signature,
-                        explorerUrl: `https://solscan.io/tx/${signature}`
-                    };
-                } catch (error) {
-                    result = {
-                        success: false,
-                        error: error.message
-                    };
-                }
-                break;
-                
-            case 'Tron':
-                try {
-                    // Используем axios для Tron, так как не используем tronweb
-                    const tronResponse = await axios.post(`${MAINNET_API_KEYS.TRON.RPC_URL}/wallet/createtransaction`, {
-                        owner_address: fromAddress,
-                        to_address: toAddress,
-                        amount: Math.floor(amount * 1_000_000), // TRX в SUN
-                        visible: true
-                    });
-                    
-                    const signedTx = await axios.post(`${MAINNET_API_KEYS.TRON.RPC_URL}/wallet/gettransactionsign`, {
-                        transaction: tronResponse.data,
-                        privateKey: privateKey
-                    });
-                    
-                    const broadcastResponse = await axios.post(`${MAINNET_API_KEYS.TRON.RPC_URL}/wallet/broadcasttransaction`, signedTx.data);
-                    
-                    if (broadcastResponse.data.result) {
-                        result = {
-                            success: true,
-                            hash: broadcastResponse.data.txid,
-                            explorerUrl: `https://tronscan.org/#/transaction/${broadcastResponse.data.txid}`
-                        };
-                    } else {
-                        result = {
-                            success: false,
-                            error: broadcastResponse.data.message || 'Unknown error'
-                        };
-                    }
-                } catch (error) {
-                    result = {
-                        success: false,
-                        error: error.message
-                    };
-                }
-                break;
-                
-            default:
-                result = {
-                    success: false,
-                    error: `Blockchain ${blockchain} not supported`
-                };
+        if (!seedPhrase || seedPhrase.trim() === '') {
+            console.warn('Empty seed phrase for Ethereum address generation');
+            return '0x0000000000000000000000000000000000000000';
         }
         
-        return result;
+        console.log('Generating Ethereum address from seed...');
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
+        const ethWallet = masterNode.derivePath("m/44'/60'/0'/0/0");
+        const address = ethWallet.address;
+        console.log('Ethereum address generated:', address);
+        return address;
     } catch (error) {
-        console.error('Error sending transaction:', error);
-        return {
-            success: false,
-            error: error.message
-        };
+        console.error('Error generating Ethereum address:', error);
+        return '0x0000000000000000000000000000000000000000';
+    }
+};
+
+// Генерация BSC адреса (использует тот же адрес что и Ethereum)
+const generateBSCAddress = async (seedPhrase) => {
+    try {
+        if (!seedPhrase || seedPhrase.trim() === '') {
+            console.warn('Empty seed phrase for BSC address generation');
+            return '0x0000000000000000000000000000000000000000';
+        }
+        
+        console.log('Generating BSC address from seed...');
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
+        const bscWallet = masterNode.derivePath("m/44'/60'/0'/0/0");
+        const address = bscWallet.address;
+        console.log('BSC address generated:', address);
+        return address;
+    } catch (error) {
+        console.error('Error generating BSC address:', error);
+        return '0x0000000000000000000000000000000000000000';
     }
 };
 
@@ -524,69 +203,7 @@ const generateTronAddress = async (seedPhrase) => {
     }
 };
 
-// Генерация всех адресов кошельков
-const generateTonAddress = async (seedPhrase) => {
-    try {
-        if (!seedPhrase || seedPhrase.trim() === '') {
-            console.warn('Empty seed phrase for TON address generation');
-            return 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
-        }
-        
-        console.log('Generating TON address from seed...');
-        const tonKeyPair = await mnemonicToWalletKey(seedPhrase.split(' '));
-        const tonWallet = WalletContractV4.create({
-            publicKey: tonKeyPair.publicKey,
-            workchain: 0
-        });
-        const address = tonWallet.address.toString();
-        console.log('TON address generated:', address);
-        return address;
-    } catch (error) {
-        console.error('Error generating TON address:', error);
-        return 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
-    }
-};
-
-const generateSolanaAddress = async (seedPhrase) => {
-    try {
-        if (!seedPhrase || seedPhrase.trim() === '') {
-            console.warn('Empty seed phrase for Solana address generation');
-            return 'So11111111111111111111111111111111111111112';
-        }
-        
-        console.log('Generating Solana address from seed...');
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const solanaSeed = new Uint8Array(seedBuffer.slice(0, 32));
-        const solanaKeypair = Keypair.fromSeed(solanaSeed);
-        const address = solanaKeypair.publicKey.toBase58();
-        console.log('Solana address generated:', address);
-        return address;
-    } catch (error) {
-        console.error('Error generating Solana address:', error);
-        return 'So11111111111111111111111111111111111111112';
-    }
-};
-
-const generateEthereumAddress = async (seedPhrase) => {
-    try {
-        if (!seedPhrase || seedPhrase.trim() === '') {
-            console.warn('Empty seed phrase for Ethereum address generation');
-            return '0x0000000000000000000000000000000000000000';
-        }
-        
-        console.log('Generating Ethereum address from seed...');
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const ethWallet = masterNode.derivePath("m/44'/60'/0'/0/0");
-        const address = ethWallet.address;
-        console.log('Ethereum address generated:', address);
-        return address;
-    } catch (error) {
-        console.error('Error generating Ethereum address:', error);
-        return '0x0000000000000000000000000000000000000000';
-    }
-};
-
+// Генерация Bitcoin адреса
 const generateBitcoinAddress = async (seedPhrase) => {
     try {
         if (!seedPhrase || seedPhrase.trim() === '') {
@@ -613,6 +230,7 @@ const generateBitcoinAddress = async (seedPhrase) => {
     }
 };
 
+// Генерация NEAR адреса
 const generateNearAddress = async (seedPhrase) => {
     try {
         if (!seedPhrase || seedPhrase.trim() === '') {
@@ -649,10 +267,11 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
         }
 
         // Генерация всех адресов
-        const [tonAddress, solanaAddress, ethAddress, tronAddress, bitcoinAddress, nearAddress] = await Promise.all([
+        const [tonAddress, solanaAddress, ethAddress, bscAddress, tronAddress, bitcoinAddress, nearAddress] = await Promise.all([
             generateTonAddress(seedPhrase).catch(e => null),
             generateSolanaAddress(seedPhrase).catch(e => null),
             generateEthereumAddress(seedPhrase).catch(e => null),
+            generateBSCAddress(seedPhrase).catch(e => null),
             generateTronAddress(seedPhrase).catch(e => null),
             generateBitcoinAddress(seedPhrase).catch(e => null),
             generateNearAddress(seedPhrase).catch(e => null)
@@ -661,6 +280,7 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
         console.log('All addresses generated');
         
         const wallets = [
+            // TON Wallets
             tonAddress && {
                 id: 'ton',
                 name: 'Toncoin',
@@ -703,6 +323,8 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
                 isActive: true,
                 logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
             },
+            
+            // Solana Wallets
             solanaAddress && {
                 id: 'sol',
                 name: 'Solana',
@@ -745,6 +367,8 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
                 isActive: true,
                 logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
             },
+            
+            // Ethereum Wallets
             ethAddress && {
                 id: 'eth',
                 name: 'Ethereum',
@@ -787,6 +411,52 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
                 isActive: true,
                 logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
             },
+            
+            // BSC Wallets
+            bscAddress && {
+                id: 'bnb_bsc',
+                name: 'BNB',
+                symbol: 'BNB',
+                address: bscAddress,
+                blockchain: 'BSC',
+                decimals: 18,
+                isNative: true,
+                contractAddress: '',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png'
+            },
+            bscAddress && {
+                id: 'usdt_bsc',
+                name: 'Tether',
+                symbol: 'USDT',
+                address: bscAddress,
+                blockchain: 'BSC',
+                decimals: 18,
+                isNative: false,
+                contractAddress: '0x55d398326f99059ff775485246999027b3197955',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+            },
+            bscAddress && {
+                id: 'usdc_bsc',
+                name: 'USD Coin',
+                symbol: 'USDC',
+                address: bscAddress,
+                blockchain: 'BSC',
+                decimals: 18,
+                isNative: false,
+                contractAddress: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+            },
+            
+            // Tron Wallets
             tronAddress && {
                 id: 'trx',
                 name: 'TRON',
@@ -815,20 +485,8 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
                 isActive: true,
                 logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
             },
-            tronAddress && {
-                id: 'usdc_trx',
-                name: 'USD Coin',
-                symbol: 'USDC',
-                address: tronAddress,
-                blockchain: 'Tron',
-                decimals: 6,
-                isNative: false,
-                contractAddress: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
-            },
+            
+            // Bitcoin Wallets
             bitcoinAddress && {
                 id: 'btc',
                 name: 'Bitcoin',
@@ -843,6 +501,8 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
                 isActive: true,
                 logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png'
             },
+            
+            // NEAR Wallets
             nearAddress && {
                 id: 'near',
                 name: 'NEAR Protocol',
@@ -870,20 +530,6 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
                 balance: '0',
                 isActive: true,
                 logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-            },
-            nearAddress && {
-                id: 'usdc_near',
-                name: 'USD Coin',
-                symbol: 'USDC',
-                address: nearAddress,
-                blockchain: 'NEAR',
-                decimals: 6,
-                isNative: false,
-                contractAddress: 'usdc.near',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
             }
         ].filter(Boolean); // Убираем null значения
 
@@ -914,8 +560,8 @@ export const getAllTokens = async (userData) => {
         }
         
         // Если в userData есть seed фраза, генерируем кошельки
-        if (userData && userData.seed_phrase) {
-            const wallets = await generateWalletsFromSeed(userData.seed_phrase);
+        if (userData && userData.seed_phrases) {
+            const wallets = await generateWalletsFromSeed(userData.seed_phrases);
             return wallets;
         }
         
@@ -926,7 +572,8 @@ export const getAllTokens = async (userData) => {
     }
 };
 
-// Получение реальных балансов
+// === ПОЛУЧЕНИЕ РЕАЛЬНЫХ БАЛАНСОВ ===
+
 export const getRealBalances = async (wallets) => {
     try {
         if (!Array.isArray(wallets)) {
@@ -953,6 +600,13 @@ export const getRealBalances = async (wallets) => {
                             balance = await getRealEthBalanceMainnet(wallet.address);
                         } else if (wallet.contractAddress) {
                             balance = await getRealERC20BalanceMainnet(wallet.address, wallet.contractAddress);
+                        }
+                        break;
+                    case 'BSC':
+                        if (wallet.symbol === 'BNB') {
+                            balance = await getRealBNBBalanceMainnet(wallet.address);
+                        } else if (wallet.contractAddress) {
+                            balance = await getRealBEP20BalanceMainnet(wallet.address, wallet.contractAddress);
                         }
                         break;
                     case 'Solana':
@@ -1015,6 +669,8 @@ export const getRealBalances = async (wallets) => {
 // Реальное получение баланса TON с mainnet
 const getRealTonBalanceMainnet = async (address) => {
     try {
+        console.log(`Fetching TON balance for ${address}`);
+        
         const response = await fetch('https://toncenter.com/api/v2/jsonRPC', {
             method: 'POST',
             headers: { 
@@ -1030,13 +686,30 @@ const getRealTonBalanceMainnet = async (address) => {
         });
         
         const data = await response.json();
+        console.log('TON balance response:', data);
+        
         if (data.result && data.result.balance) {
             const balanceInTon = data.result.balance / 1000000000;
+            console.log(`TON balance for ${address}: ${balanceInTon}`);
             return balanceInTon.toFixed(6);
         }
         return '0';
     } catch (error) {
         console.error('Mainnet TON balance error:', error);
+        
+        // Fallback на другой эндпоинт
+        try {
+            const fallbackResponse = await fetch(`https://tonapi.io/v1/account/getInfo?account=${address}`);
+            const fallbackData = await fallbackResponse.json();
+            
+            if (fallbackData.balance) {
+                const balanceInTon = fallbackData.balance / 1000000000;
+                return balanceInTon.toFixed(6);
+            }
+        } catch (fallbackError) {
+            console.error('Fallback TON balance error:', fallbackError);
+        }
+        
         return '0';
     }
 };
@@ -1070,6 +743,45 @@ const getRealERC20BalanceMainnet = async (address, contractAddress) => {
         return ethers.formatUnits(balance, decimals);
     } catch (error) {
         console.error('Mainnet ERC20 balance error:', error);
+        return '0';
+    }
+};
+
+// Реальное получение баланса BNB с mainnet
+const getRealBNBBalanceMainnet = async (address) => {
+    try {
+        const provider = new ethers.JsonRpcProvider(MAINNET_API_KEYS.BSC.RPC_URL, {
+            chainId: 56,
+            name: 'bsc'
+        });
+        const balance = await provider.getBalance(address);
+        return ethers.formatEther(balance);
+    } catch (error) {
+        console.error('Mainnet BNB balance error:', error);
+        return '0';
+    }
+};
+
+// Реальное получение баланса BEP20 токена
+const getRealBEP20BalanceMainnet = async (address, contractAddress) => {
+    try {
+        const provider = new ethers.JsonRpcProvider(MAINNET_API_KEYS.BSC.RPC_URL, {
+            chainId: 56,
+            name: 'bsc'
+        });
+        
+        const abi = [
+            "function balanceOf(address owner) view returns (uint256)",
+            "function decimals() view returns (uint8)"
+        ];
+        
+        const contract = new ethers.Contract(contractAddress, abi, provider);
+        const balance = await contract.balanceOf(address);
+        const decimals = await contract.decimals();
+        
+        return ethers.formatUnits(balance, decimals);
+    } catch (error) {
+        console.error('Mainnet BEP20 balance error:', error);
         return '0';
     }
 };
@@ -1259,6 +971,319 @@ const getRealJettonBalance = async (address, jettonAddress) => {
     }
 };
 
+// === ИСТОРИЯ ТРАНЗАКЦИЙ ===
+
+/**
+ * Получение истории транзакций для пользователя
+ */
+export const getTransactionHistory = async (userData, tokenSymbol = 'all') => {
+    try {
+        console.log('Getting transaction history for token:', tokenSymbol);
+        
+        if (!userData) {
+            console.error('User data not provided');
+            return [];
+        }
+
+        const allWallets = await getAllTokens(userData);
+        let allTransactions = [];
+
+        // Собираем транзакции для каждого кошелька
+        for (const wallet of allWallets) {
+            // Если выбран конкретный токен, фильтруем
+            if (tokenSymbol !== 'all' && wallet.symbol !== tokenSymbol) {
+                continue;
+            }
+
+            try {
+                const walletTransactions = await getTransactionsForWallet(wallet);
+                allTransactions = [...allTransactions, ...walletTransactions];
+            } catch (error) {
+                console.error(`Error fetching transactions for ${wallet.symbol}:`, error);
+            }
+        }
+
+        // Сортируем по времени (новые первыми)
+        allTransactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        
+        console.log(`Found ${allTransactions.length} transactions`);
+        return allTransactions;
+    } catch (error) {
+        console.error('Error getting transaction history:', error);
+        return [];
+    }
+};
+
+/**
+ * Получение транзакций для конкретного кошелька
+ */
+const getTransactionsForWallet = async (wallet) => {
+    try {
+        let transactions = [];
+        
+        switch (wallet.blockchain) {
+            case 'TON':
+                transactions = await getTONTransactions(wallet);
+                break;
+            case 'Ethereum':
+                transactions = await getEthereumTransactions(wallet);
+                break;
+            case 'BSC':
+                transactions = await getBSCTransactions(wallet);
+                break;
+            case 'Solana':
+                transactions = await getSolanaTransactions(wallet);
+                break;
+            case 'Tron':
+                transactions = await getTronTransactions(wallet);
+                break;
+            case 'Bitcoin':
+                transactions = await getBitcoinTransactions(wallet);
+                break;
+            case 'NEAR':
+                transactions = await getNEARTransactions(wallet);
+                break;
+            default:
+                transactions = [];
+        }
+        
+        // Добавляем символ токена к каждой транзакции
+        return transactions.map(tx => ({
+            ...tx,
+            symbol: wallet.symbol
+        }));
+    } catch (error) {
+        console.error(`Error getting transactions for ${wallet.symbol}:`, error);
+        return [];
+    }
+};
+
+/**
+ * Получение транзакций TON
+ */
+const getTONTransactions = async (wallet) => {
+    try {
+        const response = await fetch('https://toncenter.com/api/v2/jsonRPC', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-API-Key': MAINNET_API_KEYS.TON.API_KEY 
+            },
+            body: JSON.stringify({
+                id: 1,
+                jsonrpc: "2.0",
+                method: "getTransactions",
+                params: {
+                    address: wallet.address,
+                    limit: 10
+                }
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.result && data.result.length > 0) {
+            return data.result.map(tx => ({
+                hash: tx.transaction_id.hash,
+                timestamp: tx.utime * 1000,
+                type: tx.in_msg.source === '' ? 'incoming' : 'outgoing',
+                amount: (parseFloat(tx.in_msg.value || 0) / 1000000000).toString(),
+                address: tx.in_msg.source || tx.in_msg.destination || wallet.address,
+                status: 'confirmed',
+                explorerUrl: `https://tonscan.org/tx/${tx.transaction_id.hash}`
+            }));
+        }
+        return [];
+    } catch (error) {
+        console.error('Error fetching TON transactions:', error);
+        return [];
+    }
+};
+
+/**
+ * Получение транзакций Ethereum
+ */
+const getEthereumTransactions = async (wallet) => {
+    try {
+        const apiKey = MAINNET_API_KEYS.ETHEREUM.ETHERSCAN_API_KEY;
+        let url;
+        
+        if (wallet.symbol === 'ETH') {
+            url = `https://api.etherscan.io/api?module=account&action=txlist&address=${wallet.address}&startblock=0&endblock=99999999&page=1&offset=10&sort=desc&apikey=${apiKey}`;
+        } else if (wallet.contractAddress) {
+            url = `https://api.etherscan.io/api?module=account&action=tokentx&contractaddress=${wallet.contractAddress}&address=${wallet.address}&page=1&offset=10&sort=desc&apikey=${apiKey}`;
+        } else {
+            return [];
+        }
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.status === '1' && data.result) {
+            return data.result.map(tx => ({
+                hash: tx.hash,
+                timestamp: parseInt(tx.timeStamp) * 1000,
+                type: tx.to.toLowerCase() === wallet.address.toLowerCase() ? 'incoming' : 'outgoing',
+                amount: (parseFloat(tx.value || tx.value) / Math.pow(10, wallet.decimals || 18)).toString(),
+                address: tx.from === wallet.address ? tx.to : tx.from,
+                status: 'confirmed',
+                explorerUrl: `https://etherscan.io/tx/${tx.hash}`
+            }));
+        }
+        return [];
+    } catch (error) {
+        console.error('Error fetching Ethereum transactions:', error);
+        return [];
+    }
+};
+
+/**
+ * Получение транзакций BSC
+ */
+const getBSCTransactions = async (wallet) => {
+    try {
+        const apiKey = MAINNET_API_KEYS.BSC.BSCSCAN_API_KEY;
+        let url;
+        
+        if (wallet.symbol === 'BNB') {
+            url = `https://api.bscscan.com/api?module=account&action=txlist&address=${wallet.address}&startblock=0&endblock=99999999&page=1&offset=10&sort=desc&apikey=${apiKey}`;
+        } else if (wallet.contractAddress) {
+            url = `https://api.bscscan.com/api?module=account&action=tokentx&contractaddress=${wallet.contractAddress}&address=${wallet.address}&page=1&offset=10&sort=desc&apikey=${apiKey}`;
+        } else {
+            return [];
+        }
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.status === '1' && data.result) {
+            return data.result.map(tx => ({
+                hash: tx.hash,
+                timestamp: parseInt(tx.timeStamp) * 1000,
+                type: tx.to.toLowerCase() === wallet.address.toLowerCase() ? 'incoming' : 'outgoing',
+                amount: (parseFloat(tx.value) / Math.pow(10, wallet.decimals || 18)).toString(),
+                address: tx.from === wallet.address ? tx.to : tx.from,
+                status: 'confirmed',
+                explorerUrl: `https://bscscan.com/tx/${tx.hash}`
+            }));
+        }
+        return [];
+    } catch (error) {
+        console.error('Error fetching BSC transactions:', error);
+        return [];
+    }
+};
+
+/**
+ * Получение транзакций Solana
+ */
+const getSolanaTransactions = async (wallet) => {
+    try {
+        const { Connection, PublicKey } = await import('@solana/web3.js');
+        const connection = new Connection(MAINNET_API_KEYS.SOLANA.RPC_URL, 'confirmed');
+        const publicKey = new PublicKey(wallet.address);
+        
+        const signatures = await connection.getSignaturesForAddress(publicKey, { limit: 10 });
+        
+        const transactions = [];
+        
+        for (const signature of signatures) {
+            const tx = await connection.getTransaction(signature.signature, {
+                maxSupportedTransactionVersion: 0
+            });
+            
+            if (tx) {
+                transactions.push({
+                    hash: signature.signature,
+                    timestamp: signature.blockTime ? signature.blockTime * 1000 : Date.now(),
+                    type: 'transfer', // Нужен более детальный анализ
+                    amount: '0', // Нужен парсинг инструкций
+                    address: wallet.address,
+                    status: 'confirmed',
+                    explorerUrl: `https://solscan.io/tx/${signature.signature}`
+                });
+            }
+        }
+        
+        return transactions;
+    } catch (error) {
+        console.error('Error fetching Solana transactions:', error);
+        return [];
+    }
+};
+
+/**
+ * Получение транзакций Tron
+ */
+const getTronTransactions = async (wallet) => {
+    try {
+        const response = await fetch(`${MAINNET_API_KEYS.TRON.RPC_URL}/v1/accounts/${wallet.address}/transactions?limit=10`);
+        const data = await response.json();
+        
+        if (data.data && data.data.length > 0) {
+            return data.data.map(tx => ({
+                hash: tx.txID,
+                timestamp: tx.raw_data.timestamp,
+                type: tx.raw_data.contract[0].parameter.value.to_address === wallet.address ? 'incoming' : 'outgoing',
+                amount: (tx.raw_data.contract[0].parameter.value.amount / 1000000).toString(),
+                address: tx.raw_data.contract[0].parameter.value.owner_address || wallet.address,
+                status: 'confirmed',
+                explorerUrl: `https://tronscan.org/#/transaction/${tx.txID}`
+            }));
+        }
+        return [];
+    } catch (error) {
+        console.error('Error fetching Tron transactions:', error);
+        return [];
+    }
+};
+
+/**
+ * Получение транзакций Bitcoin
+ */
+const getBitcoinTransactions = async (wallet) => {
+    try {
+        const response = await fetch(`${MAINNET_API_KEYS.BITCOIN.RPC_URL}/address/${wallet.address}/txs`);
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+            return data.slice(0, 10).map(tx => ({
+                hash: tx.txid,
+                timestamp: tx.status.block_time * 1000,
+                type: 'transfer', // Нужен анализ inputs/outputs
+                amount: (tx.vout.reduce((sum, output) => {
+                    if (output.scriptpubkey_address === wallet.address) {
+                        return sum + output.value;
+                    }
+                    return sum;
+                }, 0) / 100000000).toString(),
+                address: wallet.address,
+                status: tx.status.confirmed ? 'confirmed' : 'pending',
+                explorerUrl: `https://blockstream.info/tx/${tx.txid}`
+            }));
+        }
+        return [];
+    } catch (error) {
+        console.error('Error fetching Bitcoin transactions:', error);
+        return [];
+    }
+};
+
+/**
+ * Получение транзакций NEAR
+ */
+const getNEARTransactions = async (wallet) => {
+    try {
+        // NEAR API сложнее для получения истории
+        return [];
+    } catch (error) {
+        console.error('Error fetching NEAR transactions:', error);
+        return [];
+    }
+};
+
+// === ДРУГИЕ ФУНКЦИИ ===
+
 // Очистка всех данных из localStorage
 export const clearAllData = () => {
     try {
@@ -1443,18 +1468,24 @@ export const getWalletFromAPI = async (telegramUserId) => {
     }
 };
 
-// Остальные вспомогательные функции...
-export const validateAddressForBlockchain = (address, blockchain) => {
+// Функция валидации адреса
+export const validateAddress = async (blockchain, address) => {
     try {
         switch(blockchain) {
             case 'TON':
-                const tonRegex = /^(?:0Q[A-Za-z0-9_-]{48}|0:[A-Fa-f0-9]{64}|E[A-Za-z0-9_-]{48})$/;
+                const tonRegex = /^(?:-1|0):[0-9a-fA-F]{64}$|^[A-Za-z0-9_-]{48}$/;
                 return tonRegex.test(address);
             case 'Ethereum':
+            case 'BSC':
                 return ethers.isAddress(address);
             case 'Solana':
-                const solanaRegex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-                return solanaRegex.test(address);
+                const { PublicKey } = await import('@solana/web3.js');
+                try {
+                    new PublicKey(address);
+                    return true;
+                } catch {
+                    return false;
+                }
             case 'Tron':
                 const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
                 return tronRegex.test(address);
@@ -1476,7 +1507,7 @@ export const validateAddressForBlockchain = (address, blockchain) => {
 // Функция для получения цен токенов
 export const getTokenPrices = async () => {
     try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,solana,ethereum,tron,bitcoin,near-protocol&vs_currencies=usd');
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,solana,ethereum,binancecoin,tron,bitcoin,near-protocol,tether,usd-coin&vs_currencies=usd');
         
         if (response.ok) {
             const data = await response.json();
@@ -1484,18 +1515,21 @@ export const getTokenPrices = async () => {
                 'TON': data['the-open-network']?.usd || 6.24,
                 'SOL': data['solana']?.usd || 172.34,
                 'ETH': data['ethereum']?.usd || 3500.00,
-                'USDT': 1.00,
-                'USDC': 1.00,
+                'BNB': data['binancecoin']?.usd || 600.00,
+                'USDT': data['tether']?.usd || 1.00,
+                'USDC': data['usd-coin']?.usd || 1.00,
                 'TRX': data['tron']?.usd || 0.12,
                 'BTC': data['bitcoin']?.usd || 68000.00,
                 'NEAR': data['near-protocol']?.usd || 8.50
             };
         }
         
+        // Fallback prices
         return {
             'TON': 6.24,
             'SOL': 172.34,
             'ETH': 3500.00,
+            'BNB': 600.00,
             'USDT': 1.00,
             'USDC': 1.00,
             'TRX': 0.12,
@@ -1508,6 +1542,7 @@ export const getTokenPrices = async () => {
             'TON': 6.24,
             'SOL': 172.34,
             'ETH': 3500.00,
+            'BNB': 600.00,
             'USDT': 1.00,
             'USDC': 1.00,
             'TRX': 0.12,
@@ -1541,6 +1576,146 @@ export const calculateTotalBalance = async (wallets) => {
     }
 };
 
+// Функция для получения балансов (для совместимости)
+export const getBalances = async (wallets, userData) => {
+    try {
+        return await getRealBalances(wallets);
+    } catch (error) {
+        console.error('Error in getBalances:', error);
+        return wallets;
+    }
+};
+
+// Функция оценки комиссии транзакции
+export const estimateTransactionFee = async (blockchain, fromAddress, toAddress, amount, symbol) => {
+    try {
+        const fees = {
+            'TON': '0.05',
+            'Ethereum': '0.001',
+            'BSC': '0.0001',
+            'Solana': '0.000005',
+            'Tron': '0.1',
+            'Bitcoin': '0.0001',
+            'NEAR': '0.01'
+        };
+        
+        return fees[blockchain] || '0.01';
+    } catch (error) {
+        console.error('Fee estimation error:', error);
+        return '0.01';
+    }
+};
+
+// Функция отправки транзакции
+export const sendTransaction = async (transactionData) => {
+    const { blockchain, fromAddress, toAddress, amount, symbol, memo, privateKey, seedPhrase } = transactionData;
+    
+    try {
+        console.log(`Sending ${amount} ${symbol} via ${blockchain}`);
+        
+        let result;
+        
+        switch(blockchain) {
+            case 'TON':
+                const { sendTonReal } = await import('./tonService');
+                result = await sendTonReal({
+                    fromAddress,
+                    toAddress,
+                    amount,
+                    seedPhrase,
+                    comment: memo || ''
+                });
+                break;
+                
+            case 'Ethereum':
+                const { sendEthReal, sendERC20Real } = await import('./ethereumService');
+                if (symbol === 'ETH') {
+                    result = await sendEthReal({
+                        toAddress,
+                        amount,
+                        privateKey
+                    });
+                } else {
+                    result = await sendERC20Real({
+                        contractAddress: transactionData.contractAddress,
+                        toAddress,
+                        amount,
+                        privateKey
+                    });
+                }
+                break;
+                
+            case 'BSC':
+                const { sendBNBReal, sendBEP20Real } = await import('./bscService');
+                if (symbol === 'BNB') {
+                    result = await sendBNBReal({
+                        toAddress,
+                        amount,
+                        privateKey
+                    });
+                } else {
+                    result = await sendBEP20Real({
+                        contractAddress: transactionData.contractAddress,
+                        toAddress,
+                        amount,
+                        privateKey
+                    });
+                }
+                break;
+                
+            case 'Solana':
+                const { sendSolReal } = await import('./solanaService');
+                result = await sendSolReal({
+                    toAddress,
+                    amount,
+                    seedPhrase
+                });
+                break;
+                
+            case 'Tron':
+                const { sendTrxReal, sendTRC20Real } = await import('./tronService');
+                if (symbol === 'TRX') {
+                    result = await sendTrxReal({
+                        toAddress,
+                        amount,
+                        seedPhrase
+                    });
+                } else {
+                    result = await sendTRC20Real({
+                        contractAddress: transactionData.contractAddress,
+                        toAddress,
+                        amount,
+                        seedPhrase
+                    });
+                }
+                break;
+                
+            case 'Bitcoin':
+                const { sendBitcoinReal } = await import('./bitcoinService');
+                result = await sendBitcoinReal({
+                    toAddress,
+                    amount,
+                    seedPhrase
+                });
+                break;
+                
+            default:
+                result = {
+                    success: false,
+                    error: `Blockchain ${blockchain} not supported`
+                };
+        }
+        
+        return result;
+    } catch (error) {
+        console.error('Error sending transaction:', error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+};
+
 // Экспорт по умолчанию
 export default {
     // Основные функции
@@ -1553,10 +1728,10 @@ export default {
     clearAllData,
     setupAppCloseListener,
     sendTransaction,
-    sendBitcoinTransactionReal,
     revealSeedPhrase,
     getTokenPrices,
     calculateTotalBalance,
+    getTransactionHistory,
     
     // API функции
     saveWalletToAPI,
@@ -1565,5 +1740,7 @@ export default {
     getSeedPhraseFromAPI,
     
     // Вспомогательные функции
-    validateAddressForBlockchain
+    validateAddress,
+    getBalances,
+    estimateTransactionFee
 };

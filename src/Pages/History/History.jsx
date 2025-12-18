@@ -34,7 +34,26 @@ function History({ userData }) {
             
             // Загружаем историю транзакций
             const history = await getTransactionHistory(userData, selectedToken);
-            setTransactions(history);
+            
+            // Добавляем USD значения
+            const prices = {
+                'TON': 6.24,
+                'SOL': 172.34,
+                'ETH': 3500.00,
+                'BNB': 600.00,
+                'USDT': 1.00,
+                'USDC': 1.00,
+                'TRX': 0.12,
+                'BTC': 68000.00,
+                'NEAR': 8.50
+            };
+            
+            const historyWithUSD = history.map(tx => ({
+                ...tx,
+                usdValue: (parseFloat(tx.amount || 0) * (prices[tx.symbol] || 1)).toFixed(2)
+            }));
+            
+            setTransactions(historyWithUSD);
             
         } catch (error) {
             console.error('Error loading history:', error);
@@ -56,8 +75,8 @@ function History({ userData }) {
         if (searchQuery.trim() !== '') {
             const query = searchQuery.toLowerCase();
             filtered = filtered.filter(tx => 
-                tx.address.toLowerCase().includes(query) || 
-                tx.hash.toLowerCase().includes(query)
+                (tx.address && tx.address.toLowerCase().includes(query)) || 
+                (tx.hash && tx.hash.toLowerCase().includes(query))
             );
         }
         
@@ -97,7 +116,9 @@ function History({ userData }) {
     };
 
     const handleViewOnExplorer = (url) => {
-        window.open(url, '_blank', 'noopener,noreferrer');
+        if (url) {
+            window.open(url, '_blank', 'noopener,noreferrer');
+        }
     };
 
     return (
@@ -150,8 +171,8 @@ function History({ userData }) {
                             >
                                 <option value="all">All Tokens</option>
                                 {tokens.map(token => (
-                                    <option key={token.symbol} value={token.symbol}>
-                                        {token.symbol}
+                                    <option key={`${token.symbol}-${token.blockchain}`} value={token.symbol}>
+                                        {token.symbol} ({token.blockchain})
                                     </option>
                                 ))}
                             </select>
@@ -222,6 +243,7 @@ function History({ userData }) {
                                             className="explorer-btn"
                                             onClick={() => handleViewOnExplorer(tx.explorerUrl)}
                                             title="View on explorer"
+                                            disabled={!tx.explorerUrl}
                                         >
                                             ↗
                                         </button>

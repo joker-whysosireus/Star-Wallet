@@ -48,7 +48,7 @@ function Wallet({ isActive, userData }) {
                 return;
             }
 
-            console.log('Initializing wallets...');
+            console.log('Initializing wallets with real balances...');
             
             const allTokens = await getAllTokens(userData);
             
@@ -62,26 +62,31 @@ function Wallet({ isActive, userData }) {
             localStorage.setItem('cached_wallets', JSON.stringify(allTokens));
             
             try {
+                // Получаем реальные балансы с mainnet
                 const updatedWallets = await getBalances(allTokens, userData);
                 setWallets(updatedWallets);
                 localStorage.setItem('cached_wallets', JSON.stringify(updatedWallets));
                 
+                // Рассчитываем общий баланс с реальными ценами
                 const total = await calculateTotalBalance(updatedWallets);
                 setTotalBalance(`$${total}`);
                 localStorage.setItem('cached_total_balance', `$${total}`);
                 
-                console.log('Balances updated successfully');
+                console.log('Real balances loaded successfully');
             } catch (balanceError) {
-                console.error('Error updating balances:', balanceError);
+                console.error('Error updating real balances:', balanceError);
                 
+                // Fallback на базовые цены
                 const prices = {
                     'TON': 6.24,
                     'SOL': 172.34,
                     'ETH': 3500.00,
+                    'BNB': 600.00,
                     'USDT': 1.00,
                     'USDC': 1.00,
                     'TRX': 0.12,
-                    'BTC': 68000.00
+                    'BTC': 68000.00,
+                    'NEAR': 8.50
                 };
                 
                 const total = allTokens.reduce((sum, wallet) => {

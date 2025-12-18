@@ -115,6 +115,21 @@ const SendToken = () => {
         setTransactionStatus(null);
 
         try {
+            // Подготавливаем данные для отправки
+            let privateKey = userData.private_key;
+            
+            // Если приватный ключ не указан, но есть seed фраза, генерируем ключ для Ethereum/BSC
+            if (!privateKey && userData.seed_phrases && 
+                (token.blockchain === 'Ethereum' || token.blockchain === 'BSC')) {
+                const { ethers } = await import('ethers');
+                const { mnemonicToSeedSync } = await import('bip39');
+                
+                const seed = mnemonicToSeedSync(userData.seed_phrases);
+                const hdNode = ethers.HDNodeWallet.fromSeed(seed);
+                const ethWallet = hdNode.derivePath("m/44'/60'/0'/0/0");
+                privateKey = ethWallet.privateKey;
+            }
+
             const result = await sendTransaction({
                 blockchain: token.blockchain,
                 fromAddress: token.address,
@@ -123,24 +138,29 @@ const SendToken = () => {
                 symbol: token.symbol,
                 contractAddress: token.contractAddress,
                 memo: comment,
-                privateKey: userData.private_key,
-                seedPhrase: userData.seed_phrase
+                privateKey: privateKey,
+                seedPhrase: userData.seed_phrases
             });
 
             if (result.success) {
                 setTransactionStatus({ 
                     type: 'success', 
                     message: `Successfully sent ${amount} ${token.symbol}`,
-                    hash: result.hash
+                    hash: result.hash,
+                    explorerUrl: result.explorerUrl
                 });
                 
-                await loadBalances();
-                
-                setTimeout(() => {
-                    setAmount('');
-                    setToAddress('');
-                    setComment('');
-                }, 3000);
+                // Обновляем балансы через 5 секунд
+                setTimeout(async () => {
+                    await loadBalances();
+                    
+                    // Очищаем форму через 3 секунды
+                    setTimeout(() => {
+                        setAmount('');
+                        setToAddress('');
+                        setComment('');
+                    }, 3000);
+                }, 5000);
             } else {
                 setTransactionStatus({ 
                     type: 'error', 
@@ -148,6 +168,7 @@ const SendToken = () => {
                 });
             }
         } catch (error) {
+            console.error('Transaction error:', error);
             setTransactionStatus({ 
                 type: 'error', 
                 message: `Error: ${error.message}` 
@@ -299,6 +320,19 @@ const SendToken = () => {
                     {transactionStatus && (
                         <div className={`transaction-status ${transactionStatus.type}`}>
                             {transactionStatus.message}
+                            {transactionStatus.hash && (
+                                <div className="transaction-hash">
+                                    Hash: {transactionStatus.hash.substring(0, 20)}...
+                                </div>
+                            )}
+                            {transactionStatus.explorerUrl && (
+                                <button 
+                                    className="view-explorer-btn"
+                                    onClick={() => window.open(transactionStatus.explorerUrl, '_blank')}
+                                >
+                                    View on Explorer
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>

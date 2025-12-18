@@ -1,4 +1,3 @@
-// Services/ethereumService.js
 import { ethers } from 'ethers';
 import * as bip39 from 'bip39';
 
@@ -9,11 +8,11 @@ const ETHERSCAN_API_KEY = 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6';
 /**
  * Реальная отправка ETH на mainnet
  */
-export const sendEthReal = async ({ toAddress, amount, userData }) => {
+export const sendEthReal = async ({ toAddress, amount, privateKey }) => {
     try {
         console.log(`[ETHEREUM MAINNET] Sending ${amount} ETH to ${toAddress}`);
         
-        if (!toAddress || !amount || parseFloat(amount) <= 0 || !userData) {
+        if (!toAddress || !amount || parseFloat(amount) <= 0 || !privateKey) {
             throw new Error('Invalid parameters for mainnet');
         }
 
@@ -21,8 +20,8 @@ export const sendEthReal = async ({ toAddress, amount, userData }) => {
             throw new Error('Invalid Ethereum address for mainnet');
         }
 
-        // Получаем кошелек из userData
-        const { wallet, provider } = await getWalletFromUserData(userData);
+        const provider = new ethers.JsonRpcProvider(ETHEREUM_MAINNET_RPC);
+        const wallet = new ethers.Wallet(privateKey, provider);
         
         // Проверяем баланс
         const balance = await provider.getBalance(wallet.address);
@@ -78,11 +77,11 @@ export const sendEthReal = async ({ toAddress, amount, userData }) => {
 /**
  * Реальная отправка ERC20 на mainnet
  */
-export const sendERC20Real = async ({ contractAddress, toAddress, amount, userData }) => {
+export const sendERC20Real = async ({ contractAddress, toAddress, amount, privateKey }) => {
     try {
         console.log(`[ETHEREUM MAINNET] Sending ${amount} ERC20 to ${toAddress}`);
         
-        if (!contractAddress || !toAddress || !amount || parseFloat(amount) <= 0 || !userData) {
+        if (!contractAddress || !toAddress || !amount || parseFloat(amount) <= 0 || !privateKey) {
             throw new Error('Invalid parameters for mainnet');
         }
 
@@ -90,7 +89,8 @@ export const sendERC20Real = async ({ contractAddress, toAddress, amount, userDa
             throw new Error('Invalid Ethereum address for mainnet');
         }
 
-        const { wallet, provider } = await getWalletFromUserData(userData);
+        const provider = new ethers.JsonRpcProvider(ETHEREUM_MAINNET_RPC);
+        const wallet = new ethers.Wallet(privateKey, provider);
         
         // ABI ERC20 токена
         const abi = [
@@ -172,54 +172,19 @@ export const sendERC20Real = async ({ contractAddress, toAddress, amount, userDa
 };
 
 /**
- * Получение кошелька Ethereum из userData
- */
-const getWalletFromUserData = async (userData) => {
-    try {
-        if (!userData?.seed_phrases) {
-            throw new Error('Seed phrase not found in user data');
-        }
-        
-        const seedPhrase = userData.seed_phrases;
-        const seed = await bip39.mnemonicToSeed(seedPhrase);
-        const hdNode = ethers.HDNodeWallet.fromSeed(seed);
-        const wallet = hdNode.derivePath("m/44'/60'/0'/0/0");
-        
-        const provider = createProvider();
-        const connectedWallet = wallet.connect(provider);
-        
-        return {
-            wallet: connectedWallet,
-            provider,
-            address: wallet.address
-        };
-    } catch (error) {
-        console.error('Error getting wallet from user data:', error);
-        throw error;
-    }
-};
-
-/**
- * Создание провайдера для Ethereum
- */
-const createProvider = () => {
-    try {
-        return new ethers.JsonRpcProvider(ETHEREUM_MAINNET_RPC);
-    } catch (error) {
-        console.error('Failed to connect to Ethereum RPC:', error.message);
-        throw error;
-    }
-};
-
-/**
  * Получение баланса ETH
  */
-export const getEthBalance = async (userData) => {
+export const getEthBalance = async (address) => {
     try {
-        const { wallet, provider } = await getWalletFromUserData(userData);
-        const balance = await provider.getBalance(wallet.address);
+        if (!address) {
+            throw new Error('Address is required');
+        }
+
+        const provider = new ethers.JsonRpcProvider(ETHEREUM_MAINNET_RPC);
+        const balance = await provider.getBalance(address);
         const balanceInEth = ethers.formatEther(balance);
-        console.log(`ETH balance: ${balanceInEth}`);
+        
+        console.log(`ETH balance for ${address}: ${balanceInEth}`);
         return parseFloat(balanceInEth).toFixed(6);
     } catch (error) {
         console.error('Error getting ETH balance:', error);
@@ -235,11 +200,8 @@ export const getEthPrice = async () => {
         const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd');
         if (response.ok) {
             const data = await response.json();
-            const price = data.ethereum?.usd;
-            console.log(`Current ETH price: $${price}`);
-            return price ? price.toString() : '3500.00';
+            return data.ethereum?.usd || '3500.00';
         }
-        
         return '3500.00';
     } catch (error) {
         console.error('Error getting ETH price:', error);
@@ -250,9 +212,9 @@ export const getEthPrice = async () => {
 /**
  * Получение баланса ERC20 токена
  */
-export const getERC20Balance = async (contractAddress, userData, decimals = 18) => {
+export const getERC20Balance = async (address, contractAddress) => {
     try {
-        const { wallet, provider } = await getWalletFromUserData(userData);
+        const provider = new ethers.JsonRpcProvider(ETHEREUM_MAINNET_RPC);
         
         const abi = [
             'function balanceOf(address owner) view returns (uint256)',
@@ -260,18 +222,10 @@ export const getERC20Balance = async (contractAddress, userData, decimals = 18) 
         ];
         
         const contract = new ethers.Contract(contractAddress, abi, provider);
+        const balance = await contract.balanceOf(address);
+        const decimals = await contract.decimals();
         
-        let tokenDecimals = decimals;
-        try {
-            tokenDecimals = await contract.decimals();
-        } catch (error) {
-            console.warn('Could not get token decimals, using default:', decimals);
-        }
-        
-        const balance = await contract.balanceOf(wallet.address);
-        const formattedBalance = ethers.formatUnits(balance, tokenDecimals);
-        
-        return formattedBalance;
+        return ethers.formatUnits(balance, decimals);
     } catch (error) {
         console.error('Error getting ERC20 balance:', error);
         return '0';
