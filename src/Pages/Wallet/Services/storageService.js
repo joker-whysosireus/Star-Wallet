@@ -1,8 +1,8 @@
+// Services/storageService.js
 import { mnemonicToWalletKey } from '@ton/crypto';
 import { WalletContractV4 } from '@ton/ton';
 import { Keypair } from '@solana/web3.js';
 import { ethers } from 'ethers';
-import axios from 'axios';
 import * as bitcoin from 'bitcoinjs-lib';
 import * as bip39 from 'bip39';
 import { BIP32Factory } from 'bip32';
@@ -1716,6 +1716,219 @@ export const sendTransaction = async (transactionData) => {
     }
 };
 
+// Объект TOKENS для экспорта
+export const TOKENS = {
+    TON: {
+        id: 'ton',
+        name: 'Toncoin',
+        symbol: 'TON',
+        blockchain: 'TON',
+        decimals: 9,
+        isNative: true,
+        contractAddress: '',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/toncoin-ton-logo.png'
+    },
+    USDT_TON: {
+        id: 'usdt_ton',
+        name: 'Tether',
+        symbol: 'USDT',
+        blockchain: 'TON',
+        decimals: 6,
+        isNative: false,
+        contractAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+    },
+    USDC_TON: {
+        id: 'usdc_ton',
+        name: 'USD Coin',
+        symbol: 'USDC',
+        blockchain: 'TON',
+        decimals: 6,
+        isNative: false,
+        contractAddress: 'EQB-MPwrd1G6WKNkLz_VnV6TCqetER9X_KFXqJzPiTBDdhhG',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+    },
+    SOL: {
+        id: 'sol',
+        name: 'Solana',
+        symbol: 'SOL',
+        blockchain: 'Solana',
+        decimals: 9,
+        isNative: true,
+        contractAddress: '',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/solana-sol-logo.png'
+    },
+    USDT_SOL: {
+        id: 'usdt_sol',
+        name: 'Tether',
+        symbol: 'USDT',
+        blockchain: 'Solana',
+        decimals: 6,
+        isNative: false,
+        contractAddress: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+    },
+    USDC_SOL: {
+        id: 'usdc_sol',
+        name: 'USD Coin',
+        symbol: 'USDC',
+        blockchain: 'Solana',
+        decimals: 6,
+        isNative: false,
+        contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+    },
+    ETH: {
+        id: 'eth',
+        name: 'Ethereum',
+        symbol: 'ETH',
+        blockchain: 'Ethereum',
+        decimals: 18,
+        isNative: true,
+        contractAddress: '',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png'
+    },
+    USDT_ETH: {
+        id: 'usdt_eth',
+        name: 'Tether',
+        symbol: 'USDT',
+        blockchain: 'Ethereum',
+        decimals: 6,
+        isNative: false,
+        contractAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+    },
+    USDC_ETH: {
+        id: 'usdc_eth',
+        name: 'USD Coin',
+        symbol: 'USDC',
+        blockchain: 'Ethereum',
+        decimals: 6,
+        isNative: false,
+        contractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+    },
+    BNB: {
+        id: 'bnb_bsc',
+        name: 'BNB',
+        symbol: 'BNB',
+        blockchain: 'BSC',
+        decimals: 18,
+        isNative: true,
+        contractAddress: '',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png'
+    },
+    USDT_BSC: {
+        id: 'usdt_bsc',
+        name: 'Tether',
+        symbol: 'USDT',
+        blockchain: 'BSC',
+        decimals: 18,
+        isNative: false,
+        contractAddress: '0x55d398326f99059ff775485246999027b3197955',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+    },
+    USDC_BSC: {
+        id: 'usdc_bsc',
+        name: 'USD Coin',
+        symbol: 'USDC',
+        blockchain: 'BSC',
+        decimals: 18,
+        isNative: false,
+        contractAddress: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+    },
+    TRX: {
+        id: 'trx',
+        name: 'TRON',
+        symbol: 'TRX',
+        blockchain: 'Tron',
+        decimals: 6,
+        isNative: true,
+        contractAddress: '',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/tron-trx-logo.png'
+    },
+    USDT_TRX: {
+        id: 'usdt_trx',
+        name: 'Tether',
+        symbol: 'USDT',
+        blockchain: 'Tron',
+        decimals: 6,
+        isNative: false,
+        contractAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+    },
+    USDC_TRX: {
+        id: 'usdc_trx',
+        name: 'USD Coin',
+        symbol: 'USDC',
+        blockchain: 'Tron',
+        decimals: 6,
+        isNative: false,
+        contractAddress: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+    },
+    BTC: {
+        id: 'btc',
+        name: 'Bitcoin',
+        symbol: 'BTC',
+        blockchain: 'Bitcoin',
+        decimals: 8,
+        isNative: true,
+        contractAddress: '',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png'
+    },
+    NEAR: {
+        id: 'near',
+        name: 'NEAR Protocol',
+        symbol: 'NEAR',
+        blockchain: 'NEAR',
+        decimals: 24,
+        isNative: true,
+        contractAddress: '',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.png'
+    },
+    USDT_NEAR: {
+        id: 'usdt_near',
+        name: 'Tether',
+        symbol: 'USDT',
+        blockchain: 'NEAR',
+        decimals: 6,
+        isNative: false,
+        contractAddress: 'usdt.near',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
+    },
+    USDC_NEAR: {
+        id: 'usdc_near',
+        name: 'USD Coin',
+        symbol: 'USDC',
+        blockchain: 'NEAR',
+        decimals: 6,
+        isNative: false,
+        contractAddress: 'usdc.near',
+        showBlockchain: true,
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
+    }
+};
+
 // Экспорт по умолчанию
 export default {
     // Основные функции
@@ -1732,6 +1945,7 @@ export default {
     getTokenPrices,
     calculateTotalBalance,
     getTransactionHistory,
+    TOKENS,
     
     // API функции
     saveWalletToAPI,
