@@ -12,6 +12,7 @@ import BackupSeedPhrase from './Pages/Wallet/Subpages/BackupSeedPhrase/BackupSee
 import PinCodeScreen from './assets/PIN/PinCodeScreen.jsx';
 import Loader from './assets/Loader/Loader.jsx';
 import { initializeUserWallets } from './Pages/Wallet/Services/walletService';
+import { setupAppCloseListener, clearAllData } from './Pages/Wallet/Services/storageService';
 
 const AUTH_FUNCTION_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions/auth';
 const VERIFY_PIN_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions/verify-pin';
@@ -24,9 +25,16 @@ const App = () => {
     const [showPinScreen, setShowPinScreen] = useState(false);
     const [pinMode, setPinMode] = useState('verify');
     const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [isLoading, setIsLoading] = useState(true); // Добавляем состояние загрузки
+    const [isLoading, setIsLoading] = useState(true);
+    const [currentTelegramUserId, setCurrentTelegramUserId] = useState(null);
 
     useEffect(() => {
+        // Настраиваем слушатель для очистки данных при закрытии приложения
+        setupAppCloseListener();
+        
+        // Очищаем данные при загрузке приложения
+        clearAllData();
+        
         const isTelegramWebApp = () => {
             try {
                 return window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.BackButton;
@@ -124,6 +132,15 @@ const App = () => {
                 })
                 .then(async (data) => {
                     if (data.isValid && data.userData) {
+                        const telegramUserId = data.userData.telegram_user_id;
+                        
+                        // Проверяем, сменился ли пользователь
+                        if (currentTelegramUserId && currentTelegramUserId !== telegramUserId) {
+                            console.log('User changed! Clearing old data...');
+                            clearAllData(); // Очищаем данные при смене пользователя
+                        }
+                        
+                        setCurrentTelegramUserId(telegramUserId);
                         setUserData(data.userData);
                         await checkPinStatus(data.userData);
                     } else {
@@ -167,6 +184,7 @@ const App = () => {
             }
             
         } catch (error) {
+            console.error('Pin check error:', error);
             setShowPinScreen(true);
         } finally {
             setIsLoading(false);
@@ -182,6 +200,7 @@ const App = () => {
                 const initializedUserData = await initializeUserWallets(userData);
                 if (initializedUserData) {
                     setUserData(initializedUserData);
+                    console.log('Wallets initialized for user:', initializedUserData.telegram_user_id);
                 }
             } catch (error) {
                 console.error("App.jsx: Error initializing wallets:", error);
@@ -198,12 +217,27 @@ const App = () => {
                 const initializedUserData = await initializeUserWallets(userData);
                 if (initializedUserData) {
                     setUserData(initializedUserData);
+                    console.log('Wallets initialized for new user:', initializedUserData.telegram_user_id);
                 }
             } catch (error) {
                 console.error("App.jsx: Error initializing wallets:", error);
             }
         }
     };
+
+    // Добавляем обработчик для очистки при закрытии
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            console.log('App closing, clearing data');
+            clearAllData();
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, []);
 
     // Показываем Loader во время загрузки
     if (isLoading) {
