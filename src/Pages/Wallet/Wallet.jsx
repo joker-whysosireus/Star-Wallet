@@ -62,12 +62,10 @@ function Wallet({ isActive, userData }) {
             localStorage.setItem('cached_wallets', JSON.stringify(allTokens));
             
             try {
-                // Получаем реальные балансы с mainnet
                 const updatedWallets = await getBalances(allTokens, userData);
                 setWallets(updatedWallets);
                 localStorage.setItem('cached_wallets', JSON.stringify(updatedWallets));
                 
-                // Рассчитываем общий баланс с реальными ценами
                 const total = await calculateTotalBalance(updatedWallets);
                 setTotalBalance(`$${total}`);
                 localStorage.setItem('cached_total_balance', `$${total}`);
@@ -76,7 +74,6 @@ function Wallet({ isActive, userData }) {
             } catch (balanceError) {
                 console.error('Error updating real balances:', balanceError);
                 
-                // Fallback на базовые цены
                 const prices = {
                     'TON': 6.24,
                     'SOL': 172.34,

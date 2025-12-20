@@ -80,13 +80,7 @@ const SendToken = () => {
     
     const estimateFeeAsync = async () => {
         try {
-            const fee = await estimateTransactionFee(
-                token.blockchain,
-                token.address,
-                toAddress,
-                amount,
-                token.symbol
-            );
+            const fee = await estimateTransactionFee(token.blockchain);
             setTransactionFee(fee);
         } catch (error) {
             console.error('Fee estimation error:', error);
@@ -115,10 +109,8 @@ const SendToken = () => {
         setTransactionStatus(null);
 
         try {
-            // Подготавливаем данные для отправки
             let privateKey = userData.private_key;
             
-            // Если приватный ключ не указан, но есть seed фраза, генерируем ключ для Ethereum/BSC
             if (!privateKey && userData.seed_phrases && 
                 (token.blockchain === 'Ethereum' || token.blockchain === 'BSC')) {
                 const { ethers } = await import('ethers');
@@ -150,11 +142,9 @@ const SendToken = () => {
                     explorerUrl: result.explorerUrl
                 });
                 
-                // Обновляем балансы через 5 секунд
                 setTimeout(async () => {
                     await loadBalances();
                     
-                    // Очищаем форму через 3 секунды
                     setTimeout(() => {
                         setAmount('');
                         setToAddress('');

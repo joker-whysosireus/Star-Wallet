@@ -1,228 +1,187 @@
-// Services/storageService.js
 import { mnemonicToWalletKey } from '@ton/crypto';
 import { WalletContractV4 } from '@ton/ton';
-import { Keypair } from '@solana/web3.js';
+import { Keypair, Connection, PublicKey } from '@solana/web3.js';
 import { ethers } from 'ethers';
 import * as bitcoin from 'bitcoinjs-lib';
 import * as bip39 from 'bip39';
 import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import crypto from 'crypto';
+import TronWeb from 'tronweb';
 
-// Инициализация bip32 с эллиптической кривой
+// Инициализация bip32
 const bip32 = BIP32Factory(ecc);
 
-// Ключи для localStorage
-const SEED_PHRASE_KEY = 'wallet_seed_phrase';
-const WALLETS_KEY = 'user_wallets';
-const USER_DATA_KEY = 'user_data';
-const WALLETS_GENERATED_KEY = 'wallets_generated';
-
-// Базовые URL для функций Netlify
-const NETLIFY_FUNCTIONS_URL = 'https://ton-jacket-backend.netlify.app/.netlify/functions';
-
-// === КОНСТАНТЫ И ФУНКЦИИ MAINNET ===
-const MAINNET_API_KEYS = {
+// === КОНФИГУРАЦИЯ MAINNET С ВСТАВЛЕННЫМИ КЛЮЧАМИ ===
+const MAINNET_CONFIG = {
     TON: {
-        API_KEY: '6e8469038f459cce744a29d3947a0228dd4d7b88e448392c9581799582db5f3a',
-        RPC_URL: 'https://toncenter.com/api/v2/jsonRPC'
+        RPC_URL: 'https://toncenter.com/api/v3/jsonRPC',
+        API_KEY: '683bdd6cfa7a49a1b14c38c0c80b0b99' // Ваш Infura ключ для TON
     },
     ETHEREUM: {
-        RPC_URL: 'https://mainnet.infura.io/v3/BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6',
-        ETHERSCAN_API_KEY: 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6'
-    },
-    BSC: {
-        RPC_URL: 'https://bsc-dataseed.binance.org/',
-        BSCSCAN_API_KEY: '8X9S7Q8J4T5V3C2W1B5N6M7P8Q9R0T1U2V3W4X5Y6Z7A8B9C0D1E2F3G4H5'
+        RPC_URL: 'https://mainnet.infura.io/v3/683bdd6cfa7a49a1b14c38c0c80b0b99' // Ваш Infura ключ
     },
     SOLANA: {
-        RPC_URL: 'https://e1a20296-3d29-4edb-bc41-c709a187fbc9.mainnet.rpc.helius.xyz'
+        RPC_URL: 'https://mainnet.helius-rpc.com/?api-key=e1a20296-3d29-4edb-bc41-c709a187fbc9' // Ваш Helius ключ
     },
     TRON: {
-        RPC_URL: 'https://api.trongrid.io'
+        RPC_URL: 'https://api.trongrid.io',
+        API_KEY: '36b3eb2e-5f06-46f7-8aa4-bab1546a6a9f' // Ваш TronGrid ключ
     },
     BITCOIN: {
         RPC_URL: 'https://blockstream.info/api'
+    },
+    NEAR: {
+        RPC_URL: 'https://rpc.mainnet.near.org'
+    },
+    BSC: {
+        RPC_URL: 'https://bsc-dataseed.binance.org/'
     }
 };
 
-// === ГЕНЕРАЦИЯ АДРЕСОВ ===
+// Базовые URL для Netlify функций
+const WALLET_API_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions';
 
-// Генерация TON адреса
+// === ТИПЫ И КОНСТАНТЫ ТОКЕНОВ ===
+export const TOKENS = {
+    TON: { symbol: 'TON', name: 'Toncoin', blockchain: 'TON', decimals: 9, isNative: true, logo: 'https://cryptologos.cc/logos/toncoin-ton-logo.png' },
+    USDT_TON: { symbol: 'USDT', name: 'Tether', blockchain: 'TON', decimals: 6, isNative: false, contractAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
+    SOL: { symbol: 'SOL', name: 'Solana', blockchain: 'Solana', decimals: 9, isNative: true, logo: 'https://cryptologos.cc/logos/solana-sol-logo.png' },
+    USDT_SOL: { symbol: 'USDT', name: 'Tether', blockchain: 'Solana', decimals: 6, isNative: false, contractAddress: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
+    ETH: { symbol: 'ETH', name: 'Ethereum', blockchain: 'Ethereum', decimals: 18, isNative: true, logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png' },
+    USDT_ETH: { symbol: 'USDT', name: 'Tether', blockchain: 'Ethereum', decimals: 6, isNative: false, contractAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
+    BNB: { symbol: 'BNB', name: 'BNB', blockchain: 'BSC', decimals: 18, isNative: true, logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' },
+    USDT_BSC: { symbol: 'USDT', name: 'Tether', blockchain: 'BSC', decimals: 18, isNative: false, contractAddress: '0x55d398326f99059ff775485246999027b3197955', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
+    TRX: { symbol: 'TRX', name: 'TRON', blockchain: 'Tron', decimals: 6, isNative: true, logo: 'https://cryptologos.cc/logos/tron-trx-logo.png' },
+    USDT_TRX: { symbol: 'USDT', name: 'Tether', blockchain: 'Tron', decimals: 6, isNative: false, contractAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
+    BTC: { symbol: 'BTC', name: 'Bitcoin', blockchain: 'Bitcoin', decimals: 8, isNative: true, logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png' },
+    NEAR: { symbol: 'NEAR', name: 'NEAR Protocol', blockchain: 'NEAR', decimals: 24, isNative: true, logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.png' },
+    USDT_NEAR: { symbol: 'USDT', name: 'Tether', blockchain: 'NEAR', decimals: 6, isNative: false, contractAddress: 'usdt.near', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' }
+};
+
+// === ОСНОВНЫЕ ФУНКЦИИ ГЕНЕРАЦИИ КОШЕЛЬКОВ ===
+
+export const generateNewSeedPhrase = () => {
+    try {
+        return bip39.generateMnemonic(128);
+    } catch (error) {
+        console.error('Error generating seed phrase:', error);
+        throw error;
+    }
+};
+
+export const generateWalletsFromSeed = async (seedPhrase) => {
+    try {
+        if (!seedPhrase) throw new Error('Seed phrase is required');
+
+        const [tonAddress, solanaAddress, ethAddress, bscAddress, tronAddress, bitcoinAddress, nearAddress] = await Promise.all([
+            generateTonAddress(seedPhrase),
+            generateSolanaAddress(seedPhrase),
+            generateEthereumAddress(seedPhrase),
+            generateBSCAddress(seedPhrase),
+            generateTronAddress(seedPhrase),
+            generateBitcoinAddress(seedPhrase),
+            generateNearAddress(seedPhrase)
+        ]);
+
+        const wallets = Object.values(TOKENS).map(token => {
+            let address = '';
+            switch(token.blockchain) {
+                case 'TON': address = tonAddress; break;
+                case 'Solana': address = solanaAddress; break;
+                case 'Ethereum': address = ethAddress; break;
+                case 'BSC': address = bscAddress; break;
+                case 'Tron': address = tronAddress; break;
+                case 'Bitcoin': address = bitcoinAddress; break;
+                case 'NEAR': address = nearAddress; break;
+            }
+            
+            return {
+                id: `${token.symbol.toLowerCase()}_${token.blockchain.toLowerCase()}`,
+                name: token.name,
+                symbol: token.symbol,
+                address: address,
+                blockchain: token.blockchain,
+                decimals: token.decimals,
+                isNative: token.isNative,
+                contractAddress: token.contractAddress || '',
+                showBlockchain: true,
+                balance: '0',
+                isActive: true,
+                logo: token.logo,
+                lastUpdated: new Date().toISOString()
+            };
+        });
+        
+        return wallets;
+    } catch (error) {
+        console.error('Error generating wallets:', error);
+        throw error;
+    }
+};
+
+// Функции генерации адресов
 const generateTonAddress = async (seedPhrase) => {
     try {
-        if (!seedPhrase || seedPhrase.trim() === '') {
-            console.warn('Empty seed phrase for TON address generation');
-            return 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
-        }
-        
-        console.log('Generating TON address from seed...');
-        const tonKeyPair = await mnemonicToWalletKey(seedPhrase.split(' '));
-        const tonWallet = WalletContractV4.create({
-            publicKey: tonKeyPair.publicKey,
-            workchain: 0
-        });
-        const address = tonWallet.address.toString();
-        console.log('TON address generated:', address);
-        return address;
+        const keyPair = await mnemonicToWalletKey(seedPhrase.split(' '));
+        const wallet = WalletContractV4.create({ publicKey: keyPair.publicKey, workchain: 0 });
+        return wallet.address.toString();
     } catch (error) {
         console.error('Error generating TON address:', error);
         return 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
     }
 };
 
-// Генерация Solana адреса
 const generateSolanaAddress = async (seedPhrase) => {
     try {
-        if (!seedPhrase || seedPhrase.trim() === '') {
-            console.warn('Empty seed phrase for Solana address generation');
-            return 'So11111111111111111111111111111111111111112';
-        }
-        
-        console.log('Generating Solana address from seed...');
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const solanaSeed = new Uint8Array(seedBuffer.slice(0, 32));
-        const solanaKeypair = Keypair.fromSeed(solanaSeed);
-        const address = solanaKeypair.publicKey.toBase58();
-        console.log('Solana address generated:', address);
-        return address;
+        const seedArray = new Uint8Array(seedBuffer.slice(0, 32));
+        const keypair = Keypair.fromSeed(seedArray);
+        return keypair.publicKey.toBase58();
     } catch (error) {
         console.error('Error generating Solana address:', error);
         return 'So11111111111111111111111111111111111111112';
     }
 };
 
-// Генерация Ethereum адреса
 const generateEthereumAddress = async (seedPhrase) => {
     try {
-        if (!seedPhrase || seedPhrase.trim() === '') {
-            console.warn('Empty seed phrase for Ethereum address generation');
-            return '0x0000000000000000000000000000000000000000';
-        }
-        
-        console.log('Generating Ethereum address from seed...');
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const ethWallet = masterNode.derivePath("m/44'/60'/0'/0/0");
-        const address = ethWallet.address;
-        console.log('Ethereum address generated:', address);
-        return address;
+        const wallet = masterNode.derivePath("m/44'/60'/0'/0/0");
+        return wallet.address;
     } catch (error) {
         console.error('Error generating Ethereum address:', error);
         return '0x0000000000000000000000000000000000000000';
     }
 };
 
-// Генерация BSC адреса (использует тот же адрес что и Ethereum)
-const generateBSCAddress = async (seedPhrase) => {
-    try {
-        if (!seedPhrase || seedPhrase.trim() === '') {
-            console.warn('Empty seed phrase for BSC address generation');
-            return '0x0000000000000000000000000000000000000000';
-        }
-        
-        console.log('Generating BSC address from seed...');
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const bscWallet = masterNode.derivePath("m/44'/60'/0'/0/0");
-        const address = bscWallet.address;
-        console.log('BSC address generated:', address);
-        return address;
-    } catch (error) {
-        console.error('Error generating BSC address:', error);
-        return '0x0000000000000000000000000000000000000000';
-    }
-};
+const generateBSCAddress = generateEthereumAddress;
 
-// Генерация Tron адреса
 const generateTronAddress = async (seedPhrase) => {
     try {
-        if (!seedPhrase || seedPhrase.trim() === '') {
-            console.warn('Empty seed phrase for Tron address generation');
-            return 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
-        }
-        
-        console.log('Generating Tron address from seed...');
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        
-        // Создаем кошелек Ethereum (Tron использует тот же формат)
         const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const tronWallet = masterNode.derivePath("m/44'/195'/0'/0/0");
-        
-        // Получаем приватный ключ (без префикса 0x)
-        const privateKey = tronWallet.privateKey.slice(2);
-        
-        // Создаем публичный ключ из приватного
-        const wallet = new ethers.Wallet(privateKey);
-        const publicKey = wallet.signingKey.publicKey.slice(2); // убираем 0x
-        
-        // SHA256 публичного ключа
-        const sha256Hash = crypto.createHash('sha256').update(Buffer.from(publicKey, 'hex')).digest();
-        
-        // RIPEMD160 от SHA256
-        const ripemd160Hash = crypto.createHash('ripemd160').update(sha256Hash).digest();
-        
-        // Добавляем префикс 0x41 (mainnet Tron)
-        const addressWithPrefix = Buffer.concat([Buffer.from([0x41]), ripemd160Hash]);
-        
-        // Двойной SHA256 для checksum
-        const hash1 = crypto.createHash('sha256').update(addressWithPrefix).digest();
-        const hash2 = crypto.createHash('sha256').update(hash1).digest();
-        const checksum = hash2.slice(0, 4);
-        
-        // Объединяем адрес и checksum
-        const addressWithChecksum = Buffer.concat([addressWithPrefix, checksum]);
-        
-        // Base58 кодирование
-        const base58Alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-        
-        let result = '';
-        let num = BigInt('0x' + addressWithChecksum.toString('hex'));
-        
-        while (num > 0) {
-            const remainder = Number(num % 58n);
-            num = num / 58n;
-            result = base58Alphabet[remainder] + result;
-        }
-        
-        // Добавляем ведущие '1' для каждого нулевого байта
-        for (let i = 0; i < addressWithChecksum.length; i++) {
-            if (addressWithChecksum[i] === 0) {
-                result = '1' + result;
-            } else {
-                break;
-            }
-        }
-        
-        console.log('Tron address generated:', result);
-        return result;
-        
+        const wallet = masterNode.derivePath("m/44'/195'/0'/0/0");
+        const privateKey = wallet.privateKey.slice(2);
+        const tronWeb = new TronWeb({ 
+            fullHost: MAINNET_CONFIG.TRON.RPC_URL, 
+            privateKey: privateKey,
+            headers: { "TRON-PRO-API-KEY": MAINNET_CONFIG.TRON.API_KEY }
+        });
+        return tronWeb.address.fromPrivateKey(privateKey);
     } catch (error) {
         console.error('Error generating Tron address:', error);
         return 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
     }
 };
 
-// Генерация Bitcoin адреса
 const generateBitcoinAddress = async (seedPhrase) => {
     try {
-        if (!seedPhrase || seedPhrase.trim() === '') {
-            console.warn('Empty seed phrase for Bitcoin address generation');
-            return 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
-        }
-        
-        console.log('Generating Bitcoin address from seed...');
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const root = bip32.fromSeed(seedBuffer, bitcoin.networks.bitcoin);
         const child = root.derivePath("m/84'/0'/0'/0/0");
-        
-        const { payments } = bitcoin;
-        const { address } = payments.p2wpkh({
-            pubkey: child.publicKey,
-            network: bitcoin.networks.bitcoin
-        });
-        
-        console.log('Bitcoin address generated:', address);
+        const { address } = bitcoin.payments.p2wpkh({ pubkey: child.publicKey, network: bitcoin.networks.bitcoin });
         return address;
     } catch (error) {
         console.error('Error generating Bitcoin address:', error);
@@ -230,337 +189,31 @@ const generateBitcoinAddress = async (seedPhrase) => {
     }
 };
 
-// Генерация NEAR адреса
 const generateNearAddress = async (seedPhrase) => {
     try {
-        if (!seedPhrase || seedPhrase.trim() === '') {
-            console.warn('Empty seed phrase for NEAR address generation');
-            return 'near.near';
-        }
-        
-        console.log('Generating NEAR address from seed...');
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const nearWallet = masterNode.derivePath("m/44'/397'/0'/0'/0'");
-        const privateKey = nearWallet.privateKey.slice(2);
-        
-        // Создаем accountId на основе приватного ключа
+        const wallet = masterNode.derivePath("m/44'/397'/0'/0'/0'");
+        const privateKey = wallet.privateKey.slice(2);
         const hash = crypto.createHash('sha256').update(privateKey).digest('hex');
-        const accountPrefix = hash.substring(0, 10);
-        const accountId = `near_${accountPrefix}.near`;
-        
-        console.log('NEAR account generated:', accountId);
-        return accountId;
+        return `near_${hash.substring(0, 10)}.near`;
     } catch (error) {
         console.error('Error generating NEAR address:', error);
         return 'near.near';
     }
 };
 
-// Генерация всех кошельков (с сохранением в localStorage)
-export const generateWalletsFromSeed = async (seedPhrase) => {
-    try {
-        console.log('Generating wallets from seed phrase...');
-        
-        if (!seedPhrase || seedPhrase.trim() === '') {
-            throw new Error('Seed phrase is required');
-        }
+// === ФУНКЦИИ ПОЛУЧЕНИЯ БАЛАНСОВ ===
 
-        // Генерация всех адресов
-        const [tonAddress, solanaAddress, ethAddress, bscAddress, tronAddress, bitcoinAddress, nearAddress] = await Promise.all([
-            generateTonAddress(seedPhrase).catch(e => null),
-            generateSolanaAddress(seedPhrase).catch(e => null),
-            generateEthereumAddress(seedPhrase).catch(e => null),
-            generateBSCAddress(seedPhrase).catch(e => null),
-            generateTronAddress(seedPhrase).catch(e => null),
-            generateBitcoinAddress(seedPhrase).catch(e => null),
-            generateNearAddress(seedPhrase).catch(e => null)
-        ]);
-
-        console.log('All addresses generated');
-        
-        const wallets = [
-            // TON Wallets
-            tonAddress && {
-                id: 'ton',
-                name: 'Toncoin',
-                symbol: 'TON',
-                address: tonAddress,
-                blockchain: 'TON',
-                decimals: 9,
-                isNative: true,
-                contractAddress: '',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/toncoin-ton-logo.png'
-            },
-            tonAddress && {
-                id: 'usdt_ton',
-                name: 'Tether',
-                symbol: 'USDT',
-                address: tonAddress,
-                blockchain: 'TON',
-                decimals: 6,
-                isNative: false,
-                contractAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-            },
-            tonAddress && {
-                id: 'usdc_ton',
-                name: 'USD Coin',
-                symbol: 'USDC',
-                address: tonAddress,
-                blockchain: 'TON',
-                decimals: 6,
-                isNative: false,
-                contractAddress: 'EQB-MPwrd1G6WKNkLz_VnV6TCqetER9X_KFXqJzPiTBDdhhG',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
-            },
-            
-            // Solana Wallets
-            solanaAddress && {
-                id: 'sol',
-                name: 'Solana',
-                symbol: 'SOL',
-                address: solanaAddress,
-                blockchain: 'Solana',
-                decimals: 9,
-                isNative: true,
-                contractAddress: '',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/solana-sol-logo.png'
-            },
-            solanaAddress && {
-                id: 'usdt_sol',
-                name: 'Tether',
-                symbol: 'USDT',
-                address: solanaAddress,
-                blockchain: 'Solana',
-                decimals: 6,
-                isNative: false,
-                contractAddress: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-            },
-            solanaAddress && {
-                id: 'usdc_sol',
-                name: 'USD Coin',
-                symbol: 'USDC',
-                address: solanaAddress,
-                blockchain: 'Solana',
-                decimals: 6,
-                isNative: false,
-                contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
-            },
-            
-            // Ethereum Wallets
-            ethAddress && {
-                id: 'eth',
-                name: 'Ethereum',
-                symbol: 'ETH',
-                address: ethAddress,
-                blockchain: 'Ethereum',
-                decimals: 18,
-                isNative: true,
-                contractAddress: '',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png'
-            },
-            ethAddress && {
-                id: 'usdt_eth',
-                name: 'Tether',
-                symbol: 'USDT',
-                address: ethAddress,
-                blockchain: 'Ethereum',
-                decimals: 6,
-                isNative: false,
-                contractAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-            },
-            ethAddress && {
-                id: 'usdc_eth',
-                name: 'USD Coin',
-                symbol: 'USDC',
-                address: ethAddress,
-                blockchain: 'Ethereum',
-                decimals: 6,
-                isNative: false,
-                contractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
-            },
-            
-            // BSC Wallets
-            bscAddress && {
-                id: 'bnb_bsc',
-                name: 'BNB',
-                symbol: 'BNB',
-                address: bscAddress,
-                blockchain: 'BSC',
-                decimals: 18,
-                isNative: true,
-                contractAddress: '',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png'
-            },
-            bscAddress && {
-                id: 'usdt_bsc',
-                name: 'Tether',
-                symbol: 'USDT',
-                address: bscAddress,
-                blockchain: 'BSC',
-                decimals: 18,
-                isNative: false,
-                contractAddress: '0x55d398326f99059ff775485246999027b3197955',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-            },
-            bscAddress && {
-                id: 'usdc_bsc',
-                name: 'USD Coin',
-                symbol: 'USDC',
-                address: bscAddress,
-                blockchain: 'BSC',
-                decimals: 18,
-                isNative: false,
-                contractAddress: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
-            },
-            
-            // Tron Wallets
-            tronAddress && {
-                id: 'trx',
-                name: 'TRON',
-                symbol: 'TRX',
-                address: tronAddress,
-                blockchain: 'Tron',
-                decimals: 6,
-                isNative: true,
-                contractAddress: '',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/tron-trx-logo.png'
-            },
-            tronAddress && {
-                id: 'usdt_trx',
-                name: 'Tether',
-                symbol: 'USDT',
-                address: tronAddress,
-                blockchain: 'Tron',
-                decimals: 6,
-                isNative: false,
-                contractAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-            },
-            
-            // Bitcoin Wallets
-            bitcoinAddress && {
-                id: 'btc',
-                name: 'Bitcoin',
-                symbol: 'BTC',
-                address: bitcoinAddress,
-                blockchain: 'Bitcoin',
-                decimals: 8,
-                isNative: true,
-                contractAddress: '',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png'
-            },
-            
-            // NEAR Wallets
-            nearAddress && {
-                id: 'near',
-                name: 'NEAR Protocol',
-                symbol: 'NEAR',
-                address: nearAddress,
-                blockchain: 'NEAR',
-                decimals: 24,
-                isNative: true,
-                contractAddress: '',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.png'
-            },
-            nearAddress && {
-                id: 'usdt_near',
-                name: 'Tether',
-                symbol: 'USDT',
-                address: nearAddress,
-                blockchain: 'NEAR',
-                decimals: 6,
-                isNative: false,
-                contractAddress: 'usdt.near',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-            }
-        ].filter(Boolean); // Убираем null значения
-
-        // Сохраняем в localStorage
-        localStorage.setItem(WALLETS_KEY, JSON.stringify(wallets));
-        localStorage.setItem(WALLETS_GENERATED_KEY, 'true');
-        
-        console.log('Wallets generated and saved to localStorage:', wallets.length);
-        return wallets;
-        
-    } catch (error) {
-        console.error('Error generating wallets:', error);
-        throw error;
-    }
-};
-
-// Получение всех токенов (кошельков) для пользователя
 export const getAllTokens = async (userData) => {
     try {
-        // Проверяем кэш в localStorage
-        const cachedWallets = localStorage.getItem(WALLETS_KEY);
-        if (cachedWallets) {
-            const wallets = JSON.parse(cachedWallets);
-            if (Array.isArray(wallets)) {
-                console.log('Using cached wallets from localStorage');
-                return wallets;
-            }
+        // Получаем кошельки из userData (после инициализации они там есть)
+        if (userData?.wallets && Array.isArray(userData.wallets)) {
+            return userData.wallets;
         }
         
         // Если в userData есть seed фраза, генерируем кошельки
-        if (userData && userData.seed_phrases) {
+        if (userData?.seed_phrases) {
             const wallets = await generateWalletsFromSeed(userData.seed_phrases);
             return wallets;
         }
@@ -572,92 +225,63 @@ export const getAllTokens = async (userData) => {
     }
 };
 
-// === ПОЛУЧЕНИЕ РЕАЛЬНЫХ БАЛАНСОВ ===
-
 export const getRealBalances = async (wallets) => {
+    if (!Array.isArray(wallets)) return wallets;
+    
     try {
-        if (!Array.isArray(wallets)) {
-            console.error('getRealBalances: wallets is not an array');
-            return wallets;
-        }
-        
-        const updatedWallets = [];
-        
-        for (const wallet of wallets) {
-            try {
-                let balance = '0';
-                
-                switch(wallet.blockchain) {
-                    case 'TON':
-                        if (wallet.symbol === 'TON') {
-                            balance = await getRealTonBalanceMainnet(wallet.address);
-                        } else if (wallet.contractAddress) {
-                            balance = await getRealJettonBalance(wallet.address, wallet.contractAddress);
-                        }
-                        break;
-                    case 'Ethereum':
-                        if (wallet.symbol === 'ETH') {
-                            balance = await getRealEthBalanceMainnet(wallet.address);
-                        } else if (wallet.contractAddress) {
-                            balance = await getRealERC20BalanceMainnet(wallet.address, wallet.contractAddress);
-                        }
-                        break;
-                    case 'BSC':
-                        if (wallet.symbol === 'BNB') {
-                            balance = await getRealBNBBalanceMainnet(wallet.address);
-                        } else if (wallet.contractAddress) {
-                            balance = await getRealBEP20BalanceMainnet(wallet.address, wallet.contractAddress);
-                        }
-                        break;
-                    case 'Solana':
-                        if (wallet.symbol === 'SOL') {
-                            balance = await getRealSolBalanceMainnet(wallet.address);
-                        } else if (wallet.contractAddress) {
-                            balance = await getRealSPLBalance(wallet.address, wallet.contractAddress);
-                        }
-                        break;
-                    case 'Tron':
-                        if (wallet.symbol === 'TRX') {
-                            balance = await getRealTronBalanceMainnet(wallet.address);
-                        } else if (wallet.contractAddress) {
-                            balance = await getRealTRC20Balance(wallet.address, wallet.contractAddress);
-                        }
-                        break;
-                    case 'Bitcoin':
-                        if (wallet.symbol === 'BTC') {
-                            balance = await getRealBitcoinBalanceMainnet(wallet.address);
-                        }
-                        break;
-                    case 'NEAR':
-                        if (wallet.symbol === 'NEAR') {
-                            balance = await getRealNearBalanceMainnet(wallet.address);
-                        } else if (wallet.contractAddress) {
-                            balance = await getRealNEP141Balance(wallet.address, wallet.contractAddress);
-                        }
-                        break;
-                    default:
-                        balance = wallet.balance || '0';
+        const updatedWallets = await Promise.all(
+            wallets.map(async (wallet) => {
+                try {
+                    let balance = '0';
+                    
+                    switch(wallet.blockchain) {
+                        case 'TON':
+                            balance = wallet.isNative ? 
+                                await getTonBalance(wallet.address) : 
+                                await getJettonBalance(wallet.address, wallet.contractAddress);
+                            break;
+                        case 'Ethereum':
+                            balance = wallet.isNative ?
+                                await getEthBalance(wallet.address) :
+                                await getERC20Balance(wallet.address, wallet.contractAddress);
+                            break;
+                        case 'Solana':
+                            balance = wallet.isNative ?
+                                await getSolBalance(wallet.address) :
+                                await getSPLBalance(wallet.address, wallet.contractAddress);
+                            break;
+                        case 'Tron':
+                            balance = wallet.isNative ?
+                                await getTronBalance(wallet.address) :
+                                await getTRC20Balance(wallet.address, wallet.contractAddress);
+                            break;
+                        case 'Bitcoin':
+                            balance = await getBitcoinBalance(wallet.address);
+                            break;
+                        case 'NEAR':
+                            balance = wallet.isNative ?
+                                await getNearBalance(wallet.address) :
+                                await getNEP141Balance(wallet.address, wallet.contractAddress);
+                            break;
+                        case 'BSC':
+                            balance = wallet.isNative ?
+                                await getBNBBalance(wallet.address) :
+                                await getBEP20Balance(wallet.address, wallet.contractAddress);
+                            break;
+                    }
+                    
+                    return {
+                        ...wallet,
+                        balance: balance || '0',
+                        lastUpdated: new Date().toISOString(),
+                        isRealBalance: true
+                    };
+                } catch (error) {
+                    console.error(`Error getting balance for ${wallet.symbol}:`, error);
+                    return { ...wallet, balance: wallet.balance || '0' };
                 }
-                
-                updatedWallets.push({
-                    ...wallet,
-                    balance: balance || '0',
-                    lastUpdated: new Date().toISOString(),
-                    isRealBalance: true
-                });
-                
-            } catch (error) {
-                console.error(`Error getting real balance for ${wallet.symbol}:`, error);
-                updatedWallets.push({ 
-                    ...wallet, 
-                    balance: wallet.balance || '0',
-                    isRealBalance: false
-                });
-            }
-        }
-        
-        // Обновляем кэш в localStorage
-        localStorage.setItem(WALLETS_KEY, JSON.stringify(updatedWallets));
+            })
+        );
         
         return updatedWallets;
     } catch (error) {
@@ -666,240 +290,58 @@ export const getRealBalances = async (wallets) => {
     }
 };
 
-// Реальное получение баланса TON с mainnet
-const getRealTonBalanceMainnet = async (address) => {
+const getTonBalance = async (address) => {
     try {
-        console.log(`Fetching TON balance for ${address}`);
-        
-        const response = await fetch('https://toncenter.com/api/v2/jsonRPC', {
+        const response = await fetch(MAINNET_CONFIG.TON.RPC_URL, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
-                'X-API-Key': MAINNET_API_KEYS.TON.API_KEY 
+                'X-API-Key': MAINNET_CONFIG.TON.API_KEY 
             },
             body: JSON.stringify({
                 id: 1,
                 jsonrpc: "2.0",
                 method: "getAddressInformation",
-                params: [address]
+                params: { address }
             })
         });
         
         const data = await response.json();
-        console.log('TON balance response:', data);
-        
-        if (data.result && data.result.balance) {
-            const balanceInTon = data.result.balance / 1000000000;
-            console.log(`TON balance for ${address}: ${balanceInTon}`);
-            return balanceInTon.toFixed(6);
+        if (data.result?.balance) {
+            return (data.result.balance / 1e9).toFixed(6);
         }
         return '0';
     } catch (error) {
-        console.error('Mainnet TON balance error:', error);
+        console.error('TON balance error:', error);
+        return '0';
+    }
+};
+
+const getJettonBalance = async (address, jettonAddress) => {
+    try {
+        const response = await fetch(`https://tonapi.io/v2/accounts/${address}/jettons`);
+        const data = await response.json();
         
-        // Fallback на другой эндпоинт
-        try {
-            const fallbackResponse = await fetch(`https://tonapi.io/v1/account/getInfo?account=${address}`);
-            const fallbackData = await fallbackResponse.json();
-            
-            if (fallbackData.balance) {
-                const balanceInTon = fallbackData.balance / 1000000000;
-                return balanceInTon.toFixed(6);
+        if (data.balances) {
+            const jetton = data.balances.find(j => 
+                j.jetton.address === jettonAddress.replace(':', '')
+            );
+            if (jetton) {
+                return (jetton.balance / Math.pow(10, jetton.jetton.decimals)).toFixed(6);
             }
-        } catch (fallbackError) {
-            console.error('Fallback TON balance error:', fallbackError);
-        }
-        
-        return '0';
-    }
-};
-
-// Реальное получение баланса ETH с mainnet
-const getRealEthBalanceMainnet = async (address) => {
-    try {
-        const provider = new ethers.JsonRpcProvider(MAINNET_API_KEYS.ETHEREUM.RPC_URL);
-        const balance = await provider.getBalance(address);
-        return ethers.formatEther(balance);
-    } catch (error) {
-        console.error('Mainnet ETH balance error:', error);
-        return '0';
-    }
-};
-
-// Реальное получение баланса ERC20 токена
-const getRealERC20BalanceMainnet = async (address, contractAddress) => {
-    try {
-        const provider = new ethers.JsonRpcProvider(MAINNET_API_KEYS.ETHEREUM.RPC_URL);
-        
-        const abi = [
-            "function balanceOf(address owner) view returns (uint256)",
-            "function decimals() view returns (uint8)"
-        ];
-        
-        const contract = new ethers.Contract(contractAddress, abi, provider);
-        const balance = await contract.balanceOf(address);
-        const decimals = await contract.decimals();
-        
-        return ethers.formatUnits(balance, decimals);
-    } catch (error) {
-        console.error('Mainnet ERC20 balance error:', error);
-        return '0';
-    }
-};
-
-// Реальное получение баланса BNB с mainnet
-const getRealBNBBalanceMainnet = async (address) => {
-    try {
-        const provider = new ethers.JsonRpcProvider(MAINNET_API_KEYS.BSC.RPC_URL, {
-            chainId: 56,
-            name: 'bsc'
-        });
-        const balance = await provider.getBalance(address);
-        return ethers.formatEther(balance);
-    } catch (error) {
-        console.error('Mainnet BNB balance error:', error);
-        return '0';
-    }
-};
-
-// Реальное получение баланса BEP20 токена
-const getRealBEP20BalanceMainnet = async (address, contractAddress) => {
-    try {
-        const provider = new ethers.JsonRpcProvider(MAINNET_API_KEYS.BSC.RPC_URL, {
-            chainId: 56,
-            name: 'bsc'
-        });
-        
-        const abi = [
-            "function balanceOf(address owner) view returns (uint256)",
-            "function decimals() view returns (uint8)"
-        ];
-        
-        const contract = new ethers.Contract(contractAddress, abi, provider);
-        const balance = await contract.balanceOf(address);
-        const decimals = await contract.decimals();
-        
-        return ethers.formatUnits(balance, decimals);
-    } catch (error) {
-        console.error('Mainnet BEP20 balance error:', error);
-        return '0';
-    }
-};
-
-// Реальное получение баланса SOL с mainnet
-const getRealSolBalanceMainnet = async (address) => {
-    try {
-        const { Connection, PublicKey } = await import('@solana/web3.js');
-        const connection = new Connection(MAINNET_API_KEYS.SOLANA.RPC_URL, 'confirmed');
-        const publicKey = new PublicKey(address);
-        const balance = await connection.getBalance(publicKey);
-        return (balance / 1_000_000_000).toFixed(6);
-    } catch (error) {
-        console.error('Mainnet SOL balance error:', error);
-        return '0';
-    }
-};
-
-// Реальное получение баланса SPL токена
-const getRealSPLBalance = async (address, tokenAddress) => {
-    try {
-        const { Connection, PublicKey } = await import('@solana/web3.js');
-        const { getAccount, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } = await import('@solana/spl-token');
-        
-        const connection = new Connection(MAINNET_API_KEYS.SOLANA.RPC_URL, 'confirmed');
-        const walletPublicKey = new PublicKey(address);
-        const tokenPublicKey = new PublicKey(tokenAddress);
-        
-        const associatedTokenAddress = await PublicKey.findProgramAddress(
-            [
-                walletPublicKey.toBuffer(),
-                TOKEN_PROGRAM_ID.toBuffer(),
-                tokenPublicKey.toBuffer()
-            ],
-            ASSOCIATED_TOKEN_PROGRAM_ID
-        );
-        
-        try {
-            const accountInfo = await connection.getAccountInfo(associatedTokenAddress[0]);
-            if (accountInfo) {
-                const account = getAccount(associatedTokenAddress[0]);
-                const balance = account.amount;
-                const tokenDecimals = 6; // Для USDT/USDC
-                return (Number(balance) / Math.pow(10, tokenDecimals)).toFixed(6);
-            }
-        } catch (error) {
-            // Акаунт не найден
-        }
-        
-        return '0';
-    } catch (error) {
-        console.error('SPL balance error:', error);
-        return '0';
-    }
-};
-
-// Реальное получение баланса TRX с mainnet
-const getRealTronBalanceMainnet = async (address) => {
-    try {
-        const response = await fetch(`${MAINNET_API_KEYS.TRON.RPC_URL}/v1/accounts/${address}`);
-        const data = await response.json();
-        
-        if (data.data && data.data.length > 0 && data.data[0].balance) {
-            const balanceInTRX = data.data[0].balance / 1_000_000;
-            return balanceInTRX.toFixed(6);
         }
         return '0';
     } catch (error) {
-        console.error('Mainnet TRX balance error:', error);
+        console.error('Jetton balance error:', error);
         return '0';
     }
 };
 
-// Реальное получение баланса TRC20 токена
-const getRealTRC20Balance = async (address, contractAddress) => {
+const getNearBalance = async (accountId) => {
     try {
-        const response = await fetch(`${MAINNET_API_KEYS.TRON.RPC_URL}/v1/accounts/${address}/trc20?contract_address=${contractAddress}`);
-        const data = await response.json();
-        
-        if (data.data && data.data.length > 0) {
-            const tokenData = data.data[0];
-            const balance = tokenData.balance / Math.pow(10, tokenData.tokenDecimal);
-            return balance.toFixed(6);
-        }
-        return '0';
-    } catch (error) {
-        console.error('TRC20 balance error:', error);
-        return '0';
-    }
-};
-
-// Реальное получение баланса BTC с mainnet
-const getRealBitcoinBalanceMainnet = async (address) => {
-    try {
-        const response = await fetch(`${MAINNET_API_KEYS.BITCOIN.RPC_URL}/address/${address}`);
-        const data = await response.json();
-        
-        if (data.chain_stats && data.chain_stats.funded_txo_sum) {
-            const funded = data.chain_stats.funded_txo_sum;
-            const spent = data.chain_stats.spent_txo_sum || 0;
-            const balance = (funded - spent) / 100_000_000;
-            return balance.toFixed(8);
-        }
-        return '0';
-    } catch (error) {
-        console.error('Mainnet BTC balance error:', error);
-        return '0';
-    }
-};
-
-// Реальное получение баланса NEAR с mainnet
-const getRealNearBalanceMainnet = async (accountId) => {
-    try {
-        const response = await fetch('https://rpc.mainnet.near.org', {
+        const response = await fetch(MAINNET_CONFIG.NEAR.RPC_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 jsonrpc: "2.0",
                 id: "dontcare",
@@ -913,26 +355,21 @@ const getRealNearBalanceMainnet = async (accountId) => {
         });
         
         const data = await response.json();
-        if (data.result && data.result.amount) {
-            const balanceInYocto = data.result.amount;
-            const balanceInNear = balanceInYocto / Math.pow(10, 24);
-            return balanceInNear.toFixed(4);
+        if (data.result?.amount) {
+            return (data.result.amount / 1e24).toFixed(4);
         }
         return '0';
     } catch (error) {
-        console.error('Mainnet NEAR balance error:', error);
+        console.error('NEAR balance error:', error);
         return '0';
     }
 };
 
-// Реальное получение баланса NEP-141 токена
-const getRealNEP141Balance = async (accountId, contractAddress) => {
+const getNEP141Balance = async (accountId, contractAddress) => {
     try {
-        const response = await fetch('https://rpc.mainnet.near.org', {
+        const response = await fetch(MAINNET_CONFIG.NEAR.RPC_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 jsonrpc: "2.0",
                 id: "dontcare",
@@ -948,7 +385,7 @@ const getRealNEP141Balance = async (accountId, contractAddress) => {
         });
         
         const data = await response.json();
-        if (data.result && data.result.result) {
+        if (data.result?.result) {
             const balanceBytes = data.result.result;
             const balance = JSON.parse(new TextDecoder().decode(Uint8Array.from(balanceBytes)));
             return balance;
@@ -960,515 +397,291 @@ const getRealNEP141Balance = async (accountId, contractAddress) => {
     }
 };
 
-// Реальное получение баланса Jetton
-const getRealJettonBalance = async (address, jettonAddress) => {
+const getEthBalance = async (address) => {
     try {
-        // Для Jetton нужно специальное обращение
+        const provider = new ethers.JsonRpcProvider(MAINNET_CONFIG.ETHEREUM.RPC_URL);
+        const balance = await provider.getBalance(address);
+        return ethers.formatEther(balance);
+    } catch (error) {
+        console.error('ETH balance error:', error);
+        return '0';
+    }
+};
+
+const getERC20Balance = async (address, contractAddress) => {
+    try {
+        const provider = new ethers.JsonRpcProvider(MAINNET_CONFIG.ETHEREUM.RPC_URL);
+        const abi = ["function balanceOf(address) view returns (uint256)", "function decimals() view returns (uint8)"];
+        const contract = new ethers.Contract(contractAddress, abi, provider);
+        const [balance, decimals] = await Promise.all([contract.balanceOf(address), contract.decimals()]);
+        return ethers.formatUnits(balance, decimals);
+    } catch (error) {
+        console.error('ERC20 balance error:', error);
+        return '0';
+    }
+};
+
+const getSolBalance = async (address) => {
+    try {
+        const connection = new Connection(MAINNET_CONFIG.SOLANA.RPC_URL, 'confirmed');
+        const publicKey = new PublicKey(address);
+        const balance = await connection.getBalance(publicKey);
+        return (balance / 1e9).toFixed(6);
+    } catch (error) {
+        console.error('SOL balance error:', error);
+        return '0';
+    }
+};
+
+const getSPLBalance = async (address, tokenAddress) => {
+    try {
+        const connection = new Connection(MAINNET_CONFIG.SOLANA.RPC_URL, 'confirmed');
+        const walletPublicKey = new PublicKey(address);
+        const tokenPublicKey = new PublicKey(tokenAddress);
+        
+        const { getAssociatedTokenAddress } = await import('@solana/spl-token');
+        const associatedTokenAddress = await getAssociatedTokenAddress(tokenPublicKey, walletPublicKey);
+        
+        try {
+            const balance = await connection.getTokenAccountBalance(associatedTokenAddress);
+            return balance.value.uiAmount?.toFixed(6) || '0';
+        } catch {
+            return '0';
+        }
+    } catch (error) {
+        console.error('SPL balance error:', error);
+        return '0';
+    }
+};
+
+const getTronBalance = async (address) => {
+    try {
+        const response = await fetch(`${MAINNET_CONFIG.TRON.RPC_URL}/v1/accounts/${address}`, {
+            headers: { "TRON-PRO-API-KEY": MAINNET_CONFIG.TRON.API_KEY }
+        });
+        const data = await response.json();
+        if (data.data?.[0]?.balance) {
+            return (data.data[0].balance / 1e6).toFixed(6);
+        }
         return '0';
     } catch (error) {
-        console.error('Jetton balance error:', error);
+        console.error('TRX balance error:', error);
         return '0';
     }
 };
 
-// === ИСТОРИЯ ТРАНЗАКЦИЙ ===
-
-/**
- * Получение истории транзакций для пользователя
- */
-export const getTransactionHistory = async (userData, tokenSymbol = 'all') => {
+const getTRC20Balance = async (address, contractAddress) => {
     try {
-        console.log('Getting transaction history for token:', tokenSymbol);
-        
-        if (!userData) {
-            console.error('User data not provided');
-            return [];
-        }
-
-        const allWallets = await getAllTokens(userData);
-        let allTransactions = [];
-
-        // Собираем транзакции для каждого кошелька
-        for (const wallet of allWallets) {
-            // Если выбран конкретный токен, фильтруем
-            if (tokenSymbol !== 'all' && wallet.symbol !== tokenSymbol) {
-                continue;
-            }
-
-            try {
-                const walletTransactions = await getTransactionsForWallet(wallet);
-                allTransactions = [...allTransactions, ...walletTransactions];
-            } catch (error) {
-                console.error(`Error fetching transactions for ${wallet.symbol}:`, error);
-            }
-        }
-
-        // Сортируем по времени (новые первыми)
-        allTransactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-        
-        console.log(`Found ${allTransactions.length} transactions`);
-        return allTransactions;
-    } catch (error) {
-        console.error('Error getting transaction history:', error);
-        return [];
-    }
-};
-
-/**
- * Получение транзакций для конкретного кошелька
- */
-const getTransactionsForWallet = async (wallet) => {
-    try {
-        let transactions = [];
-        
-        switch (wallet.blockchain) {
-            case 'TON':
-                transactions = await getTONTransactions(wallet);
-                break;
-            case 'Ethereum':
-                transactions = await getEthereumTransactions(wallet);
-                break;
-            case 'BSC':
-                transactions = await getBSCTransactions(wallet);
-                break;
-            case 'Solana':
-                transactions = await getSolanaTransactions(wallet);
-                break;
-            case 'Tron':
-                transactions = await getTronTransactions(wallet);
-                break;
-            case 'Bitcoin':
-                transactions = await getBitcoinTransactions(wallet);
-                break;
-            case 'NEAR':
-                transactions = await getNEARTransactions(wallet);
-                break;
-            default:
-                transactions = [];
-        }
-        
-        // Добавляем символ токена к каждой транзакции
-        return transactions.map(tx => ({
-            ...tx,
-            symbol: wallet.symbol
-        }));
-    } catch (error) {
-        console.error(`Error getting transactions for ${wallet.symbol}:`, error);
-        return [];
-    }
-};
-
-/**
- * Получение транзакций TON
- */
-const getTONTransactions = async (wallet) => {
-    try {
-        const response = await fetch('https://toncenter.com/api/v2/jsonRPC', {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-API-Key': MAINNET_API_KEYS.TON.API_KEY 
-            },
-            body: JSON.stringify({
-                id: 1,
-                jsonrpc: "2.0",
-                method: "getTransactions",
-                params: {
-                    address: wallet.address,
-                    limit: 10
-                }
-            })
+        const response = await fetch(`${MAINNET_CONFIG.TRON.RPC_URL}/v1/accounts/${address}/trc20?contract_address=${contractAddress}`, {
+            headers: { "TRON-PRO-API-KEY": MAINNET_CONFIG.TRON.API_KEY }
         });
-        
         const data = await response.json();
-        
-        if (data.result && data.result.length > 0) {
-            return data.result.map(tx => ({
-                hash: tx.transaction_id.hash,
-                timestamp: tx.utime * 1000,
-                type: tx.in_msg.source === '' ? 'incoming' : 'outgoing',
-                amount: (parseFloat(tx.in_msg.value || 0) / 1000000000).toString(),
-                address: tx.in_msg.source || tx.in_msg.destination || wallet.address,
-                status: 'confirmed',
-                explorerUrl: `https://tonscan.org/tx/${tx.transaction_id.hash}`
-            }));
+        if (data.data?.[0]) {
+            return (data.data[0].balance / Math.pow(10, data.data[0].tokenDecimal)).toFixed(6);
         }
-        return [];
+        return '0';
     } catch (error) {
-        console.error('Error fetching TON transactions:', error);
-        return [];
+        console.error('TRC20 balance error:', error);
+        return '0';
     }
 };
 
-/**
- * Получение транзакций Ethereum
- */
-const getEthereumTransactions = async (wallet) => {
+const getBitcoinBalance = async (address) => {
     try {
-        const apiKey = MAINNET_API_KEYS.ETHEREUM.ETHERSCAN_API_KEY;
-        let url;
-        
-        if (wallet.symbol === 'ETH') {
-            url = `https://api.etherscan.io/api?module=account&action=txlist&address=${wallet.address}&startblock=0&endblock=99999999&page=1&offset=10&sort=desc&apikey=${apiKey}`;
-        } else if (wallet.contractAddress) {
-            url = `https://api.etherscan.io/api?module=account&action=tokentx&contractaddress=${wallet.contractAddress}&address=${wallet.address}&page=1&offset=10&sort=desc&apikey=${apiKey}`;
-        } else {
-            return [];
-        }
-        
-        const response = await fetch(url);
+        const response = await fetch(`${MAINNET_CONFIG.BITCOIN.RPC_URL}/address/${address}`);
         const data = await response.json();
-        
-        if (data.status === '1' && data.result) {
-            return data.result.map(tx => ({
-                hash: tx.hash,
-                timestamp: parseInt(tx.timeStamp) * 1000,
-                type: tx.to.toLowerCase() === wallet.address.toLowerCase() ? 'incoming' : 'outgoing',
-                amount: (parseFloat(tx.value || tx.value) / Math.pow(10, wallet.decimals || 18)).toString(),
-                address: tx.from === wallet.address ? tx.to : tx.from,
-                status: 'confirmed',
-                explorerUrl: `https://etherscan.io/tx/${tx.hash}`
-            }));
+        if (data.chain_stats) {
+            const balance = (data.chain_stats.funded_txo_sum - (data.chain_stats.spent_txo_sum || 0)) / 1e8;
+            return balance.toFixed(8);
         }
-        return [];
+        return '0';
     } catch (error) {
-        console.error('Error fetching Ethereum transactions:', error);
-        return [];
+        console.error('BTC balance error:', error);
+        return '0';
     }
 };
 
-/**
- * Получение транзакций BSC
- */
-const getBSCTransactions = async (wallet) => {
+const getBNBBalance = async (address) => {
     try {
-        const apiKey = MAINNET_API_KEYS.BSC.BSCSCAN_API_KEY;
-        let url;
-        
-        if (wallet.symbol === 'BNB') {
-            url = `https://api.bscscan.com/api?module=account&action=txlist&address=${wallet.address}&startblock=0&endblock=99999999&page=1&offset=10&sort=desc&apikey=${apiKey}`;
-        } else if (wallet.contractAddress) {
-            url = `https://api.bscscan.com/api?module=account&action=tokentx&contractaddress=${wallet.contractAddress}&address=${wallet.address}&page=1&offset=10&sort=desc&apikey=${apiKey}`;
-        } else {
-            return [];
+        const provider = new ethers.JsonRpcProvider(MAINNET_CONFIG.BSC.RPC_URL);
+        const balance = await provider.getBalance(address);
+        return ethers.formatEther(balance);
+    } catch (error) {
+        console.error('BNB balance error:', error);
+        return '0';
+    }
+};
+
+const getBEP20Balance = async (address, contractAddress) => {
+    try {
+        const provider = new ethers.JsonRpcProvider(MAINNET_CONFIG.BSC.RPC_URL);
+        const abi = ["function balanceOf(address) view returns (uint256)", "function decimals() view returns (uint8)"];
+        const contract = new ethers.Contract(contractAddress, abi, provider);
+        const [balance, decimals] = await Promise.all([contract.balanceOf(address), contract.decimals()]);
+        return ethers.formatUnits(balance, decimals);
+    } catch (error) {
+        console.error('BEP20 balance error:', error);
+        return '0';
+    }
+};
+
+// === ФУНКЦИИ ДЛЯ РАБОТЫ С ПОЛЬЗОВАТЕЛЕМ ===
+
+export const initializeUserWallets = async (userData) => {
+    try {
+        if (!userData?.telegram_user_id) {
+            throw new Error("Invalid user data");
         }
+
+        let seedPhrase = userData.seed_phrases;
         
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        if (data.status === '1' && data.result) {
-            return data.result.map(tx => ({
-                hash: tx.hash,
-                timestamp: parseInt(tx.timeStamp) * 1000,
-                type: tx.to.toLowerCase() === wallet.address.toLowerCase() ? 'incoming' : 'outgoing',
-                amount: (parseFloat(tx.value) / Math.pow(10, wallet.decimals || 18)).toString(),
-                address: tx.from === wallet.address ? tx.to : tx.from,
-                status: 'confirmed',
-                explorerUrl: `https://bscscan.com/tx/${tx.hash}`
-            }));
-        }
-        return [];
-    } catch (error) {
-        console.error('Error fetching BSC transactions:', error);
-        return [];
-    }
-};
-
-/**
- * Получение транзакций Solana
- */
-const getSolanaTransactions = async (wallet) => {
-    try {
-        const { Connection, PublicKey } = await import('@solana/web3.js');
-        const connection = new Connection(MAINNET_API_KEYS.SOLANA.RPC_URL, 'confirmed');
-        const publicKey = new PublicKey(wallet.address);
-        
-        const signatures = await connection.getSignaturesForAddress(publicKey, { limit: 10 });
-        
-        const transactions = [];
-        
-        for (const signature of signatures) {
-            const tx = await connection.getTransaction(signature.signature, {
-                maxSupportedTransactionVersion: 0
-            });
-            
-            if (tx) {
-                transactions.push({
-                    hash: signature.signature,
-                    timestamp: signature.blockTime ? signature.blockTime * 1000 : Date.now(),
-                    type: 'transfer', // Нужен более детальный анализ
-                    amount: '0', // Нужен парсинг инструкций
-                    address: wallet.address,
-                    status: 'confirmed',
-                    explorerUrl: `https://solscan.io/tx/${signature.signature}`
-                });
-            }
-        }
-        
-        return transactions;
-    } catch (error) {
-        console.error('Error fetching Solana transactions:', error);
-        return [];
-    }
-};
-
-/**
- * Получение транзакций Tron
- */
-const getTronTransactions = async (wallet) => {
-    try {
-        const response = await fetch(`${MAINNET_API_KEYS.TRON.RPC_URL}/v1/accounts/${wallet.address}/transactions?limit=10`);
-        const data = await response.json();
-        
-        if (data.data && data.data.length > 0) {
-            return data.data.map(tx => ({
-                hash: tx.txID,
-                timestamp: tx.raw_data.timestamp,
-                type: tx.raw_data.contract[0].parameter.value.to_address === wallet.address ? 'incoming' : 'outgoing',
-                amount: (tx.raw_data.contract[0].parameter.value.amount / 1000000).toString(),
-                address: tx.raw_data.contract[0].parameter.value.owner_address || wallet.address,
-                status: 'confirmed',
-                explorerUrl: `https://tronscan.org/#/transaction/${tx.txID}`
-            }));
-        }
-        return [];
-    } catch (error) {
-        console.error('Error fetching Tron transactions:', error);
-        return [];
-    }
-};
-
-/**
- * Получение транзакций Bitcoin
- */
-const getBitcoinTransactions = async (wallet) => {
-    try {
-        const response = await fetch(`${MAINNET_API_KEYS.BITCOIN.RPC_URL}/address/${wallet.address}/txs`);
-        const data = await response.json();
-        
-        if (data && data.length > 0) {
-            return data.slice(0, 10).map(tx => ({
-                hash: tx.txid,
-                timestamp: tx.status.block_time * 1000,
-                type: 'transfer', // Нужен анализ inputs/outputs
-                amount: (tx.vout.reduce((sum, output) => {
-                    if (output.scriptpubkey_address === wallet.address) {
-                        return sum + output.value;
-                    }
-                    return sum;
-                }, 0) / 100000000).toString(),
-                address: wallet.address,
-                status: tx.status.confirmed ? 'confirmed' : 'pending',
-                explorerUrl: `https://blockstream.info/tx/${tx.txid}`
-            }));
-        }
-        return [];
-    } catch (error) {
-        console.error('Error fetching Bitcoin transactions:', error);
-        return [];
-    }
-};
-
-/**
- * Получение транзакций NEAR
- */
-const getNEARTransactions = async (wallet) => {
-    try {
-        // NEAR API сложнее для получения истории
-        return [];
-    } catch (error) {
-        console.error('Error fetching NEAR transactions:', error);
-        return [];
-    }
-};
-
-// === ДРУГИЕ ФУНКЦИИ ===
-
-// Очистка всех данных из localStorage
-export const clearAllData = () => {
-    try {
-        localStorage.removeItem(SEED_PHRASE_KEY);
-        localStorage.removeItem(WALLETS_KEY);
-        localStorage.removeItem(USER_DATA_KEY);
-        localStorage.removeItem(WALLETS_GENERATED_KEY);
-        console.log('All wallet data cleared from localStorage');
-        return true;
-    } catch (error) {
-        console.error('Error clearing data:', error);
-        return false;
-    }
-};
-
-// Функция для очистки данных при закрытии приложения
-export const setupAppCloseListener = () => {
-    // Очищаем данные при загрузке страницы (на случай предыдущей сессии)
-    window.addEventListener('load', () => {
-        console.log('App loaded, clearing previous session data');
-        clearAllData();
-    });
-
-    // Очищаем данные при закрытии/обновлении страницы
-    window.addEventListener('beforeunload', () => {
-        console.log('App closing/refreshing, clearing data');
-        clearAllData();
-    });
-
-    // Для Telegram WebApp
-    if (window.Telegram?.WebApp) {
-        const webApp = window.Telegram.WebApp;
-        
-        // Очищаем при закрытии WebApp
-        webApp.onEvent('viewportChanged', (event) => {
-            if (event.isStateStable && !webApp.isExpanded) {
-                console.log('Telegram WebApp closing, clearing data');
-                clearAllData();
-            }
-        });
-
-        // Очищаем при нажатии кнопки закрытия
-        if (webApp.close) {
-            const originalClose = webApp.close;
-            webApp.close = function() {
-                console.log('Telegram WebApp close button pressed, clearing data');
-                clearAllData();
-                return originalClose.apply(this, arguments);
-            };
-        }
-    }
-};
-
-// Локальные функции для seed фразы
-export const getSeedPhrase = () => {
-    try {
-        const seedPhrase = localStorage.getItem(SEED_PHRASE_KEY);
         if (!seedPhrase) {
-            console.log('No seed phrase found in localStorage');
-            return null;
+            seedPhrase = generateNewSeedPhrase();
+            
+            const saveResult = await saveSeedPhraseToAPI(userData.telegram_user_id, seedPhrase);
+            if (!saveResult.success) {
+                throw new Error("Failed to save seed phrase to database");
+            }
         }
-        return seedPhrase;
+
+        const wallets = await generateWalletsFromSeed(seedPhrase);
+        
+        const addresses = {};
+        wallets.forEach(wallet => {
+            addresses[wallet.blockchain] = {
+                address: wallet.address,
+                symbol: wallet.symbol,
+                network: 'mainnet'
+            };
+        });
+
+        const saveAddressesResult = await saveAddressesToAPI(userData.telegram_user_id, addresses);
+        if (!saveAddressesResult.success) {
+            throw new Error("Failed to save addresses to database");
+        }
+
+        const updatedUserData = {
+            ...userData,
+            seed_phrases: seedPhrase,
+            wallet_addresses: addresses,
+            wallets: wallets
+        };
+
+        return updatedUserData;
+
     } catch (error) {
-        console.error('Error getting seed phrase:', error);
-        return null;
+        console.error("Error initializing user wallets:", error);
+        return { ...userData, wallets: [] };
     }
 };
 
-export const generateNewSeedPhrase = async () => {
-    try {
-        const seedPhrase = bip39.generateMnemonic(128);
-        console.log('New seed phrase generated');
-        return seedPhrase;
-    } catch (error) {
-        console.error('Error generating seed phrase:', error);
-        throw error;
-    }
-};
+// === API ФУНКЦИИ (Netlify) ===
 
-export const saveSeedPhrase = (seedPhrase) => {
-    try {
-        localStorage.setItem(SEED_PHRASE_KEY, seedPhrase);
-        console.log('Seed phrase saved to localStorage');
-        return true;
-    } catch (error) {
-        console.error('Error saving seed phrase:', error);
-        return false;
-    }
-};
-
-// Показать seed фразу (из userData или localStorage)
-export const revealSeedPhrase = async (userData) => {
-    if (userData && userData.seed_phrase) {
-        return userData.seed_phrase;
-    }
-    
-    const localSeed = getSeedPhrase();
-    if (localSeed) {
-        return localSeed;
-    }
-    
-    throw new Error('Seed phrase not found');
-};
-
-// API функции
 export const saveSeedPhraseToAPI = async (telegramUserId, seedPhrase) => {
     try {
-        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/save-seed`, {
+        const response = await fetch(`${WALLET_API_URL}/save-seed`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                telegram_user_id: telegramUserId,
-                seed_phrase: seedPhrase
-            }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ telegram_user_id: telegramUserId, seed_phrase: seedPhrase })
         });
-        
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-        }
-        
-        return await response.json();
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        return { success: true, data };
     } catch (error) {
-        console.error('Error saving seed phrase to API:', error);
-        throw error;
+        console.error("Error saving seed phrase:", error);
+        return { success: false, error: error.message };
     }
 };
 
-export const getSeedPhraseFromAPI = async (telegramUserId) => {
+export const saveAddressesToAPI = async (telegramUserId, addresses) => {
     try {
-        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/get-seed?telegram_user_id=${telegramUserId}`);
-        
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-        }
-        
-        return await response.json();
-    } catch (error) {
-        console.error('Error getting seed phrase from API:', error);
-        throw error;
-    }
-};
-
-// Остальные функции
-export const saveWalletToAPI = async (telegramUserId, walletData) => {
-    try {
-        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/save-wallet`, {
+        const response = await fetch(`${WALLET_API_URL}/save-addresses`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                telegram_user_id: telegramUserId,
-                ...walletData
-            }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ telegram_user_id: telegramUserId, wallet_addresses: addresses })
         });
-        
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-        }
-        
-        return await response.json();
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        return { success: true, data };
     } catch (error) {
-        console.error('Error saving wallet to API:', error);
-        throw error;
+        console.error("Error saving addresses:", error);
+        return { success: false, error: error.message };
     }
 };
 
-export const getWalletFromAPI = async (telegramUserId) => {
+export const getUserWallets = async (telegramUserId) => {
     try {
-        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/get-wallet?telegram_user_id=${telegramUserId}`);
+        const response = await fetch(`${WALLET_API_URL}/get-wallets?telegram_user_id=${telegramUserId}`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
+        const data = await response.json();
+        if (data.wallets) {
+            return data.wallets;
         }
-        
-        return await response.json();
+
+        return [];
     } catch (error) {
-        console.error('Error getting wallet from API:', error);
-        throw error;
+        console.error("Error getting user wallets:", error);
+        return [];
     }
 };
 
-// Функция валидации адреса
+// === УТИЛИТНЫЕ ФУНКЦИИ ===
+
+export const getTokenPrices = async () => {
+    try {
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,solana,ethereum,binancecoin,tron,bitcoin,near-protocol,tether,usd-coin&vs_currencies=usd');
+        
+        if (response.ok) {
+            const data = await response.json();
+            return {
+                'TON': data['the-open-network']?.usd || 6.24,
+                'SOL': data.solana?.usd || 172.34,
+                'ETH': data.ethereum?.usd || 3500.00,
+                'BNB': data.binancecoin?.usd || 600.00,
+                'USDT': data.tether?.usd || 1.00,
+                'USDC': data['usd-coin']?.usd || 1.00,
+                'TRX': data.tron?.usd || 0.12,
+                'BTC': data.bitcoin?.usd || 68000.00,
+                'NEAR': data['near-protocol']?.usd || 8.50
+            };
+        }
+        
+        return {
+            'TON': 6.24, 'SOL': 172.34, 'ETH': 3500.00, 'BNB': 600.00,
+            'USDT': 1.00, 'USDC': 1.00, 'TRX': 0.12, 'BTC': 68000.00, 'NEAR': 8.50
+        };
+    } catch (error) {
+        console.error('Error getting token prices:', error);
+        return {
+            'TON': 6.24, 'SOL': 172.34, 'ETH': 3500.00, 'BNB': 600.00,
+            'USDT': 1.00, 'USDC': 1.00, 'TRX': 0.12, 'BTC': 68000.00, 'NEAR': 8.50
+        };
+    }
+};
+
+export const calculateTotalBalance = async (wallets) => {
+    try {
+        if (!Array.isArray(wallets) || wallets.length === 0) return '0.00';
+        
+        const updatedWallets = await getRealBalances(wallets);
+        const prices = await getTokenPrices();
+        
+        let totalUSD = 0;
+        for (const wallet of updatedWallets) {
+            const price = prices[wallet.symbol] || 0;
+            totalUSD += parseFloat(wallet.balance || 0) * price;
+        }
+        
+        return totalUSD.toFixed(2);
+    } catch (error) {
+        console.error('Error calculating total balance:', error);
+        return '0.00';
+    }
+};
+
 export const validateAddress = async (blockchain, address) => {
     try {
         switch(blockchain) {
@@ -1479,13 +692,10 @@ export const validateAddress = async (blockchain, address) => {
             case 'BSC':
                 return ethers.isAddress(address);
             case 'Solana':
-                const { PublicKey } = await import('@solana/web3.js');
                 try {
                     new PublicKey(address);
                     return true;
-                } catch {
-                    return false;
-                }
+                } catch { return false; }
             case 'Tron':
                 const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
                 return tronRegex.test(address);
@@ -1504,211 +714,50 @@ export const validateAddress = async (blockchain, address) => {
     }
 };
 
-// Функция для получения цен токенов
-export const getTokenPrices = async () => {
+export const clearAllData = () => {
     try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,solana,ethereum,binancecoin,tron,bitcoin,near-protocol,tether,usd-coin&vs_currencies=usd');
-        
-        if (response.ok) {
-            const data = await response.json();
-            return {
-                'TON': data['the-open-network']?.usd || 6.24,
-                'SOL': data['solana']?.usd || 172.34,
-                'ETH': data['ethereum']?.usd || 3500.00,
-                'BNB': data['binancecoin']?.usd || 600.00,
-                'USDT': data['tether']?.usd || 1.00,
-                'USDC': data['usd-coin']?.usd || 1.00,
-                'TRX': data['tron']?.usd || 0.12,
-                'BTC': data['bitcoin']?.usd || 68000.00,
-                'NEAR': data['near-protocol']?.usd || 8.50
-            };
-        }
-        
-        // Fallback prices
-        return {
-            'TON': 6.24,
-            'SOL': 172.34,
-            'ETH': 3500.00,
-            'BNB': 600.00,
-            'USDT': 1.00,
-            'USDC': 1.00,
-            'TRX': 0.12,
-            'BTC': 68000.00,
-            'NEAR': 8.50
-        };
+        localStorage.removeItem('cached_wallets');
+        localStorage.removeItem('cached_total_balance');
+        console.log('Cached wallet data cleared from localStorage');
+        return true;
     } catch (error) {
-        console.error('Error getting token prices:', error);
-        return {
-            'TON': 6.24,
-            'SOL': 172.34,
-            'ETH': 3500.00,
-            'BNB': 600.00,
-            'USDT': 1.00,
-            'USDC': 1.00,
-            'TRX': 0.12,
-            'BTC': 68000.00,
-            'NEAR': 8.50
-        };
+        console.error('Error clearing cached data:', error);
+        return false;
     }
 };
 
-// Функция расчета общего баланса
-export const calculateTotalBalance = async (wallets) => {
-    try {
-        if (!Array.isArray(wallets)) {
-            console.error('calculateTotalBalance: wallets is not an array');
-            return '0.00';
-        }
-        
-        const updatedWallets = await getRealBalances(wallets);
-        const prices = await getTokenPrices();
-        
-        let total = 0;
-        for (const wallet of updatedWallets) {
-            const price = prices[wallet.symbol] || 0;
-            total += parseFloat(wallet.balance || 0) * price;
-        }
-        
-        return total.toFixed(2);
-    } catch (error) {
-        console.error('Error calculating total balance:', error);
-        return '0.00';
+export const setupAppCloseListener = () => {
+    window.addEventListener('beforeunload', () => {
+        console.log('App closing, clearing cached data');
+        clearAllData();
+    });
+
+    if (window.Telegram?.WebApp) {
+        const webApp = window.Telegram.WebApp;
+        webApp.onEvent('viewportChanged', (event) => {
+            if (event.isStateStable && !webApp.isExpanded) {
+                clearAllData();
+            }
+        });
     }
 };
 
-// Функция для получения балансов (для совместимости)
-export const getBalances = async (wallets, userData) => {
-    try {
-        return await getRealBalances(wallets);
-    } catch (error) {
-        console.error('Error in getBalances:', error);
-        return wallets;
-    }
+export const revealSeedPhrase = async (userData) => {
+    if (userData?.seed_phrases) return userData.seed_phrases;
+    return null;
 };
 
-// Функция оценки комиссии транзакции
-export const estimateTransactionFee = async (blockchain, fromAddress, toAddress, amount, symbol) => {
-    try {
-        const fees = {
-            'TON': '0.05',
-            'Ethereum': '0.001',
-            'BSC': '0.0001',
-            'Solana': '0.000005',
-            'Tron': '0.1',
-            'Bitcoin': '0.0001',
-            'NEAR': '0.01'
-        };
-        
-        return fees[blockchain] || '0.01';
-    } catch (error) {
-        console.error('Fee estimation error:', error);
-        return '0.01';
-    }
-};
+export const getBalances = getRealBalances;
 
-// Функция отправки транзакции
+// Функция для совместимости (SendToken.jsx)
 export const sendTransaction = async (transactionData) => {
-    const { blockchain, fromAddress, toAddress, amount, symbol, memo, privateKey, seedPhrase } = transactionData;
+    const { blockchain, fromAddress, toAddress, amount, symbol, memo, seedPhrase, contractAddress } = transactionData;
     
     try {
-        console.log(`Sending ${amount} ${symbol} via ${blockchain}`);
-        
-        let result;
-        
-        switch(blockchain) {
-            case 'TON':
-                const { sendTonReal } = await import('./tonService');
-                result = await sendTonReal({
-                    fromAddress,
-                    toAddress,
-                    amount,
-                    seedPhrase,
-                    comment: memo || ''
-                });
-                break;
-                
-            case 'Ethereum':
-                const { sendEthReal, sendERC20Real } = await import('./ethereumService');
-                if (symbol === 'ETH') {
-                    result = await sendEthReal({
-                        toAddress,
-                        amount,
-                        privateKey
-                    });
-                } else {
-                    result = await sendERC20Real({
-                        contractAddress: transactionData.contractAddress,
-                        toAddress,
-                        amount,
-                        privateKey
-                    });
-                }
-                break;
-                
-            case 'BSC':
-                const { sendBNBReal, sendBEP20Real } = await import('./bscService');
-                if (symbol === 'BNB') {
-                    result = await sendBNBReal({
-                        toAddress,
-                        amount,
-                        privateKey
-                    });
-                } else {
-                    result = await sendBEP20Real({
-                        contractAddress: transactionData.contractAddress,
-                        toAddress,
-                        amount,
-                        privateKey
-                    });
-                }
-                break;
-                
-            case 'Solana':
-                const { sendSolReal } = await import('./solanaService');
-                result = await sendSolReal({
-                    toAddress,
-                    amount,
-                    seedPhrase
-                });
-                break;
-                
-            case 'Tron':
-                const { sendTrxReal, sendTRC20Real } = await import('./tronService');
-                if (symbol === 'TRX') {
-                    result = await sendTrxReal({
-                        toAddress,
-                        amount,
-                        seedPhrase
-                    });
-                } else {
-                    result = await sendTRC20Real({
-                        contractAddress: transactionData.contractAddress,
-                        toAddress,
-                        amount,
-                        seedPhrase
-                    });
-                }
-                break;
-                
-            case 'Bitcoin':
-                const { sendBitcoinReal } = await import('./bitcoinService');
-                result = await sendBitcoinReal({
-                    toAddress,
-                    amount,
-                    seedPhrase
-                });
-                break;
-                
-            default:
-                result = {
-                    success: false,
-                    error: `Blockchain ${blockchain} not supported`
-                };
-        }
-        
-        return result;
+        const { sendTransaction: sendTx } = await import('./blockchainService');
+        return await sendTx(transactionData);
     } catch (error) {
-        console.error('Error sending transaction:', error);
+        console.error('Transaction error:', error);
         return {
             success: false,
             error: error.message
@@ -1716,245 +765,44 @@ export const sendTransaction = async (transactionData) => {
     }
 };
 
-// Объект TOKENS для экспорта
-export const TOKENS = {
-    TON: {
-        id: 'ton',
-        name: 'Toncoin',
-        symbol: 'TON',
-        blockchain: 'TON',
-        decimals: 9,
-        isNative: true,
-        contractAddress: '',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/toncoin-ton-logo.png'
-    },
-    USDT_TON: {
-        id: 'usdt_ton',
-        name: 'Tether',
-        symbol: 'USDT',
-        blockchain: 'TON',
-        decimals: 6,
-        isNative: false,
-        contractAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-    },
-    USDC_TON: {
-        id: 'usdc_ton',
-        name: 'USD Coin',
-        symbol: 'USDC',
-        blockchain: 'TON',
-        decimals: 6,
-        isNative: false,
-        contractAddress: 'EQB-MPwrd1G6WKNkLz_VnV6TCqetER9X_KFXqJzPiTBDdhhG',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
-    },
-    SOL: {
-        id: 'sol',
-        name: 'Solana',
-        symbol: 'SOL',
-        blockchain: 'Solana',
-        decimals: 9,
-        isNative: true,
-        contractAddress: '',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/solana-sol-logo.png'
-    },
-    USDT_SOL: {
-        id: 'usdt_sol',
-        name: 'Tether',
-        symbol: 'USDT',
-        blockchain: 'Solana',
-        decimals: 6,
-        isNative: false,
-        contractAddress: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-    },
-    USDC_SOL: {
-        id: 'usdc_sol',
-        name: 'USD Coin',
-        symbol: 'USDC',
-        blockchain: 'Solana',
-        decimals: 6,
-        isNative: false,
-        contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
-    },
-    ETH: {
-        id: 'eth',
-        name: 'Ethereum',
-        symbol: 'ETH',
-        blockchain: 'Ethereum',
-        decimals: 18,
-        isNative: true,
-        contractAddress: '',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png'
-    },
-    USDT_ETH: {
-        id: 'usdt_eth',
-        name: 'Tether',
-        symbol: 'USDT',
-        blockchain: 'Ethereum',
-        decimals: 6,
-        isNative: false,
-        contractAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-    },
-    USDC_ETH: {
-        id: 'usdc_eth',
-        name: 'USD Coin',
-        symbol: 'USDC',
-        blockchain: 'Ethereum',
-        decimals: 6,
-        isNative: false,
-        contractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
-    },
-    BNB: {
-        id: 'bnb_bsc',
-        name: 'BNB',
-        symbol: 'BNB',
-        blockchain: 'BSC',
-        decimals: 18,
-        isNative: true,
-        contractAddress: '',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png'
-    },
-    USDT_BSC: {
-        id: 'usdt_bsc',
-        name: 'Tether',
-        symbol: 'USDT',
-        blockchain: 'BSC',
-        decimals: 18,
-        isNative: false,
-        contractAddress: '0x55d398326f99059ff775485246999027b3197955',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-    },
-    USDC_BSC: {
-        id: 'usdc_bsc',
-        name: 'USD Coin',
-        symbol: 'USDC',
-        blockchain: 'BSC',
-        decimals: 18,
-        isNative: false,
-        contractAddress: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
-    },
-    TRX: {
-        id: 'trx',
-        name: 'TRON',
-        symbol: 'TRX',
-        blockchain: 'Tron',
-        decimals: 6,
-        isNative: true,
-        contractAddress: '',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/tron-trx-logo.png'
-    },
-    USDT_TRX: {
-        id: 'usdt_trx',
-        name: 'Tether',
-        symbol: 'USDT',
-        blockchain: 'Tron',
-        decimals: 6,
-        isNative: false,
-        contractAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-    },
-    USDC_TRX: {
-        id: 'usdc_trx',
-        name: 'USD Coin',
-        symbol: 'USDC',
-        blockchain: 'Tron',
-        decimals: 6,
-        isNative: false,
-        contractAddress: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
-    },
-    BTC: {
-        id: 'btc',
-        name: 'Bitcoin',
-        symbol: 'BTC',
-        blockchain: 'Bitcoin',
-        decimals: 8,
-        isNative: true,
-        contractAddress: '',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png'
-    },
-    NEAR: {
-        id: 'near',
-        name: 'NEAR Protocol',
-        symbol: 'NEAR',
-        blockchain: 'NEAR',
-        decimals: 24,
-        isNative: true,
-        contractAddress: '',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.png'
-    },
-    USDT_NEAR: {
-        id: 'usdt_near',
-        name: 'Tether',
-        symbol: 'USDT',
-        blockchain: 'NEAR',
-        decimals: 6,
-        isNative: false,
-        contractAddress: 'usdt.near',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png'
-    },
-    USDC_NEAR: {
-        id: 'usdc_near',
-        name: 'USD Coin',
-        symbol: 'USDC',
-        blockchain: 'NEAR',
-        decimals: 6,
-        isNative: false,
-        contractAddress: 'usdc.near',
-        showBlockchain: true,
-        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
-    }
+// Функция оценки комиссии (для SendToken.jsx)
+export const estimateTransactionFee = async (blockchain) => {
+    const defaultFees = {
+        'TON': '0.05',
+        'Ethereum': '0.001',
+        'BSC': '0.0001',
+        'Solana': '0.000005',
+        'Tron': '0.1',
+        'Bitcoin': '0.0001',
+        'NEAR': '0.01'
+    };
+    
+    return defaultFees[blockchain] || '0.01';
 };
 
-// Экспорт по умолчанию
 export default {
     // Основные функции
     generateNewSeedPhrase,
-    saveSeedPhrase,
-    getSeedPhrase,
     generateWalletsFromSeed,
     getAllTokens,
     getRealBalances,
+    initializeUserWallets,
     clearAllData,
     setupAppCloseListener,
-    sendTransaction,
-    revealSeedPhrase,
     getTokenPrices,
     calculateTotalBalance,
-    getTransactionHistory,
-    TOKENS,
+    validateAddress,
+    revealSeedPhrase,
     
     // API функции
-    saveWalletToAPI,
-    getWalletFromAPI,
     saveSeedPhraseToAPI,
-    getSeedPhraseFromAPI,
+    saveAddressesToAPI,
+    getUserWallets,
     
-    // Вспомогательные функции
-    validateAddress,
-    getBalances,
-    estimateTransactionFee
+    // Функции для совместимости
+    sendTransaction,
+    estimateTransactionFee,
+    
+    // Константы
+    TOKENS
 };

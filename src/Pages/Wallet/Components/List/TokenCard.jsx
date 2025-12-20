@@ -12,8 +12,9 @@ const TokenCard = ({ wallet }) => {
             'Solana': { color: '#00ff88', text: 'SOL' },
             'Ethereum': { color: '#8c8cff', text: 'ETH' },
             'Tron': { color: '#ff0000', text: 'TRX' },
-            'Bitcoin': { color: '#f7931a', text: 'BTC' },
+            'Bitcoin': { color: '#bfcd43ff', text: 'BTC' },
             'NEAR': { color: '#0b4731ff', text: 'NEAR' },
+            'BNB': { color: '#E49E00', text: 'BNB' },
         };
         
         return badges[blockchain] || { color: '#666', text: blockchain };

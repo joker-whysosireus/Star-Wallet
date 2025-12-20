@@ -34,7 +34,6 @@ const ReceiveToken = () => {
                 const updatedToken = updatedWallets[0];
                 setToken(updatedToken);
                 
-                // Получаем актуальные цены токенов
                 const prices = await getTokenPrices();
                 const price = prices[token.symbol] || 1;
                 const usd = parseFloat(updatedToken.balance || 0) * price;

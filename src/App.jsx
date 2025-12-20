@@ -11,8 +11,8 @@ import ReceiveToken from './Pages/Wallet/Subpages/Receive/ReceiveToken';
 import BackupSeedPhrase from './Pages/Wallet/Subpages/BackupSeedPhrase/BackupSeedPhrase';
 import PinCodeScreen from './assets/PIN/PinCodeScreen.jsx';
 import Loader from './assets/Loader/Loader.jsx';
-import { initializeUserWallets } from './Pages/Wallet/Services/walletService';
-import { setupAppCloseListener, clearAllData } from './Pages/Wallet/Services/storageService';
+import { initializeUserWallets } from './Pages/Wallet/Services/storageService.js';
+import { setupAppCloseListener, clearAllData } from './Pages/Wallet/Services/storageService.js';
 
 const AUTH_FUNCTION_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions/auth';
 const VERIFY_PIN_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions/verify-pin';
@@ -29,10 +29,7 @@ const App = () => {
     const [currentTelegramUserId, setCurrentTelegramUserId] = useState(null);
 
     useEffect(() => {
-        // Настраиваем слушатель для очистки данных при закрытии приложения
         setupAppCloseListener();
-        
-        // Очищаем данные при загрузке приложения
         clearAllData();
         
         const isTelegramWebApp = () => {
@@ -134,10 +131,9 @@ const App = () => {
                     if (data.isValid && data.userData) {
                         const telegramUserId = data.userData.telegram_user_id;
                         
-                        // Проверяем, сменился ли пользователь
                         if (currentTelegramUserId && currentTelegramUserId !== telegramUserId) {
                             console.log('User changed! Clearing old data...');
-                            clearAllData(); // Очищаем данные при смене пользователя
+                            clearAllData();
                         }
                         
                         setCurrentTelegramUserId(telegramUserId);
@@ -225,7 +221,6 @@ const App = () => {
         }
     };
 
-    // Добавляем обработчик для очистки при закрытии
     useEffect(() => {
         const handleBeforeUnload = () => {
             console.log('App closing, clearing data');
@@ -239,7 +234,6 @@ const App = () => {
         };
     }, []);
 
-    // Показываем Loader во время загрузки
     if (isLoading) {
         return <Loader />;
     }
