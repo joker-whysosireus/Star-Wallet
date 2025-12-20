@@ -14,21 +14,19 @@ const bip32 = BIP32Factory(ecc);
 // === КОНФИГУРАЦИЯ MAINNET ===
 const MAINNET_CONFIG = {
     TON: {
-        RPC_URL: 'https://toncenter.com/api/v3/jsonRPC',
-        API_KEY: '683bdd6cfa7a49a1b14c38c0c80b0b99'
+        RPC_URL: 'https://toncenter.com/api/v2/jsonRPC'
     },
     ETHEREUM: {
-        RPC_URL: 'https://mainnet.infura.io/v3/683bdd6cfa7a49a1b14c38c0c80b0b99'
+        RPC_URL: 'https://eth.llamarpc.com'
     },
     SOLANA: {
-        RPC_URL: 'https://mainnet.helius-rpc.com/?api-key=e1a20296-3d29-4edb-bc41-c709a187fbc9'
+        RPC_URL: 'https://api.mainnet-beta.solana.com'
     },
     TRON: {
-        RPC_URL: 'https://api.trongrid.io',
-        API_KEY: '36b3eb2e-5f06-46f7-8aa4-bab1546a6a9f'
+        RPC_URL: 'https://api.trongrid.io'
     },
     BITCOIN: {
-        RPC_URL: 'https://blockstream.info/api'
+        EXPLORER_URL: 'https://blockstream.info/api'
     },
     NEAR: {
         RPC_URL: 'https://rpc.mainnet.near.org'
@@ -175,8 +173,7 @@ const generateTronAddress = async (seedPhrase) => {
         const privateKey = wallet.privateKey.slice(2);
         const tronWeb = new TronWeb({ 
             fullHost: MAINNET_CONFIG.TRON.RPC_URL, 
-            privateKey: privateKey,
-            headers: { "TRON-PRO-API-KEY": MAINNET_CONFIG.TRON.API_KEY }
+            privateKey: privateKey
         });
         return tronWeb.address.fromPrivateKey(privateKey);
     } catch (error) {
@@ -299,25 +296,14 @@ export const getRealBalances = async (wallets) => {
     }
 };
 
+// Рабочие функции балансов без API ключей
 const getTonBalance = async (address) => {
     try {
-        const response = await fetch(MAINNET_CONFIG.TON.RPC_URL, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-API-Key': MAINNET_CONFIG.TON.API_KEY 
-            },
-            body: JSON.stringify({
-                id: 1,
-                jsonrpc: "2.0",
-                method: "getAddressInformation",
-                params: { address }
-            })
-        });
-        
+        const response = await fetch(`https://tonapi.io/v2/accounts/${address}`);
         const data = await response.json();
-        if (data.result?.balance) {
-            return (data.result.balance / 1e9).toFixed(6);
+        
+        if (data.balance) {
+            return (data.balance / 1e9).toFixed(4);
         }
         return '0';
     } catch (error) {
@@ -336,7 +322,7 @@ const getJettonBalance = async (address, jettonAddress) => {
                 j.jetton.address === jettonAddress.replace(':', '')
             );
             if (jetton) {
-                return (jetton.balance / Math.pow(10, jetton.jetton.decimals)).toFixed(6);
+                return (jetton.balance / Math.pow(10, jetton.jetton.decimals)).toFixed(4);
             }
         }
         return '0';
@@ -397,7 +383,7 @@ const getNEP141Balance = async (accountId, contractAddress) => {
         if (data.result?.result) {
             const balanceBytes = data.result.result;
             const balance = JSON.parse(new TextDecoder().decode(Uint8Array.from(balanceBytes)));
-            return balance;
+            return balance || '0';
         }
         return '0';
     } catch (error) {
@@ -435,7 +421,7 @@ const getSolBalance = async (address) => {
         const connection = new Connection(MAINNET_CONFIG.SOLANA.RPC_URL, 'confirmed');
         const publicKey = new PublicKey(address);
         const balance = await connection.getBalance(publicKey);
-        return (balance / 1e9).toFixed(6);
+        return (balance / 1e9).toFixed(4);
     } catch (error) {
         console.error('SOL balance error:', error);
         return '0';
@@ -448,15 +434,17 @@ const getSPLBalance = async (address, tokenAddress) => {
         const walletPublicKey = new PublicKey(address);
         const tokenPublicKey = new PublicKey(tokenAddress);
         
-        const { getAssociatedTokenAddress } = await import('@solana/spl-token');
-        const associatedTokenAddress = await getAssociatedTokenAddress(tokenPublicKey, walletPublicKey);
+        // Используем публичный API для упрощения
+        const response = await fetch(`https://public-api.solscan.io/account/tokens?account=${address}`);
+        const data = await response.json();
         
-        try {
-            const balance = await connection.getTokenAccountBalance(associatedTokenAddress);
-            return balance.value.uiAmount?.toFixed(6) || '0';
-        } catch {
-            return '0';
+        if (data.data) {
+            const token = data.data.find(t => t.tokenAddress === tokenAddress);
+            if (token) {
+                return (token.tokenAmount.uiAmount || 0).toFixed(4);
+            }
         }
+        return '0';
     } catch (error) {
         console.error('SPL balance error:', error);
         return '0';
@@ -465,12 +453,10 @@ const getSPLBalance = async (address, tokenAddress) => {
 
 const getTronBalance = async (address) => {
     try {
-        const response = await fetch(`${MAINNET_CONFIG.TRON.RPC_URL}/v1/accounts/${address}`, {
-            headers: { "TRON-PRO-API-KEY": MAINNET_CONFIG.TRON.API_KEY }
-        });
+        const response = await fetch(`${MAINNET_CONFIG.TRON.RPC_URL}/v1/accounts/${address}`);
         const data = await response.json();
         if (data.data?.[0]?.balance) {
-            return (data.data[0].balance / 1e6).toFixed(6);
+            return (data.data[0].balance / 1e6).toFixed(2);
         }
         return '0';
     } catch (error) {
@@ -481,12 +467,10 @@ const getTronBalance = async (address) => {
 
 const getTRC20Balance = async (address, contractAddress) => {
     try {
-        const response = await fetch(`${MAINNET_CONFIG.TRON.RPC_URL}/v1/accounts/${address}/trc20?contract_address=${contractAddress}`, {
-            headers: { "TRON-PRO-API-KEY": MAINNET_CONFIG.TRON.API_KEY }
-        });
+        const response = await fetch(`${MAINNET_CONFIG.TRON.RPC_URL}/v1/accounts/${address}/trc20?contract_address=${contractAddress}`);
         const data = await response.json();
         if (data.data?.[0]) {
-            return (data.data[0].balance / Math.pow(10, data.data[0].tokenDecimal)).toFixed(6);
+            return (data.data[0].balance / Math.pow(10, data.data[0].tokenDecimal)).toFixed(2);
         }
         return '0';
     } catch (error) {
@@ -497,11 +481,13 @@ const getTRC20Balance = async (address, contractAddress) => {
 
 const getBitcoinBalance = async (address) => {
     try {
-        const response = await fetch(`${MAINNET_CONFIG.BITCOIN.RPC_URL}/address/${address}`);
+        const response = await fetch(`${MAINNET_CONFIG.BITCOIN.EXPLORER_URL}/address/${address}`);
         const data = await response.json();
         if (data.chain_stats) {
-            const balance = (data.chain_stats.funded_txo_sum - (data.chain_stats.spent_txo_sum || 0)) / 1e8;
-            return balance.toFixed(8);
+            const confirmed = data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum;
+            const mempool = data.mempool_stats?.funded_txo_sum - data.mempool_stats?.spent_txo_sum || 0;
+            const totalSatoshis = confirmed + mempool;
+            return (totalSatoshis / 1e8).toFixed(6);
         }
         return '0';
     } catch (error) {
@@ -764,7 +750,6 @@ export const sendTransaction = async (transactionData) => {
     try {
         const { sendTransaction: sendTx } = await import('./blockchainService');
         
-        // Подготавливаем параметры для отправки
         const txParams = {
             blockchain,
             toAddress,
