@@ -39,31 +39,33 @@ const MAINNET_CONFIG = {
 // Базовые URL для Netlify функций
 const WALLET_API_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions';
 
-// === ТИПЫ И КОНСТАНТЫ ТОКЕНОВ ===
+// === ТОКЕНЫ И КОНТРАКТЫ ===
 export const TOKENS = {
     // Native tokens
     TON: { symbol: 'TON', name: 'Toncoin', blockchain: 'TON', decimals: 9, isNative: true, logo: 'https://cryptologos.cc/logos/toncoin-ton-logo.png' },
-    SOL: { symbol: 'SOL', name: 'Solana', blockchain: 'Solana', decimals: 9, isNative: true, logo: 'https://cryptologos.cc/logos/solana-sol-logo.png' },
-    ETH: { symbol: 'ETH', name: 'Ethereum', blockchain: 'Ethereum', decimals: 18, isNative: true, logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png' },
-    BNB: { symbol: 'BNB', name: 'BNB', blockchain: 'BSC', decimals: 18, isNative: true, logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' },
-    TRX: { symbol: 'TRX', name: 'TRON', blockchain: 'Tron', decimals: 6, isNative: true, logo: 'https://cryptologos.cc/logos/tron-trx-logo.png' },
-    BTC: { symbol: 'BTC', name: 'Bitcoin', blockchain: 'Bitcoin', decimals: 8, isNative: true, logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png' },
-    NEAR: { symbol: 'NEAR', name: 'NEAR Protocol', blockchain: 'NEAR', decimals: 24, isNative: true, logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.png' },
-    
-    // USDT tokens
     USDT_TON: { symbol: 'USDT', name: 'Tether', blockchain: 'TON', decimals: 6, isNative: false, contractAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
-    USDT_SOL: { symbol: 'USDT', name: 'Tether', blockchain: 'Solana', decimals: 6, isNative: false, contractAddress: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
-    USDT_ETH: { symbol: 'USDT', name: 'Tether', blockchain: 'Ethereum', decimals: 6, isNative: false, contractAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
-    USDT_BSC: { symbol: 'USDT', name: 'Tether', blockchain: 'BSC', decimals: 18, isNative: false, contractAddress: '0x55d398326f99059ff775485246999027b3197955', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
-    USDT_TRX: { symbol: 'USDT', name: 'Tether', blockchain: 'Tron', decimals: 6, isNative: false, contractAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
-    USDT_NEAR: { symbol: 'USDT', name: 'Tether', blockchain: 'NEAR', decimals: 6, isNative: false, contractAddress: 'usdt.near', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
-    
-    // USDC tokens for all blockchains except Bitcoin
     USDC_TON: { symbol: 'USDC', name: 'USD Coin', blockchain: 'TON', decimals: 6, isNative: false, contractAddress: 'EQB-MPwrd1G6WKNkLz_VnV6WqBDd142KMQv-g1O-8QUA3727', logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' },
-    USDC_SOL: { symbol: 'USDC', name: 'USD Coin', blockchain: 'Solana', decimals: 6, isNative: false, contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' },
+    
+    ETH: { symbol: 'ETH', name: 'Ethereum', blockchain: 'Ethereum', decimals: 18, isNative: true, logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png' },
+    USDT_ETH: { symbol: 'USDT', name: 'Tether', blockchain: 'Ethereum', decimals: 6, isNative: false, contractAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
     USDC_ETH: { symbol: 'USDC', name: 'USD Coin', blockchain: 'Ethereum', decimals: 6, isNative: false, contractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' },
+    
+    SOL: { symbol: 'SOL', name: 'Solana', blockchain: 'Solana', decimals: 9, isNative: true, logo: 'https://cryptologos.cc/logos/solana-sol-logo.png' },
+    USDT_SOL: { symbol: 'USDT', name: 'Tether', blockchain: 'Solana', decimals: 6, isNative: false, contractAddress: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
+    USDC_SOL: { symbol: 'USDC', name: 'USD Coin', blockchain: 'Solana', decimals: 6, isNative: false, contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' },
+    
+    BNB: { symbol: 'BNB', name: 'BNB', blockchain: 'BSC', decimals: 18, isNative: true, logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' },
+    USDT_BSC: { symbol: 'USDT', name: 'Tether', blockchain: 'BSC', decimals: 18, isNative: false, contractAddress: '0x55d398326f99059ff775485246999027b3197955', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
     USDC_BSC: { symbol: 'USDC', name: 'USD Coin', blockchain: 'BSC', decimals: 18, isNative: false, contractAddress: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' },
+    
+    TRX: { symbol: 'TRX', name: 'TRON', blockchain: 'Tron', decimals: 6, isNative: true, logo: 'https://cryptologos.cc/logos/tron-trx-logo.png' },
+    USDT_TRX: { symbol: 'USDT', name: 'Tether', blockchain: 'Tron', decimals: 6, isNative: false, contractAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
     USDC_TRX: { symbol: 'USDC', name: 'USD Coin', blockchain: 'Tron', decimals: 6, isNative: false, contractAddress: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8', logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' },
+    
+    BTC: { symbol: 'BTC', name: 'Bitcoin', blockchain: 'Bitcoin', decimals: 8, isNative: true, logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png' },
+    
+    NEAR: { symbol: 'NEAR', name: 'NEAR Protocol', blockchain: 'NEAR', decimals: 24, isNative: true, logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.png' },
+    USDT_NEAR: { symbol: 'USDT', name: 'Tether', blockchain: 'NEAR', decimals: 6, isNative: false, contractAddress: 'usdt.near', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
     USDC_NEAR: { symbol: 'USDC', name: 'USD Coin', blockchain: 'NEAR', decimals: 6, isNative: false, contractAddress: 'usdc.near', logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' }
 };
 
@@ -91,41 +93,65 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
             generateNearAddress(seedPhrase)
         ]);
 
-        const wallets = Object.values(TOKENS).map(token => {
-            let address = '';
-            switch(token.blockchain) {
-                case 'TON': address = tonAddress; break;
-                case 'Solana': address = solanaAddress; break;
-                case 'Ethereum': address = ethAddress; break;
-                case 'BSC': address = bscAddress; break;
-                case 'Tron': address = tronAddress; break;
-                case 'Bitcoin': address = bitcoinAddress; break;
-                case 'NEAR': address = nearAddress; break;
-            }
-            
-            return {
-                id: `${token.symbol.toLowerCase()}_${token.blockchain.toLowerCase()}`,
-                name: token.name,
-                symbol: token.symbol,
-                address: address,
-                blockchain: token.blockchain,
-                decimals: token.decimals,
-                isNative: token.isNative,
-                contractAddress: token.contractAddress || '',
-                showBlockchain: true,
-                balance: '0',
-                isActive: true,
-                logo: token.logo,
-                lastUpdated: new Date().toISOString()
-            };
-        });
+        // Создаем кошельки в нужном порядке
+        const walletArray = [];
         
-        return wallets;
+        // TON блокчейн
+        walletArray.push(createWallet(TOKENS.TON, tonAddress));
+        walletArray.push(createWallet(TOKENS.USDT_TON, tonAddress));
+        walletArray.push(createWallet(TOKENS.USDC_TON, tonAddress));
+        
+        // Ethereum блокчейн
+        walletArray.push(createWallet(TOKENS.ETH, ethAddress));
+        walletArray.push(createWallet(TOKENS.USDT_ETH, ethAddress));
+        walletArray.push(createWallet(TOKENS.USDC_ETH, ethAddress));
+        
+        // Solana блокчейн
+        walletArray.push(createWallet(TOKENS.SOL, solanaAddress));
+        walletArray.push(createWallet(TOKENS.USDT_SOL, solanaAddress));
+        walletArray.push(createWallet(TOKENS.USDC_SOL, solanaAddress));
+        
+        // BSC блокчейн
+        walletArray.push(createWallet(TOKENS.BNB, bscAddress));
+        walletArray.push(createWallet(TOKENS.USDT_BSC, bscAddress));
+        walletArray.push(createWallet(TOKENS.USDC_BSC, bscAddress));
+        
+        // Tron блокчейн
+        walletArray.push(createWallet(TOKENS.TRX, tronAddress));
+        walletArray.push(createWallet(TOKENS.USDT_TRX, tronAddress));
+        walletArray.push(createWallet(TOKENS.USDC_TRX, tronAddress));
+        
+        // Bitcoin блокчейн
+        walletArray.push(createWallet(TOKENS.BTC, bitcoinAddress));
+        
+        // NEAR блокчейн
+        walletArray.push(createWallet(TOKENS.NEAR, nearAddress));
+        walletArray.push(createWallet(TOKENS.USDT_NEAR, nearAddress));
+        walletArray.push(createWallet(TOKENS.USDC_NEAR, nearAddress));
+        
+        return walletArray;
     } catch (error) {
         console.error('Error generating wallets:', error);
         throw error;
     }
 };
+
+// Вспомогательная функция для создания кошелька
+const createWallet = (token, address) => ({
+    id: `${token.symbol.toLowerCase()}_${token.blockchain.toLowerCase()}`,
+    name: token.name,
+    symbol: token.symbol,
+    address: address,
+    blockchain: token.blockchain,
+    decimals: token.decimals,
+    isNative: token.isNative,
+    contractAddress: token.contractAddress || '',
+    showBlockchain: true,
+    balance: '0',
+    isActive: true,
+    logo: token.logo,
+    lastUpdated: new Date().toISOString()
+});
 
 // Функции генерации адресов
 const generateTonAddress = async (seedPhrase) => {
@@ -299,11 +325,16 @@ export const getRealBalances = async (wallets) => {
 // Рабочие функции балансов без API ключей
 const getTonBalance = async (address) => {
     try {
+        // Используем TonAPI.io как публичный вариант
         const response = await fetch(`https://tonapi.io/v2/accounts/${address}`);
-        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(`TON API error: ${response.status}`);
+        }
         
+        const data = await response.json();
         if (data.balance) {
-            return (data.balance / 1e9).toFixed(4);
+            const balanceInNano = parseInt(data.balance);
+            return (balanceInNano / 1e9).toFixed(4);
         }
         return '0';
     } catch (error) {
@@ -351,7 +382,7 @@ const getNearBalance = async (accountId) => {
         
         const data = await response.json();
         if (data.result?.amount) {
-            return (data.result.amount / 1e24).toFixed(4);
+            return (parseInt(data.result.amount) / 1e24).toFixed(4);
         }
         return '0';
     } catch (error) {
@@ -455,8 +486,11 @@ const getTronBalance = async (address) => {
     try {
         const response = await fetch(`${MAINNET_CONFIG.TRON.RPC_URL}/v1/accounts/${address}`);
         const data = await response.json();
-        if (data.data?.[0]?.balance) {
-            return (data.data[0].balance / 1e6).toFixed(2);
+        
+        if (data.data && data.data.length > 0 && data.data[0].balance) {
+            const balanceSun = parseInt(data.data[0].balance);
+            // TRX имеет 6 знаков, balance в sun (1 TRX = 1,000,000 sun)
+            return (balanceSun / 1_000_000).toFixed(6);
         }
         return '0';
     } catch (error) {
@@ -469,8 +503,10 @@ const getTRC20Balance = async (address, contractAddress) => {
     try {
         const response = await fetch(`${MAINNET_CONFIG.TRON.RPC_URL}/v1/accounts/${address}/trc20?contract_address=${contractAddress}`);
         const data = await response.json();
-        if (data.data?.[0]) {
-            return (data.data[0].balance / Math.pow(10, data.data[0].tokenDecimal)).toFixed(2);
+        
+        if (data.data && data.data.length > 0) {
+            const token = data.data[0];
+            return (token.balance / Math.pow(10, token.tokenDecimal)).toFixed(6);
         }
         return '0';
     } catch (error) {
@@ -483,6 +519,7 @@ const getBitcoinBalance = async (address) => {
     try {
         const response = await fetch(`${MAINNET_CONFIG.BITCOIN.EXPLORER_URL}/address/${address}`);
         const data = await response.json();
+        
         if (data.chain_stats) {
             const confirmed = data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum;
             const mempool = data.mempool_stats?.funded_txo_sum - data.mempool_stats?.spent_txo_sum || 0;
@@ -624,32 +661,48 @@ export const getUserWallets = async (telegramUserId) => {
 // === УТИЛИТНЫЕ ФУНКЦИИ ===
 export const getTokenPrices = async () => {
     try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,solana,ethereum,binancecoin,tron,bitcoin,near-protocol,tether,usd-coin&vs_currencies=usd');
+        // Используем CoinGecko API для получения актуальных цен
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ethereum,solana,binancecoin,tron,bitcoin,near-protocol&vs_currencies=usd');
         
         if (response.ok) {
             const data = await response.json();
             return {
                 'TON': data['the-open-network']?.usd || 6.24,
-                'SOL': data.solana?.usd || 172.34,
                 'ETH': data.ethereum?.usd || 3500.00,
+                'SOL': data.solana?.usd || 172.34,
                 'BNB': data.binancecoin?.usd || 600.00,
-                'USDT': data.tether?.usd || 1.00,
-                'USDC': data['usd-coin']?.usd || 1.00,
                 'TRX': data.tron?.usd || 0.12,
                 'BTC': data.bitcoin?.usd || 68000.00,
-                'NEAR': data['near-protocol']?.usd || 8.50
+                'NEAR': data['near-protocol']?.usd || 8.50,
+                'USDT': 1.00,
+                'USDC': 1.00
             };
         }
         
+        // Fallback цены
         return {
-            'TON': 6.24, 'SOL': 172.34, 'ETH': 3500.00, 'BNB': 600.00,
-            'USDT': 1.00, 'USDC': 1.00, 'TRX': 0.12, 'BTC': 68000.00, 'NEAR': 8.50
+            'TON': 6.24,
+            'ETH': 3500.00,
+            'SOL': 172.34,
+            'BNB': 600.00,
+            'TRX': 0.12,
+            'BTC': 68000.00,
+            'NEAR': 8.50,
+            'USDT': 1.00,
+            'USDC': 1.00
         };
     } catch (error) {
         console.error('Error getting token prices:', error);
         return {
-            'TON': 6.24, 'SOL': 172.34, 'ETH': 3500.00, 'BNB': 600.00,
-            'USDT': 1.00, 'USDC': 1.00, 'TRX': 0.12, 'BTC': 68000.00, 'NEAR': 8.50
+            'TON': 6.24,
+            'ETH': 3500.00,
+            'SOL': 172.34,
+            'BNB': 600.00,
+            'TRX': 0.12,
+            'BTC': 68000.00,
+            'NEAR': 8.50,
+            'USDT': 1.00,
+            'USDC': 1.00
         };
     }
 };
@@ -664,7 +717,8 @@ export const calculateTotalBalance = async (wallets) => {
         let totalUSD = 0;
         for (const wallet of updatedWallets) {
             const price = prices[wallet.symbol] || 0;
-            totalUSD += parseFloat(wallet.balance || 0) * price;
+            const balance = parseFloat(wallet.balance || 0);
+            totalUSD += balance * price;
         }
         
         return totalUSD.toFixed(2);

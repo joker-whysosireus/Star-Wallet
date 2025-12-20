@@ -5,7 +5,7 @@ import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
 import { 
     getBalances, 
-    getTokenPrices, 
+    getTokenPricesFromRPC, 
     sendTransaction,
     validateAddress,
     estimateTransactionFee
@@ -35,6 +35,7 @@ const SendToken = () => {
             return;
         }
         
+        setToken(wallet);
         loadBalances();
     }, []);
     
@@ -58,7 +59,7 @@ const SendToken = () => {
                 setToken(updatedToken);
                 setBalance(updatedToken.balance || '0');
                 
-                const prices = await getTokenPrices();
+                const prices = await getTokenPricesFromRPC();
                 const price = prices[token.symbol] || 1;
                 const usd = parseFloat(updatedToken.balance || 0) * price;
                 setUsdValue(usd.toFixed(2));
@@ -189,16 +190,7 @@ const SendToken = () => {
     };
     
     if (!token || !userData) {
-        return (
-            <div className="wallet-page">
-                <Header userData={userData} />
-                <div className="loading-container">
-                    <div className="loader"></div>
-                    <p>Loading...</p>
-                </div>
-                <Menu />
-            </div>
-        );
+        return null; // Не показываем loader
     }
     
     return (

@@ -17,6 +17,7 @@ const TokenDetail = () => {
     const [wallet, setWallet] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [usdValue, setUsdValue] = useState('0.00');
+    const [showSkeleton, setShowSkeleton] = useState(true);
     const userData = location.state?.userData || location.state?.userData;
     
     useEffect(() => {
@@ -26,16 +27,18 @@ const TokenDetail = () => {
             setWallet(walletData);
             loadBalances();
         } else if (symbol) {
+            // Если перешли по прямой ссылке, создаем mock wallet
             const token = Object.values(TOKENS).find(t => t.symbol === symbol);
             if (token) {
                 const mockWallet = {
                     ...token,
                     address: 'TQCc68Mp5dZ2Lm9XrJARoqo2D4Xtye5gFkR',
-                    balance: '25.43',
+                    balance: '0.00',
                     isActive: true
                 };
                 setWallet(mockWallet);
-                setUsdValue((25.43 * 6.24).toFixed(2));
+                calculateUsdValue('0.00');
+                setShowSkeleton(false);
             }
         }
         
@@ -45,21 +48,44 @@ const TokenDetail = () => {
     const loadBalances = async () => {
         if (!wallet || !userData) return;
         
+        setShowSkeleton(true);
         try {
             const updatedWallets = await getBalances([wallet], userData);
             if (updatedWallets && updatedWallets.length > 0) {
-                setWallet(updatedWallets[0]);
-                const prices = await getTokenPrices();
-                const price = prices[wallet.symbol] || 1;
-                const usd = parseFloat(updatedWallets[0].balance) * price;
-                setUsdValue(usd.toFixed(2));
+                const updatedWallet = updatedWallets[0];
+                setWallet(updatedWallet);
+                await calculateUsdValue(updatedWallet.balance);
+            } else {
+                await calculateUsdValue(wallet.balance || '0.00');
             }
         } catch (error) {
             console.error('Error loading balances:', error);
+            await calculateUsdValue(wallet.balance || '0.00');
+        } finally {
+            setTimeout(() => setShowSkeleton(false), 500);
+        }
+    };
+
+    const calculateUsdValue = async (balance) => {
+        try {
+            const prices = await getTokenPrices();
+            const price = prices[wallet?.symbol] || 1;
+            const usd = parseFloat(balance || 0) * price;
+            setUsdValue(usd.toFixed(2));
+        } catch (error) {
+            console.error('Error calculating USD value:', error);
+            const defaultPrices = {
+                'TON': 6.24, 'ETH': 3500, 'SOL': 172, 'BNB': 600,
+                'TRX': 0.12, 'BTC': 68000, 'NEAR': 8.5, 'USDT': 1, 'USDC': 1
+            };
+            const price = defaultPrices[wallet?.symbol] || 1;
+            const usd = parseFloat(balance || 0) * price;
+            setUsdValue(usd.toFixed(2));
         }
     };
 
     const getLogoUrl = () => {
+        if (!wallet) return '';
         if (wallet.symbol === 'TON') {
             return 'https://ton.org/download/ton_symbol.svg';
         }
@@ -84,7 +110,7 @@ const TokenDetail = () => {
 
     if (isLoading && !wallet) {
         return (
-            <div className="page-container">
+            <div className="page-container-sw">
                 <Header userData={userData} />
                 <div className="loading-container">
                     <div className="loader"></div>
@@ -97,7 +123,7 @@ const TokenDetail = () => {
 
     if (!wallet) {
         return (
-            <div className="page-container">
+            <div className="page-container-sw">
                 <Header userData={userData} />
                 <div className="page-content">
                     <h1 style={{ color: 'white' }}>Token not found</h1>
@@ -114,7 +140,7 @@ const TokenDetail = () => {
     }
 
     return (
-        <div className="page-container">
+        <div className="page-container-sw">
             <Header userData={userData} />
             
             <div className="page-content">
@@ -138,8 +164,16 @@ const TokenDetail = () => {
                 
                 <div className="token-balance-display">
                     <div className="token-amount-container">
-                        <p className="token-amount">{wallet.balance || '0.00'} {wallet.symbol}</p>
-                        {badge && (
+                        {showSkeleton ? (
+                            <div className="skeleton-loader" style={{ 
+                                width: '150px', 
+                                height: '32px', 
+                                marginBottom: '10px' 
+                            }}></div>
+                        ) : (
+                            <p className="token-amount">{wallet.balance || '0.00'} {wallet.symbol}</p>
+                        )}
+                        {badge && !showSkeleton && (
                             <div 
                                 className="blockchain-badge" 
                                 style={{ 
@@ -151,8 +185,23 @@ const TokenDetail = () => {
                                 {badge.text}
                             </div>
                         )}
+                        {showSkeleton && (
+                            <div className="skeleton-loader" style={{ 
+                                width: '50px', 
+                                height: '20px',
+                                marginTop: '8px'
+                            }}></div>
+                        )}
                     </div>
-                    <p className="usd-amount">${usdValue}</p>
+                    {showSkeleton ? (
+                        <div className="skeleton-loader" style={{ 
+                            width: '100px', 
+                            height: '24px',
+                            marginTop: '10px'
+                        }}></div>
+                    ) : (
+                        <p className="usd-amount">${usdValue}</p>
+                    )}
                 </div>
                 
                 <div style={{

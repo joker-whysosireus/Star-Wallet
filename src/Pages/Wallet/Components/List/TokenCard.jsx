@@ -1,9 +1,55 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { getTokenPrices } from '../../Services/storageService';
 import './TokenCard.css';
 
-const TokenCard = ({ wallet }) => {
-    if (!wallet) {
-        return null;
+const TokenCard = ({ wallet, isLoading = false }) => {
+    const [usdBalance, setUsdBalance] = useState('$0.00');
+    
+    useEffect(() => {
+        if (!isLoading && wallet) {
+            calculateUsdBalance();
+        }
+    }, [wallet, isLoading]);
+
+    const calculateUsdBalance = async () => {
+        try {
+            const prices = await getTokenPrices();
+            const price = prices[wallet.symbol] || 1.00;
+            const balance = parseFloat(wallet.balance || 0);
+            const usdValue = balance * price;
+            
+            if (usdValue >= 1000) {
+                setUsdBalance(`$${(usdValue / 1000).toFixed(1)}K`);
+            } else if (usdValue >= 1) {
+                setUsdBalance(`$${usdValue.toFixed(2)}`);
+            } else if (usdValue > 0) {
+                setUsdBalance(`$${usdValue.toFixed(4)}`);
+            } else {
+                setUsdBalance('$0.00');
+            }
+        } catch (error) {
+            console.error('Error calculating USD balance:', error);
+            setUsdBalance('$0.00');
+        }
+    };
+    
+    if (isLoading || !wallet) {
+        return (
+            <div className="token-card">
+                <div className="token-left">
+                    <div className="token-icon skeleton-loader"></div>
+                    <div className="token-names">
+                        <div className="token-name skeleton-loader" style={{ width: '80px', height: '14px', marginBottom: '6px' }}></div>
+                        <div className="token-symbol skeleton-loader" style={{ width: '60px', height: '18px' }}></div>
+                    </div>
+                </div>
+                <div className="token-right">
+                    <div className="token-balance skeleton-loader" style={{ width: '80px', height: '18px', marginBottom: '6px' }}></div>
+                    <div className="token-usd-balance skeleton-loader" style={{ width: '60px', height: '14px' }}></div>
+                    <div className="blockchain-badge skeleton-loader" style={{ width: '40px', height: '12px', marginTop: '4px' }}></div>
+                </div>
+            </div>
+        );
     }
     
     const getBlockchainBadge = (blockchain) => {
@@ -21,32 +67,6 @@ const TokenCard = ({ wallet }) => {
     };
     
     const badge = getBlockchainBadge(wallet.blockchain);
-    
-    const getUsdBalance = () => {
-        const prices = {
-            'TON': 6.24,
-            'SOL': 172.34,
-            'ETH': 3500.00,
-            'USDT': 1.00,
-            'USDC': 1.00,
-            'TRX': 0.12,
-            'BTC': 68000.00,
-            'NEAR': 8.50,
-            'BNB': 600.00 // Добавлена цена BNB
-        };
-        
-        const price = prices[wallet.symbol] || 1.00;
-        const balance = parseFloat(wallet.balance || 0);
-        const usdValue = balance * price;
-        
-        if (usdValue >= 1000) {
-            return `$${(usdValue / 1000).toFixed(1)}K`;
-        } else if (usdValue >= 1) {
-            return `$${usdValue.toFixed(2)}`;
-        } else {
-            return `$${usdValue.toFixed(4)}`;
-        }
-    };
 
     const getLogoUrl = () => {
         if (wallet.symbol === 'TON') {
@@ -80,7 +100,7 @@ const TokenCard = ({ wallet }) => {
             </div>
             <div className="token-right">
                 <div className="token-balance">{wallet.balance || '0.00'}</div>
-                <div className="token-usd-balance">{getUsdBalance()}</div>
+                <div className="token-usd-balance">{usdBalance}</div>
                 {wallet.showBlockchain && (
                     <div 
                         className="blockchain-badge" 

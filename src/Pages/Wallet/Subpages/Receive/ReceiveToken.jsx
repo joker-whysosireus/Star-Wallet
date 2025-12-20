@@ -5,7 +5,7 @@ import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
 import { 
     getBalances, 
-    getTokenPrices
+    getTokenPricesFromRPC
 } from '../../Services/storageService';
 import './ReceiveToken.css';
 
@@ -24,6 +24,7 @@ const ReceiveToken = () => {
             return;
         }
         
+        setToken(wallet);
         loadBalances();
     }, []);
     
@@ -34,7 +35,7 @@ const ReceiveToken = () => {
                 const updatedToken = updatedWallets[0];
                 setToken(updatedToken);
                 
-                const prices = await getTokenPrices();
+                const prices = await getTokenPricesFromRPC();
                 const price = prices[token.symbol] || 1;
                 const usd = parseFloat(updatedToken.balance || 0) * price;
                 setUsdValue(usd.toFixed(2));
@@ -55,16 +56,7 @@ const ReceiveToken = () => {
     };
     
     if (!token || !userData) {
-        return (
-            <div className="wallet-page">
-                <Header userData={userData} />
-                <div className="loading-container">
-                    <div className="loader"></div>
-                    <p>Loading...</p>
-                </div>
-                <Menu />
-            </div>
-        );
+        return null; // Не показываем loader, просто ничего не показываем
     }
     
     return (

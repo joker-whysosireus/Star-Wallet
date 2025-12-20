@@ -293,3 +293,101 @@
     padding: 40px 20px;
     color: rgba(255, 255, 255, 0.5);
 }
+
+/* Pull-to-refresh индикатор */
+.refresh-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(-50px);
+    transition: opacity 0.3s, transform 0.3s;
+    pointer-events: none;
+}
+
+.refresh-spinner {
+    margin-right: 0;
+}
+
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    border-top-color: #FFD700;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Стили для скелетон-загрузчика баланса */
+.skeleton-loader {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+}
+
+.skeleton-loader::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, 
+        transparent, 
+        rgba(255, 255, 255, 0.05), 
+        transparent);
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+/* Скелетон для общего баланса */
+.skeleton-total-balance {
+    height: 40px;
+    width: 200px;
+    margin: 0 auto;
+}
+
+/* Скелетон для токенов */
+.skeleton-token-balance {
+    height: 18px;
+    width: 80px;
+    margin-bottom: 6px;
+}
+
+.skeleton-usd-balance {
+    height: 14px;
+    width: 60px;
+}
+
+/* Индикатор обновления на главном балансе */
+.balance-loading-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 14px;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+    color: rgba(255, 255, 255, 0.5);
+}
