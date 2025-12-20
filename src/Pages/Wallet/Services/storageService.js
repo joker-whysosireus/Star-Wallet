@@ -9,24 +9,23 @@ import * as ecc from 'tiny-secp256k1';
 import crypto from 'crypto';
 import TronWeb from 'tronweb';
 
-// Инициализация bip32
 const bip32 = BIP32Factory(ecc);
 
-// === КОНФИГУРАЦИЯ MAINNET С ВСТАВЛЕННЫМИ КЛЮЧАМИ ===
+// === КОНФИГУРАЦИЯ MAINNET ===
 const MAINNET_CONFIG = {
     TON: {
         RPC_URL: 'https://toncenter.com/api/v3/jsonRPC',
-        API_KEY: '683bdd6cfa7a49a1b14c38c0c80b0b99' // Ваш Infura ключ для TON
+        API_KEY: '683bdd6cfa7a49a1b14c38c0c80b0b99'
     },
     ETHEREUM: {
-        RPC_URL: 'https://mainnet.infura.io/v3/683bdd6cfa7a49a1b14c38c0c80b0b99' // Ваш Infura ключ
+        RPC_URL: 'https://mainnet.infura.io/v3/683bdd6cfa7a49a1b14c38c0c80b0b99'
     },
     SOLANA: {
-        RPC_URL: 'https://mainnet.helius-rpc.com/?api-key=e1a20296-3d29-4edb-bc41-c709a187fbc9' // Ваш Helius ключ
+        RPC_URL: 'https://mainnet.helius-rpc.com/?api-key=e1a20296-3d29-4edb-bc41-c709a187fbc9'
     },
     TRON: {
         RPC_URL: 'https://api.trongrid.io',
-        API_KEY: '36b3eb2e-5f06-46f7-8aa4-bab1546a6a9f' // Ваш TronGrid ключ
+        API_KEY: '36b3eb2e-5f06-46f7-8aa4-bab1546a6a9f'
     },
     BITCOIN: {
         RPC_URL: 'https://blockstream.info/api'
@@ -71,7 +70,6 @@ export const TOKENS = {
 };
 
 // === ОСНОВНЫЕ ФУНКЦИИ ГЕНЕРАЦИИ КОШЕЛЬКОВ ===
-
 export const generateNewSeedPhrase = () => {
     try {
         return bip39.generateMnemonic(128);
@@ -192,7 +190,10 @@ const generateBitcoinAddress = async (seedPhrase) => {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const root = bip32.fromSeed(seedBuffer, bitcoin.networks.bitcoin);
         const child = root.derivePath("m/84'/0'/0'/0/0");
-        const { address } = bitcoin.payments.p2wpkh({ pubkey: child.publicKey, network: bitcoin.networks.bitcoin });
+        const { address } = bitcoin.payments.p2wpkh({ 
+            pubkey: child.publicKey, 
+            network: bitcoin.networks.bitcoin 
+        });
         return address;
     } catch (error) {
         console.error('Error generating Bitcoin address:', error);
@@ -215,15 +216,12 @@ const generateNearAddress = async (seedPhrase) => {
 };
 
 // === ФУНКЦИИ ПОЛУЧЕНИЯ БАЛАНСОВ ===
-
 export const getAllTokens = async (userData) => {
     try {
-        // Получаем кошельки из userData (после инициализации они там есть)
         if (userData?.wallets && Array.isArray(userData.wallets)) {
             return userData.wallets;
         }
         
-        // Если в userData есть seed фраза, генерируем кошельки
         if (userData?.seed_phrases) {
             const wallets = await generateWalletsFromSeed(userData.seed_phrases);
             return wallets;
@@ -537,7 +535,6 @@ const getBEP20Balance = async (address, contractAddress) => {
 };
 
 // === ФУНКЦИИ ДЛЯ РАБОТЫ С ПОЛЬЗОВАТЕЛЕМ ===
-
 export const initializeUserWallets = async (userData) => {
     try {
         if (!userData?.telegram_user_id) {
@@ -587,7 +584,6 @@ export const initializeUserWallets = async (userData) => {
 };
 
 // === API ФУНКЦИИ (Netlify) ===
-
 export const saveSeedPhraseToAPI = async (telegramUserId, seedPhrase) => {
     try {
         const response = await fetch(`${WALLET_API_URL}/save-seed`, {
@@ -640,7 +636,6 @@ export const getUserWallets = async (telegramUserId) => {
 };
 
 // === УТИЛИТНЫЕ ФУНКЦИИ ===
-
 export const getTokenPrices = async () => {
     try {
         const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,solana,ethereum,binancecoin,tron,bitcoin,near-protocol,tether,usd-coin&vs_currencies=usd');
@@ -711,8 +706,10 @@ export const validateAddress = async (blockchain, address) => {
                 const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
                 return tronRegex.test(address);
             case 'Bitcoin':
-                const bitcoinRegex = /^(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}$/;
-                return bitcoinRegex.test(address);
+                try {
+                    bitcoin.address.toOutputScript(address, bitcoin.networks.bitcoin);
+                    return true;
+                } catch { return false; }
             case 'NEAR':
                 const nearRegex = /^[a-z0-9_-]+\.(near|testnet)$/;
                 return nearRegex.test(address);
@@ -760,13 +757,24 @@ export const revealSeedPhrase = async (userData) => {
 
 export const getBalances = getRealBalances;
 
-// Функция для совместимости (SendToken.jsx)
+// Функции для совместимости
 export const sendTransaction = async (transactionData) => {
-    const { blockchain, fromAddress, toAddress, amount, symbol, memo, seedPhrase, contractAddress } = transactionData;
+    const { blockchain, toAddress, amount, seedPhrase, memo, contractAddress } = transactionData;
     
     try {
         const { sendTransaction: sendTx } = await import('./blockchainService');
-        return await sendTx(transactionData);
+        
+        // Подготавливаем параметры для отправки
+        const txParams = {
+            blockchain,
+            toAddress,
+            amount,
+            seedPhrase,
+            memo,
+            contractAddress
+        };
+        
+        return await sendTx(txParams);
     } catch (error) {
         console.error('Transaction error:', error);
         return {
@@ -776,7 +784,6 @@ export const sendTransaction = async (transactionData) => {
     }
 };
 
-// Функция оценки комиссии (для SendToken.jsx)
 export const estimateTransactionFee = async (blockchain) => {
     const defaultFees = {
         'TON': '0.05',
@@ -792,7 +799,6 @@ export const estimateTransactionFee = async (blockchain) => {
 };
 
 export default {
-    // Основные функции
     generateNewSeedPhrase,
     generateWalletsFromSeed,
     getAllTokens,
@@ -804,16 +810,10 @@ export default {
     calculateTotalBalance,
     validateAddress,
     revealSeedPhrase,
-    
-    // API функции
     saveSeedPhraseToAPI,
     saveAddressesToAPI,
     getUserWallets,
-    
-    // Функции для совместимости
     sendTransaction,
     estimateTransactionFee,
-    
-    // Константы
     TOKENS
 };
