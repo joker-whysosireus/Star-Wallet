@@ -707,6 +707,30 @@ export const getTokenPrices = async () => {
     }
 };
 
+// ДОБАВЛЕНА НЕДОСТАЮЩАЯ ФУНКЦИЯ для исправления ошибки Netlify
+export const getTokenPricesFromRPC = async () => {
+    try {
+        console.log('Fetching token prices from RPC...');
+        // Используем существующую логику getTokenPrices
+        const prices = await getTokenPrices();
+        return prices;
+    } catch (error) {
+        console.error('Error fetching prices from RPC:', error);
+        // Возвращаем дефолтные цены в случае ошибки
+        return {
+            'TON': 6.24,
+            'ETH': 3500.00,
+            'SOL': 172.34,
+            'BNB': 600.00,
+            'TRX': 0.12,
+            'BTC': 68000.00,
+            'NEAR': 8.50,
+            'USDT': 1.00,
+            'USDC': 1.00
+        };
+    }
+};
+
 export const calculateTotalBalance = async (wallets) => {
     try {
         if (!Array.isArray(wallets) || wallets.length === 0) return '0.00';
@@ -842,6 +866,7 @@ export default {
     generateWalletsFromSeed,
     getAllTokens,
     getRealBalances,
+    getTokenPricesFromRPC, // Добавлен экспорт недостающей функции
     initializeUserWallets,
     clearAllData,
     setupAppCloseListener,

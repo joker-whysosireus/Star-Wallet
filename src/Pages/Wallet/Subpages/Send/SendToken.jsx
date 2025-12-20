@@ -5,7 +5,7 @@ import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
 import { 
     getBalances, 
-    getTokenPricesFromRPC, 
+    getTokenPrices, // Исправлен импорт - используем getTokenPrices вместо getTokenPricesFromRPC
     sendTransaction,
     validateAddress,
     estimateTransactionFee
@@ -59,7 +59,7 @@ const SendToken = () => {
                 setToken(updatedToken);
                 setBalance(updatedToken.balance || '0');
                 
-                const prices = await getTokenPricesFromRPC();
+                const prices = await getTokenPrices(); // Использована исправленная функция
                 const price = prices[token.symbol] || 1;
                 const usd = parseFloat(updatedToken.balance || 0) * price;
                 setUsdValue(usd.toFixed(2));
