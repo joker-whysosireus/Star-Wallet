@@ -53,18 +53,15 @@ function Wallet({ isActive, userData }) {
             webApp.BackButton.hide();
         }
 
-        // Добавляем обработчики для pull-to-refresh только в секции total balance
         setupPullToRefresh();
         
         return () => {
-            // Очищаем обработчики
             const totalBalanceEl = totalBalanceRef.current;
             if (totalBalanceEl) {
                 totalBalanceEl.removeEventListener('touchstart', handleTouchStart);
                 totalBalanceEl.removeEventListener('touchmove', handleTouchMove);
                 totalBalanceEl.removeEventListener('touchend', handleTouchEnd);
             }
-            // Очищаем таймер
             if (loadingTimerRef.current) {
                 clearTimeout(loadingTimerRef.current);
             }
@@ -92,10 +89,9 @@ function Wallet({ isActive, userData }) {
         
         if (diff > 0) {
             e.preventDefault();
-            // Показываем спиннер при свайпе вниз в секции total balance
             if (diff > 30) {
                 setIsRefreshing(true);
-                setContentMargin(50); // Опускаем контент на 50px
+                setContentMargin(50);
             }
         }
     };
@@ -105,17 +101,14 @@ function Wallet({ isActive, userData }) {
         const diff = touchY - touchStartY.current;
         
         if (diff > 50) {
-            // Запускаем обновление при достаточном свайпе
             handleRefresh();
         } else {
-            // Скрываем спиннер если свайп недостаточный
             setIsRefreshing(false);
-            setContentMargin(0); // Возвращаем контент обратно
+            setContentMargin(0);
         }
         touchStartY.current = 0;
     };
 
-    // Функция для обновления балансов
     const updateBalances = useCallback(async (forceUpdate = false, showSkeletonLoading = false) => {
         if (!userData || isUpdatingRef.current) return;
 
@@ -124,13 +117,12 @@ function Wallet({ isActive, userData }) {
             if (!forceUpdate && now - lastRefreshTime.current < MIN_REFRESH_INTERVAL) {
                 setIsRefreshing(false);
                 setContentMargin(0);
-                return; // Слишком рано для обновления
+                return;
             }
 
             isUpdatingRef.current = true;
             
-            // Показываем скелетоны при обновлении через спиннер
-            if (showSkeletonLoading || isInitialLoad) {
+            if ((showSkeletonLoading && isRefreshing) || isInitialLoad) {
                 setShowSkeleton(true);
             }
             
@@ -157,7 +149,6 @@ function Wallet({ isActive, userData }) {
 
             const updatedWallets = await getBalances(allTokens, userData);
             
-            // Обновляем кэш
             updatedWallets.forEach(wallet => {
                 balanceCache.current[wallet.id] = {
                     balance: wallet.balance,
@@ -168,7 +159,6 @@ function Wallet({ isActive, userData }) {
             setWallets(updatedWallets);
             localStorage.setItem('cached_wallets', JSON.stringify(updatedWallets));
             
-            // Рассчитываем общий баланс
             const total = await calculateTotalBalance(updatedWallets);
             setTotalBalance(`$${total}`);
             localStorage.setItem('cached_total_balance', `$${total}`);
@@ -178,7 +168,6 @@ function Wallet({ isActive, userData }) {
         } catch (error) {
             console.error('Error updating balances:', error);
             
-            // Используем кэшированные данные при ошибке
             if (Object.keys(balanceCache.current).length > 0) {
                 const cachedWallets = wallets.map(wallet => {
                     const cachedBalance = balanceCache.current[wallet.id];
@@ -187,7 +176,6 @@ function Wallet({ isActive, userData }) {
                 setWallets(cachedWallets);
             }
         } finally {
-            // Гарантируем, что скелетоны скроются и контент вернется на место
             loadingTimerRef.current = setTimeout(() => {
                 setIsRefreshing(false);
                 setShowSkeleton(false);
@@ -197,23 +185,21 @@ function Wallet({ isActive, userData }) {
                 loadingTimerRef.current = null;
             }, 300);
         }
-    }, [userData, wallets, isInitialLoad]);
+    }, [userData, wallets, isInitialLoad, isRefreshing]);
 
-    // Инициализация при монтировании
     useEffect(() => {
         if (userData && !hasInitialized.current) {
             hasInitialized.current = true;
-            updateBalances(true, true); // Принудительное обновление при первой загрузке с скелетонами
+            updateBalances(true, true);
         }
     }, [userData, updateBalances]);
 
-    // Периодическое обновление балансов (в фоне)
     useEffect(() => {
         if (!userData) return;
         
         const interval = setInterval(() => {
-            updateBalances(false, false); // Фоновое обновление без скелетонов
-        }, 30000); // Обновляем каждые 30 секунд
+            updateBalances(false, false);
+        }, 30000);
         
         return () => clearInterval(interval);
     }, [userData, updateBalances]);
@@ -264,9 +250,8 @@ function Wallet({ isActive, userData }) {
         setShowBackupPage(false);
     };
 
-    // Функция для обновления по pull-to-refresh
     const handleRefresh = () => {
-        updateBalances(true, true); // Обновление с скелетонами
+        updateBalances(true, true);
     };
 
     if (showBackupPage) {
@@ -364,8 +349,7 @@ function Wallet({ isActive, userData }) {
                 </div>
 
                 <div className="assets-container">
-                    {showSkeleton ? (
-                        // Показываем скелетоны при загрузке (первой или при обновлении через спиннер)
+                    {showSkeleton && (isInitialLoad || isRefreshing) ? (
                         Array.from({ length: 10 }).map((_, index) => (
                             <div 
                                 key={`skeleton-${index}`} 

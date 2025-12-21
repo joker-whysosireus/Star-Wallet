@@ -162,94 +162,71 @@ const TokenDetail = () => {
             <Header userData={userData} />
             
             <div className="page-content">
+                <div className="token-header">
+                    <h1>Token Details</h1>
+                </div>
+                
                 <div className="token-icon-container">
-                    {showSkeleton ? (
-                        <div className="skeleton-loader" style={{ 
-                            width: '80px', 
-                            height: '80px',
-                            borderRadius: '50%'
-                        }}></div>
-                    ) : (
-                        <div className="token-icon-large">
-                            <img 
-                                src={getLogoUrl()} 
-                                alt={wallet.symbol}
-                                style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
-                                onError={(e) => {
-                                    console.error(`Failed to load logo for ${wallet.symbol}:`, e);
-                                    e.target.style.display = 'none';
-                                    const fallback = document.createElement('div');
-                                    fallback.className = 'token-logo-fallback';
-                                    fallback.textContent = wallet.symbol.substring(0, 2);
-                                    e.target.parentNode.appendChild(fallback);
-                                }}
-                            />
-                        </div>
-                    )}
+                    <div className="token-icon-large">
+                        <img 
+                            src={getLogoUrl()} 
+                            alt={wallet.symbol}
+                            style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+                            onError={(e) => {
+                                console.error(`Failed to load logo for ${wallet.symbol}:`, e);
+                                e.target.style.display = 'none';
+                                const fallback = document.createElement('div');
+                                fallback.className = 'token-logo-fallback';
+                                fallback.textContent = wallet.symbol.substring(0, 2);
+                                e.target.parentNode.appendChild(fallback);
+                            }}
+                        />
+                    </div>
                 </div>
                 
                 <div className="token-balance-display">
                     <div className="token-amount-container">
                         {showSkeleton ? (
-                            <>
-                                <div className="skeleton-loader" style={{ 
-                                    width: '200px', 
-                                    height: '36px', 
-                                    marginBottom: '10px' 
-                                }}></div>
-                                <div className="skeleton-loader" style={{ 
-                                    width: '120px', 
-                                    height: '20px',
-                                }}></div>
-                            </>
+                            <div className="skeleton-loader" style={{ 
+                                width: '150px', 
+                                height: '32px', 
+                                marginBottom: '10px' 
+                            }}></div>
                         ) : (
-                            <>
-                                <p className="token-amount">{wallet.balance || '0.00'} {wallet.symbol}</p>
-                                {badge && (
-                                    <div 
-                                        className="blockchain-badge" 
-                                        style={{ 
-                                            borderColor: badge.color,
-                                            color: badge.color,
-                                        }}
-                                        title={wallet.blockchain}
-                                    >
-                                        {badge.text}
-                                    </div>
-                                )}
-                                <p className="usd-amount">${usdValue}</p>
-                            </>
+                            <p className="token-amount">{wallet.balance || '0.00'} {wallet.symbol}</p>
                         )}
+                        
+                        <div className="usd-amount-container">
+                            {showSkeleton ? (
+                                <div className="skeleton-loader" style={{ 
+                                    width: '100px', 
+                                    height: '24px',
+                                    marginTop: '10px'
+                                }}></div>
+                            ) : (
+                                <>
+                                    <p className="usd-amount">${usdValue}</p>
+                                    {badge && (
+                                        <div 
+                                            className="blockchain-badge" 
+                                            style={{ 
+                                                borderColor: badge.color,
+                                                color: badge.color,
+                                            }}
+                                            title={wallet.blockchain}
+                                        >
+                                            {badge.text}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
                     </div>
                 </div>
                 
-                <div style={{
-                    display: 'flex',
-                    justifyContent: 'center',
-                    gap: '15px',
-                    width: '100%',
-                    maxWidth: '400px',
-                    marginTop: '10px'
-                }}>
+                <div className="action-buttons">
                     <button 
-                        style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            border: 'none',
-                            borderRadius: '10px',
-                            color: 'white',
-                            padding: '12px 6px',
-                            fontSize: '11px',
-                            cursor: 'pointer',
-                            flex: 1,
-                            minWidth: '55px',
-                            height: '55px',
-                            transition: 'all 0.2s ease',
-                            maxWidth: '100px'
-                        }}
+                        className="action-btn"
                         onClick={() => navigate('/receive', { 
                             state: { 
                                 wallet,
@@ -258,37 +235,12 @@ const TokenDetail = () => {
                         })}
                         disabled={showSkeleton}
                     >
-                        <span style={{
-                            fontSize: '18px',
-                            marginBottom: '4px',
-                            display: 'block',
-                            color: '#FFD700'
-                        }}>↓</span>
-                        <span style={{
-                            fontSize: '11px',
-                            fontWeight: '500'
-                        }}>Receive</span>
+                        <span className="action-btn-icon">↓</span>
+                        <span className="action-btn-text">Receive</span>
                     </button>
                     
                     <button 
-                        style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            border: 'none',
-                            borderRadius: '10px',
-                            color: 'white',
-                            padding: '12px 6px',
-                            fontSize: '11px',
-                            cursor: 'pointer',
-                            flex: 1,
-                            minWidth: '55px',
-                            height: '55px',
-                            transition: 'all 0.2s ease',
-                            maxWidth: '100px'
-                        }}
+                        className="action-btn"
                         onClick={() => navigate('/send', { 
                             state: { 
                                 wallet,
@@ -297,37 +249,12 @@ const TokenDetail = () => {
                         })}
                         disabled={showSkeleton}
                     >
-                        <span style={{
-                            fontSize: '18px',
-                            marginBottom: '4px',
-                            display: 'block',
-                            color: '#FFD700'
-                        }}>↑</span>
-                        <span style={{
-                            fontSize: '11px',
-                            fontWeight: '500'
-                        }}>Send</span>
+                        <span className="action-btn-icon">↑</span>
+                        <span className="action-btn-text">Send</span>
                     </button>
                     
                     <button 
-                        style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            border: 'none',
-                            borderRadius: '10px',
-                            color: 'white',
-                            padding: '12px 6px',
-                            fontSize: '11px',
-                            cursor: 'pointer',
-                            flex: 1,
-                            minWidth: '55px',
-                            height: '55px',
-                            transition: 'all 0.2s ease',
-                            maxWidth: '100px'
-                        }}
+                        className="action-btn"
                         onClick={() => navigate('/swap', { 
                             state: { 
                                 fromToken: wallet,
@@ -336,16 +263,8 @@ const TokenDetail = () => {
                         })}
                         disabled={showSkeleton}
                     >
-                        <span style={{
-                            fontSize: '18px',
-                            marginBottom: '4px',
-                            display: 'block',
-                            color: '#FFD700'
-                        }}>↔</span>
-                        <span style={{
-                            fontSize: '11px',
-                            fontWeight: '500'
-                        }}>Swap</span>
+                        <span className="action-btn-icon">↔</span>
+                        <span className="action-btn-text">Swap</span>
                     </button>
                 </div>
             </div>
