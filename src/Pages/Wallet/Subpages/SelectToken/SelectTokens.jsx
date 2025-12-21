@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
-import TokenCard from '../../Components/List/TokenCard';
 import { 
     getAllTokens,
     getBalances,
@@ -16,8 +15,10 @@ const SelectToken = () => {
     const { mode, userData } = location.state || {};
     
     const [wallets, setWallets] = useState([]);
+    const [filteredWallets, setFilteredWallets] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showSkeleton, setShowSkeleton] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     
     useEffect(() => {
         if (!userData) {
@@ -36,6 +37,7 @@ const SelectToken = () => {
             const allTokens = await getAllTokens(userData);
             if (!Array.isArray(allTokens) || allTokens.length === 0) {
                 setWallets([]);
+                setFilteredWallets([]);
                 setShowSkeleton(false);
                 setIsLoading(false);
                 return;
@@ -43,6 +45,7 @@ const SelectToken = () => {
             
             const updatedWallets = await getBalances(allTokens, userData);
             setWallets(updatedWallets);
+            setFilteredWallets(updatedWallets);
         } catch (error) {
             console.error('Error loading tokens:', error);
         } finally {
@@ -69,10 +72,40 @@ const SelectToken = () => {
         }
     };
     
+    const handleSearch = (e) => {
+        const query = e.target.value.toLowerCase();
+        setSearchQuery(query);
+        
+        if (query === '') {
+            setFilteredWallets(wallets);
+        } else {
+            const filtered = wallets.filter(wallet => 
+                wallet.symbol.toLowerCase().includes(query) ||
+                wallet.name.toLowerCase().includes(query) ||
+                wallet.blockchain.toLowerCase().includes(query)
+            );
+            setFilteredWallets(filtered);
+        }
+    };
+    
     const getTitle = () => {
         if (mode === 'send') return 'Select Token to Send';
         if (mode === 'receive') return 'Select Token to Receive';
         return 'Select Token';
+    };
+    
+    const getBlockchainBadge = (blockchain) => {
+        const badges = {
+            'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)' },
+            'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)' },
+            'Ethereum': { color: '#8c8cff', bg: 'rgba(140, 140, 255, 0.1)' },
+            'Tron': { color: '#ff0000', bg: 'rgba(255, 0, 0, 0.1)' },
+            'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)' },
+            'NEAR': { color: '#0b4731', bg: 'rgba(11, 71, 49, 0.1)' },
+            'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)' },
+        };
+        
+        return badges[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)' };
     };
     
     if (!mode || !userData) {
@@ -100,45 +133,80 @@ const SelectToken = () => {
             <div className="page-content">
                 <div className="select-token-header">
                     <h1>{getTitle()}</h1>
+                    <div className="search-container">
+                        <input
+                            type="text"
+                            placeholder="Search tokens..."
+                            value={searchQuery}
+                            onChange={handleSearch}
+                            className="search-input"
+                        />
+                    </div>
                 </div>
                 
-                <div className="assets-container">
+                <div className="tokens-grid-container">
                     {showSkeleton ? (
-                        Array.from({ length: 10 }).map((_, index) => (
+                        // Скелетоны для квадратных блоков (3 в ряд)
+                        Array.from({ length: 9 }).map((_, index) => (
                             <div 
                                 key={`skeleton-${index}`} 
-                                className="token-block"
-                                style={{ height: '68px', background: 'rgba(255, 255, 255, 0.03)' }}
+                                className="token-grid-item skeleton-item"
                             >
-                                <div className="token-card">
-                                    <div className="token-left">
-                                        <div className="token-icon skeleton-loader" style={{ background: 'rgba(255, 255, 255, 0.03)' }}></div>
-                                        <div className="token-names">
-                                            <div className="skeleton-loader" style={{ height: '14px', width: '80px', marginBottom: '6px', background: 'rgba(255, 255, 255, 0.03)' }}></div>
-                                            <div className="skeleton-loader" style={{ height: '18px', width: '60px', background: 'rgba(255, 255, 255, 0.03)' }}></div>
-                                        </div>
+                                <div className="token-grid-icon skeleton-loader" style={{ background: 'rgba(255, 255, 255, 0.03)' }}></div>
+                                <div className="token-grid-symbol skeleton-loader" style={{ 
+                                    height: '16px', 
+                                    width: '40px',
+                                    margin: '8px auto 4px',
+                                    background: 'rgba(255, 255, 255, 0.03)'
+                                }}></div>
+                                <div className="token-grid-name skeleton-loader" style={{ 
+                                    height: '12px', 
+                                    width: '60px',
+                                    margin: '0 auto',
+                                    background: 'rgba(255, 255, 255, 0.03)'
+                                }}></div>
+                            </div>
+                        ))
+                    ) : filteredWallets.length > 0 ? (
+                        filteredWallets.map((wallet) => {
+                            const badge = getBlockchainBadge(wallet.blockchain);
+                            return (
+                                <div 
+                                    key={wallet.id} 
+                                    className="token-grid-item"
+                                    onClick={() => handleTokenClick(wallet)}
+                                >
+                                    <div className="token-grid-icon">
+                                        <img 
+                                            src={wallet.logo} 
+                                            alt={wallet.symbol}
+                                            onError={(e) => {
+                                                e.target.style.display = 'none';
+                                                const fallback = document.createElement('div');
+                                                fallback.className = 'token-icon-fallback';
+                                                fallback.textContent = wallet.symbol.substring(0, 2);
+                                                e.target.parentNode.appendChild(fallback);
+                                            }}
+                                        />
                                     </div>
-                                    <div className="token-right">
-                                        <div className="skeleton-loader skeleton-token-balance"></div>
-                                        <div className="skeleton-loader skeleton-usd-balance"></div>
-                                        <div className="skeleton-loader" style={{ height: '12px', width: '40px', marginTop: '4px', background: 'rgba(255, 255, 255, 0.03)' }}></div>
+                                    <div className="token-grid-symbol">{wallet.symbol}</div>
+                                    <div className="token-grid-name">{wallet.name}</div>
+                                    <div 
+                                        className="token-grid-badge"
+                                        style={{ 
+                                            color: badge.color,
+                                            backgroundColor: badge.bg
+                                        }}
+                                    >
+                                        {wallet.blockchain}
                                     </div>
                                 </div>
-                            </div>
-                        ))
-                    ) : wallets.length > 0 ? (
-                        wallets.map((wallet) => (
-                            <div 
-                                key={wallet.id} 
-                                className="token-block"
-                                onClick={() => handleTokenClick(wallet)}
-                            >
-                                <TokenCard wallet={wallet} />
-                            </div>
-                        ))
+                            );
+                        })
                     ) : (
-                        <div className="no-wallets-message">
-                            <p>No wallets found</p>
+                        <div className="no-tokens-message">
+                            <p>No tokens found</p>
+                            {searchQuery && <p>Try a different search term</p>}
                         </div>
                     )}
                 </div>
