@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap');
 
-.page-container-sw {
+.page-container {
     min-height: 100vh;
     background-color: #000000;
     color: white;
@@ -22,18 +22,6 @@
     box-sizing: border-box;
     flex: 1;
     width: 100%;
-}
-
-.token-header {
-    text-align: center;
-    margin-bottom: 30px;
-}
-
-.token-header h1 {
-    color: white;
-    font-size: 22px;
-    font-weight: 600;
-    margin: 0;
 }
 
 .token-icon-container {
@@ -84,13 +72,6 @@
     margin: 0 0 10px 0;
 }
 
-.usd-amount-container {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 5px;
-}
-
 .usd-amount {
     font-size: 18px;
     color: rgba(255, 255, 255, 0.7);
@@ -102,59 +83,9 @@
     border-radius: 12px;
     font-size: 11px;
     font-weight: 600;
-    border: 1px solid;
     background: transparent;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-}
-
-.action-buttons {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    width: 100%;
-    max-width: 350px;
-    margin-top: 20px;
-}
-
-.action-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.05);
-    border: none;
-    border-radius: 10px;
-    color: white;
-    padding: 12px 8px;
-    font-size: 12px;
-    cursor: pointer;
-    flex: 1;
-    min-width: 70px;
-    height: 65px;
-    transition: all 0.2s ease;
-}
-
-.action-btn:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.08);
-    transform: translateY(-2px);
-}
-
-.action-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.action-btn-icon {
-    font-size: 20px;
-    margin-bottom: 6px;
-    color: #FFD700;
-    text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
-}
-
-.action-btn-text {
-    font-size: 12px;
-    font-weight: 500;
 }
 
 .loading-container {

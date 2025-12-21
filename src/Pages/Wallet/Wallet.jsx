@@ -35,7 +35,7 @@ function Wallet({ isActive, userData }) {
     const pageContentRef = useRef(null);
     const totalBalanceRef = useRef(null);
     const lastRefreshTime = useRef(0);
-    const MIN_REFRESH_INTERVAL = 10000; // 10 секунд
+    const MIN_REFRESH_INTERVAL = 10000;
     const loadingTimerRef = useRef(null);
     const isUpdatingRef = useRef(false);
 
@@ -264,7 +264,7 @@ function Wallet({ isActive, userData }) {
     }
 
     return (
-        <div className="page-container-sw">
+        <div className="wallet-page">
             <Header userData={userData} />
 
             <div 

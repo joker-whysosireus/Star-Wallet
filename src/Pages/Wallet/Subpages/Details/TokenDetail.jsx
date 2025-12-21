@@ -17,7 +17,7 @@ const TokenDetail = () => {
     const [wallet, setWallet] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [usdValue, setUsdValue] = useState('0.00');
-    const [showSkeleton, setShowSkeleton] = useState(true);
+    const [showSkeleton, setShowSkeleton] = useState(false);
     const userData = location.state?.userData || location.state?.userData;
     
     useEffect(() => {
@@ -27,78 +27,44 @@ const TokenDetail = () => {
             setWallet(walletData);
             loadBalances();
         } else if (symbol) {
-            // Если перешли по прямой ссылке, создаем mock wallet
             const token = Object.values(TOKENS).find(t => t.symbol === symbol);
             if (token) {
                 const mockWallet = {
                     ...token,
                     address: 'TQCc68Mp5dZ2Lm9XrJARoqo2D4Xtye5gFkR',
-                    balance: '0.00',
+                    balance: '25.43',
                     isActive: true
                 };
                 setWallet(mockWallet);
-                calculateUsdValue('0.00');
-                setShowSkeleton(false);
+                setUsdValue((25.43 * 6.24).toFixed(2));
                 setIsLoading(false);
             } else {
                 setIsLoading(false);
-                setShowSkeleton(false);
             }
         } else {
             setIsLoading(false);
-            setShowSkeleton(false);
         }
-        
-        return () => {
-            setShowSkeleton(false);
-        };
     }, [symbol, location.state]);
 
     const loadBalances = async () => {
-        if (!wallet || !userData) {
-            setShowSkeleton(false);
-            setIsLoading(false);
-            return;
-        }
+        if (!wallet || !userData) return;
         
         setShowSkeleton(true);
-        setIsLoading(true);
         
         try {
             const updatedWallets = await getBalances([wallet], userData);
             if (updatedWallets && updatedWallets.length > 0) {
-                const updatedWallet = updatedWallets[0];
-                setWallet(updatedWallet);
-                await calculateUsdValue(updatedWallet.balance);
-            } else {
-                await calculateUsdValue(wallet.balance || '0.00');
+                setWallet(updatedWallets[0]);
+                const prices = await getTokenPrices();
+                const price = prices[wallet.symbol] || 1;
+                const usd = parseFloat(updatedWallets[0].balance) * price;
+                setUsdValue(usd.toFixed(2));
             }
         } catch (error) {
             console.error('Error loading balances:', error);
-            await calculateUsdValue(wallet.balance || '0.00');
         } finally {
-            setTimeout(() => {
-                setShowSkeleton(false);
-                setIsLoading(false);
-            }, 500);
-        }
-    };
-
-    const calculateUsdValue = async (balance) => {
-        try {
-            const prices = await getTokenPrices();
-            const price = prices[wallet?.symbol] || 1;
-            const usd = parseFloat(balance || 0) * price;
-            setUsdValue(usd.toFixed(2));
-        } catch (error) {
-            console.error('Error calculating USD value:', error);
-            const defaultPrices = {
-                'TON': 6.24, 'ETH': 3500, 'SOL': 172, 'BNB': 600,
-                'TRX': 0.12, 'BTC': 68000, 'NEAR': 8.5, 'USDT': 1, 'USDC': 1
-            };
-            const price = defaultPrices[wallet?.symbol] || 1;
-            const usd = parseFloat(balance || 0) * price;
-            setUsdValue(usd.toFixed(2));
+            setShowSkeleton(false);
+            setIsLoading(false);
         }
     };
 
@@ -128,7 +94,7 @@ const TokenDetail = () => {
 
     if (isLoading && !wallet) {
         return (
-            <div className="page-container-sw">
+            <div className="page-container">
                 <Header userData={userData} />
                 <div className="loading-container">
                     <div className="loader"></div>
@@ -141,7 +107,7 @@ const TokenDetail = () => {
 
     if (!wallet) {
         return (
-            <div className="page-container-sw">
+            <div className="page-container">
                 <Header userData={userData} />
                 <div className="page-content">
                     <h1 style={{ color: 'white' }}>Token not found</h1>
@@ -158,14 +124,10 @@ const TokenDetail = () => {
     }
 
     return (
-        <div className="page-container-sw">
+        <div className="page-container">
             <Header userData={userData} />
             
             <div className="page-content">
-                <div className="token-header">
-                    <h1>Token Details</h1>
-                </div>
-                
                 <div className="token-icon-container">
                     <div className="token-icon-large">
                         <img 
@@ -188,45 +150,65 @@ const TokenDetail = () => {
                     <div className="token-amount-container">
                         {showSkeleton ? (
                             <div className="skeleton-loader" style={{ 
-                                width: '150px', 
+                                width: '180px', 
                                 height: '32px', 
                                 marginBottom: '10px' 
                             }}></div>
                         ) : (
                             <p className="token-amount">{wallet.balance || '0.00'} {wallet.symbol}</p>
                         )}
-                        
-                        <div className="usd-amount-container">
-                            {showSkeleton ? (
-                                <div className="skeleton-loader" style={{ 
-                                    width: '100px', 
-                                    height: '24px',
-                                    marginTop: '10px'
-                                }}></div>
-                            ) : (
-                                <>
-                                    <p className="usd-amount">${usdValue}</p>
-                                    {badge && (
-                                        <div 
-                                            className="blockchain-badge" 
-                                            style={{ 
-                                                borderColor: badge.color,
-                                                color: badge.color,
-                                            }}
-                                            title={wallet.blockchain}
-                                        >
-                                            {badge.text}
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
+                        {badge && !showSkeleton && (
+                            <div 
+                                className="blockchain-badge" 
+                                style={{ 
+                                    borderColor: badge.color,
+                                    color: badge.color,
+                                }}
+                                title={wallet.blockchain}
+                            >
+                                {badge.text}
+                            </div>
+                        )}
                     </div>
+                    
+                    {showSkeleton ? (
+                        <div className="skeleton-loader" style={{ 
+                            width: '100px', 
+                            height: '24px',
+                            marginTop: '5px'
+                        }}></div>
+                    ) : (
+                        <p className="usd-amount">${usdValue}</p>
+                    )}
                 </div>
                 
-                <div className="action-buttons">
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    gap: '15px',
+                    width: '100%',
+                    maxWidth: '400px',
+                    marginTop: '10px'
+                }}>
                     <button 
-                        className="action-btn"
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: 'none',
+                            borderRadius: '10px',
+                            color: 'white',
+                            padding: '12px 6px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            flex: 1,
+                            minWidth: '55px',
+                            height: '55px',
+                            transition: 'all 0.2s ease',
+                            maxWidth: '100px'
+                        }}
                         onClick={() => navigate('/receive', { 
                             state: { 
                                 wallet,
@@ -235,12 +217,37 @@ const TokenDetail = () => {
                         })}
                         disabled={showSkeleton}
                     >
-                        <span className="action-btn-icon">↓</span>
-                        <span className="action-btn-text">Receive</span>
+                        <span style={{
+                            fontSize: '18px',
+                            marginBottom: '4px',
+                            display: 'block',
+                            color: '#FFD700'
+                        }}>↓</span>
+                        <span style={{
+                            fontSize: '11px',
+                            fontWeight: '500'
+                        }}>Receive</span>
                     </button>
                     
                     <button 
-                        className="action-btn"
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: 'none',
+                            borderRadius: '10px',
+                            color: 'white',
+                            padding: '12px 6px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            flex: 1,
+                            minWidth: '55px',
+                            height: '55px',
+                            transition: 'all 0.2s ease',
+                            maxWidth: '100px'
+                        }}
                         onClick={() => navigate('/send', { 
                             state: { 
                                 wallet,
@@ -249,12 +256,37 @@ const TokenDetail = () => {
                         })}
                         disabled={showSkeleton}
                     >
-                        <span className="action-btn-icon">↑</span>
-                        <span className="action-btn-text">Send</span>
+                        <span style={{
+                            fontSize: '18px',
+                            marginBottom: '4px',
+                            display: 'block',
+                            color: '#FFD700'
+                        }}>↑</span>
+                        <span style={{
+                            fontSize: '11px',
+                            fontWeight: '500'
+                        }}>Send</span>
                     </button>
                     
                     <button 
-                        className="action-btn"
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            border: 'none',
+                            borderRadius: '10px',
+                            color: 'white',
+                            padding: '12px 6px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            flex: 1,
+                            minWidth: '55px',
+                            height: '55px',
+                            transition: 'all 0.2s ease',
+                            maxWidth: '100px'
+                        }}
                         onClick={() => navigate('/swap', { 
                             state: { 
                                 fromToken: wallet,
@@ -263,8 +295,16 @@ const TokenDetail = () => {
                         })}
                         disabled={showSkeleton}
                     >
-                        <span className="action-btn-icon">↔</span>
-                        <span className="action-btn-text">Swap</span>
+                        <span style={{
+                            fontSize: '18px',
+                            marginBottom: '4px',
+                            display: 'block',
+                            color: '#FFD700'
+                        }}>↔</span>
+                        <span style={{
+                            fontSize: '11px',
+                            fontWeight: '500'
+                        }}>Swap</span>
                     </button>
                 </div>
             </div>
