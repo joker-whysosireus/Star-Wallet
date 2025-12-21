@@ -217,30 +217,30 @@ function Wallet({ isActive, userData }) {
     }, [navigate, userData]);
 
     const handleActionClick = useCallback((action) => {
-        if (!userData || !wallets.length) return;
+        if (!userData) return;
 
-        const firstWallet = wallets.find(w => w.address) || wallets[0];
-        
         if (action === 'receive') {
-            navigate('/receive', { 
+            // Переходим на страницу выбора токена для получения
+            navigate('/select-token', { 
                 state: { 
-                    wallet: firstWallet,
+                    mode: 'receive',
                     userData: userData 
                 } 
             });
         } else if (action === 'send') {
-            navigate('/send', { 
+            // Переходим на страницу выбора токена для отправки
+            navigate('/select-token', { 
                 state: { 
-                    wallet: firstWallet,
+                    mode: 'send',
                     userData: userData 
                 } 
             });
-        } else if (action === 'earn') {
+        } else if (action === 'stake') {
             navigate('/stake', { state: { userData } });
         } else if (action === 'swap') {
             navigate('/swap', { state: { userData } });
         }
-    }, [wallets, navigate, userData]);
+    }, [navigate, userData]);
 
     const handleBackupClick = () => {
         setShowBackupPage(true);
@@ -302,7 +302,7 @@ function Wallet({ isActive, userData }) {
                     <button 
                         className="wallet-action-btn"
                         onClick={() => handleActionClick('receive')}
-                        disabled={!wallets.length || isRefreshing}
+                        disabled={isRefreshing}
                     >
                         <span className="wallet-action-btn-icon gold-icon">↓</span>
                         <span className="wallet-action-btn-text">Receive</span>
@@ -310,18 +310,18 @@ function Wallet({ isActive, userData }) {
                     <button 
                         className="wallet-action-btn"
                         onClick={() => handleActionClick('send')}
-                        disabled={!wallets.length || isRefreshing}
+                        disabled={isRefreshing}
                     >
                         <span className="wallet-action-btn-icon gold-icon">↑</span>
                         <span className="wallet-action-btn-text">Send</span>
                     </button>
                     <button 
                         className="wallet-action-btn"
-                        onClick={() => handleActionClick('earn')}
+                        onClick={() => handleActionClick('stake')}
                         disabled={isRefreshing}
                     >
                         <span className="wallet-action-btn-icon gold-icon">💰</span>
-                        <span className="wallet-action-btn-text">Earn</span>
+                        <span className="wallet-action-btn-text">Stake</span>
                     </button>
                     <button 
                         className="wallet-action-btn"
