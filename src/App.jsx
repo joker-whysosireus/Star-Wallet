@@ -5,7 +5,7 @@ import History from './Pages/History/History';
 import Swap from './Pages/Swap/Swap';
 import Wallet from './Pages/Wallet/Wallet';
 import TokenDetail from './Pages/Wallet/Subpages/Details/TokenDetail';
-import SelectToken from './Pages/Wallet/Subpages/SelectToken/SelectToken.jsX';
+import SelectToken from './Pages/Wallet/Subpages/SelectToken/SelectTokens.jsx';
 import Stake from './Pages/Stake/Stake';
 import SendToken from './Pages/Wallet/Subpages/Send/SendToken';
 import ReceiveToken from './Pages/Wallet/Subpages/Receive/ReceiveToken';
