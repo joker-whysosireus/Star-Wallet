@@ -26,6 +26,7 @@ function Wallet({ isActive, userData }) {
     const [showSkeleton, setShowSkeleton] = useState(false);
     const [showBackupPage, setShowBackupPage] = useState(false);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
+    const [contentMargin, setContentMargin] = useState(0);
     const navigate = useNavigate();
     
     const hasInitialized = useRef(false);
@@ -35,6 +36,8 @@ function Wallet({ isActive, userData }) {
     const totalBalanceRef = useRef(null);
     const lastRefreshTime = useRef(0);
     const MIN_REFRESH_INTERVAL = 10000; // 10 секунд
+    const loadingTimerRef = useRef(null);
+    const isUpdatingRef = useRef(false);
 
     useEffect(() => {
         const isTelegramWebApp = () => {
@@ -60,6 +63,10 @@ function Wallet({ isActive, userData }) {
                 totalBalanceEl.removeEventListener('touchstart', handleTouchStart);
                 totalBalanceEl.removeEventListener('touchmove', handleTouchMove);
                 totalBalanceEl.removeEventListener('touchend', handleTouchEnd);
+            }
+            // Очищаем таймер
+            if (loadingTimerRef.current) {
+                clearTimeout(loadingTimerRef.current);
             }
         };
     }, []);
@@ -88,6 +95,7 @@ function Wallet({ isActive, userData }) {
             // Показываем спиннер при свайпе вниз в секции total balance
             if (diff > 30) {
                 setIsRefreshing(true);
+                setContentMargin(50); // Опускаем контент на 50px
             }
         }
     };
@@ -102,21 +110,25 @@ function Wallet({ isActive, userData }) {
         } else {
             // Скрываем спиннер если свайп недостаточный
             setIsRefreshing(false);
+            setContentMargin(0); // Возвращаем контент обратно
         }
         touchStartY.current = 0;
     };
 
     // Функция для обновления балансов
     const updateBalances = useCallback(async (forceUpdate = false, showSkeletonLoading = false) => {
-        if (!userData) return;
+        if (!userData || isUpdatingRef.current) return;
 
         try {
             const now = Date.now();
             if (!forceUpdate && now - lastRefreshTime.current < MIN_REFRESH_INTERVAL) {
                 setIsRefreshing(false);
+                setContentMargin(0);
                 return; // Слишком рано для обновления
             }
 
+            isUpdatingRef.current = true;
+            
             // Показываем скелетоны при обновлении через спиннер
             if (showSkeletonLoading || isInitialLoad) {
                 setShowSkeleton(true);
@@ -134,7 +146,9 @@ function Wallet({ isActive, userData }) {
                     localStorage.setItem('cached_wallets', JSON.stringify([]));
                     setShowSkeleton(false);
                     setIsRefreshing(false);
+                    setContentMargin(0);
                     setIsInitialLoad(false);
+                    isUpdatingRef.current = false;
                     return;
                 }
             } else {
@@ -173,9 +187,15 @@ function Wallet({ isActive, userData }) {
                 setWallets(cachedWallets);
             }
         } finally {
-            setIsRefreshing(false);
-            setShowSkeleton(false);
-            setIsInitialLoad(false);
+            // Гарантируем, что скелетоны скроются и контент вернется на место
+            loadingTimerRef.current = setTimeout(() => {
+                setIsRefreshing(false);
+                setShowSkeleton(false);
+                setContentMargin(0);
+                setIsInitialLoad(false);
+                isUpdatingRef.current = false;
+                loadingTimerRef.current = null;
+            }, 300);
         }
     }, [userData, wallets, isInitialLoad]);
 
@@ -262,11 +282,14 @@ function Wallet({ isActive, userData }) {
         <div className="page-container-sw">
             <Header userData={userData} />
 
-            <div className="page-content" ref={pageContentRef}>
+            <div 
+                className="page-content" 
+                ref={pageContentRef}
+                style={{ marginTop: contentMargin }}
+            >
                 <div 
                     className="total-balance-section" 
                     ref={totalBalanceRef}
-                    style={{ marginTop: isRefreshing ? '50px' : '0' }}
                 >
                     {isRefreshing && (
                         <div className="bars-spinner">

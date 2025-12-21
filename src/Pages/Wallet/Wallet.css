@@ -33,7 +33,6 @@
     text-align: center;
     width: 100%;
     position: relative;
-    transition: margin-top 0.3s ease;
 }
 
 .total-balance-label {
