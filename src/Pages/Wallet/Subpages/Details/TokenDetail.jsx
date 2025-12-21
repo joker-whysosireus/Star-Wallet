@@ -92,19 +92,6 @@ const TokenDetail = () => {
 
     const badge = wallet ? getBlockchainBadge(wallet.blockchain) : null;
 
-    if (isLoading && !wallet) {
-        return (
-            <div className="page-container">
-                <Header userData={userData} />
-                <div className="loading-container">
-                    <div className="loader"></div>
-                    <p>Loading token details...</p>
-                </div>
-                <Menu />
-            </div>
-        );
-    }
-
     if (!wallet) {
         return (
             <div className="page-container">
