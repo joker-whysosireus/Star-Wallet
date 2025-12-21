@@ -39,16 +39,31 @@ const TokenDetail = () => {
                 setWallet(mockWallet);
                 calculateUsdValue('0.00');
                 setShowSkeleton(false);
+                setIsLoading(false);
+            } else {
+                setIsLoading(false);
+                setShowSkeleton(false);
             }
+        } else {
+            setIsLoading(false);
+            setShowSkeleton(false);
         }
         
-        setIsLoading(false);
+        return () => {
+            setShowSkeleton(false);
+        };
     }, [symbol, location.state]);
 
     const loadBalances = async () => {
-        if (!wallet || !userData) return;
+        if (!wallet || !userData) {
+            setShowSkeleton(false);
+            setIsLoading(false);
+            return;
+        }
         
         setShowSkeleton(true);
+        setIsLoading(true);
+        
         try {
             const updatedWallets = await getBalances([wallet], userData);
             if (updatedWallets && updatedWallets.length > 0) {
@@ -62,7 +77,10 @@ const TokenDetail = () => {
             console.error('Error loading balances:', error);
             await calculateUsdValue(wallet.balance || '0.00');
         } finally {
-            setTimeout(() => setShowSkeleton(false), 500);
+            setTimeout(() => {
+                setShowSkeleton(false);
+                setIsLoading(false);
+            }, 500);
         }
     };
 
@@ -145,63 +163,64 @@ const TokenDetail = () => {
             
             <div className="page-content">
                 <div className="token-icon-container">
-                    <div className="token-icon-large">
-                        <img 
-                            src={getLogoUrl()} 
-                            alt={wallet.symbol}
-                            style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
-                            onError={(e) => {
-                                console.error(`Failed to load logo for ${wallet.symbol}:`, e);
-                                e.target.style.display = 'none';
-                                const fallback = document.createElement('div');
-                                fallback.className = 'token-logo-fallback';
-                                fallback.textContent = wallet.symbol.substring(0, 2);
-                                e.target.parentNode.appendChild(fallback);
-                            }}
-                        />
-                    </div>
+                    {showSkeleton ? (
+                        <div className="skeleton-loader" style={{ 
+                            width: '80px', 
+                            height: '80px',
+                            borderRadius: '50%'
+                        }}></div>
+                    ) : (
+                        <div className="token-icon-large">
+                            <img 
+                                src={getLogoUrl()} 
+                                alt={wallet.symbol}
+                                style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+                                onError={(e) => {
+                                    console.error(`Failed to load logo for ${wallet.symbol}:`, e);
+                                    e.target.style.display = 'none';
+                                    const fallback = document.createElement('div');
+                                    fallback.className = 'token-logo-fallback';
+                                    fallback.textContent = wallet.symbol.substring(0, 2);
+                                    e.target.parentNode.appendChild(fallback);
+                                }}
+                            />
+                        </div>
+                    )}
                 </div>
                 
                 <div className="token-balance-display">
                     <div className="token-amount-container">
                         {showSkeleton ? (
-                            <div className="skeleton-loader" style={{ 
-                                width: '150px', 
-                                height: '32px', 
-                                marginBottom: '10px' 
-                            }}></div>
+                            <>
+                                <div className="skeleton-loader" style={{ 
+                                    width: '200px', 
+                                    height: '36px', 
+                                    marginBottom: '10px' 
+                                }}></div>
+                                <div className="skeleton-loader" style={{ 
+                                    width: '120px', 
+                                    height: '20px',
+                                }}></div>
+                            </>
                         ) : (
-                            <p className="token-amount">{wallet.balance || '0.00'} {wallet.symbol}</p>
-                        )}
-                        {badge && !showSkeleton && (
-                            <div 
-                                className="blockchain-badge" 
-                                style={{ 
-                                    borderColor: badge.color,
-                                    color: badge.color,
-                                }}
-                                title={wallet.blockchain}
-                            >
-                                {badge.text}
-                            </div>
-                        )}
-                        {showSkeleton && (
-                            <div className="skeleton-loader" style={{ 
-                                width: '50px', 
-                                height: '20px',
-                                marginTop: '8px'
-                            }}></div>
+                            <>
+                                <p className="token-amount">{wallet.balance || '0.00'} {wallet.symbol}</p>
+                                {badge && (
+                                    <div 
+                                        className="blockchain-badge" 
+                                        style={{ 
+                                            borderColor: badge.color,
+                                            color: badge.color,
+                                        }}
+                                        title={wallet.blockchain}
+                                    >
+                                        {badge.text}
+                                    </div>
+                                )}
+                                <p className="usd-amount">${usdValue}</p>
+                            </>
                         )}
                     </div>
-                    {showSkeleton ? (
-                        <div className="skeleton-loader" style={{ 
-                            width: '100px', 
-                            height: '24px',
-                            marginTop: '10px'
-                        }}></div>
-                    ) : (
-                        <p className="usd-amount">${usdValue}</p>
-                    )}
                 </div>
                 
                 <div style={{
@@ -237,6 +256,7 @@ const TokenDetail = () => {
                                 userData: userData 
                             } 
                         })}
+                        disabled={showSkeleton}
                     >
                         <span style={{
                             fontSize: '18px',
@@ -275,6 +295,7 @@ const TokenDetail = () => {
                                 userData: userData 
                             } 
                         })}
+                        disabled={showSkeleton}
                     >
                         <span style={{
                             fontSize: '18px',
@@ -313,6 +334,7 @@ const TokenDetail = () => {
                                 userData: userData 
                             } 
                         })}
+                        disabled={showSkeleton}
                     >
                         <span style={{
                             fontSize: '18px',

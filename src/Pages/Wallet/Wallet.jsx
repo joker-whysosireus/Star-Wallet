@@ -25,12 +25,14 @@ function Wallet({ isActive, userData }) {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [showSkeleton, setShowSkeleton] = useState(false);
     const [showBackupPage, setShowBackupPage] = useState(false);
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
     const navigate = useNavigate();
     
     const hasInitialized = useRef(false);
     const balanceCache = useRef({});
     const touchStartY = useRef(0);
     const pageContentRef = useRef(null);
+    const totalBalanceRef = useRef(null);
     const lastRefreshTime = useRef(0);
     const MIN_REFRESH_INTERVAL = 10000; // 10 секунд
 
@@ -48,33 +50,31 @@ function Wallet({ isActive, userData }) {
             webApp.BackButton.hide();
         }
 
-        // Добавляем обработчики для pull-to-refresh
+        // Добавляем обработчики для pull-to-refresh только в секции total balance
         setupPullToRefresh();
         
         return () => {
             // Очищаем обработчики
-            const pageContent = pageContentRef.current;
-            if (pageContent) {
-                pageContent.removeEventListener('touchstart', handleTouchStart);
-                pageContent.removeEventListener('touchmove', handleTouchMove);
-                pageContent.removeEventListener('touchend', handleTouchEnd);
+            const totalBalanceEl = totalBalanceRef.current;
+            if (totalBalanceEl) {
+                totalBalanceEl.removeEventListener('touchstart', handleTouchStart);
+                totalBalanceEl.removeEventListener('touchmove', handleTouchMove);
+                totalBalanceEl.removeEventListener('touchend', handleTouchEnd);
             }
         };
     }, []);
 
     const setupPullToRefresh = () => {
-        const pageContent = pageContentRef.current;
-        if (pageContent) {
-            pageContent.addEventListener('touchstart', handleTouchStart);
-            pageContent.addEventListener('touchmove', handleTouchMove);
-            pageContent.addEventListener('touchend', handleTouchEnd);
+        const totalBalanceEl = totalBalanceRef.current;
+        if (totalBalanceEl) {
+            totalBalanceEl.addEventListener('touchstart', handleTouchStart);
+            totalBalanceEl.addEventListener('touchmove', handleTouchMove);
+            totalBalanceEl.addEventListener('touchend', handleTouchEnd);
         }
     };
 
     const handleTouchStart = (e) => {
-        if (pageContentRef.current.scrollTop === 0) {
-            touchStartY.current = e.touches[0].clientY;
-        }
+        touchStartY.current = e.touches[0].clientY;
     };
 
     const handleTouchMove = (e) => {
@@ -83,15 +83,11 @@ function Wallet({ isActive, userData }) {
         const touchY = e.touches[0].clientY;
         const diff = touchY - touchStartY.current;
         
-        if (diff > 0 && pageContentRef.current.scrollTop === 0) {
+        if (diff > 0) {
             e.preventDefault();
-            // Показываем индикатор обновления при достаточном свайпе
-            if (diff > 50) {
-                const indicator = document.querySelector('.refresh-indicator');
-                if (indicator) {
-                    indicator.style.opacity = '1';
-                    indicator.style.transform = 'translateY(0)';
-                }
+            // Показываем спиннер при свайпе вниз в секции total balance
+            if (diff > 30) {
+                setIsRefreshing(true);
             }
         }
     };
@@ -100,32 +96,29 @@ function Wallet({ isActive, userData }) {
         const touchY = e.changedTouches[0].clientY;
         const diff = touchY - touchStartY.current;
         
-        if (diff > 100 && pageContentRef.current.scrollTop === 0) {
+        if (diff > 50) {
             // Запускаем обновление при достаточном свайпе
             handleRefresh();
-        }
-        
-        // Скрываем индикатор
-        const indicator = document.querySelector('.refresh-indicator');
-        if (indicator) {
-            indicator.style.opacity = '0';
-            indicator.style.transform = 'translateY(-50px)';
+        } else {
+            // Скрываем спиннер если свайп недостаточный
+            setIsRefreshing(false);
         }
         touchStartY.current = 0;
     };
 
     // Функция для обновления балансов
-    const updateBalances = useCallback(async (forceUpdate = false, showLoading = true) => {
+    const updateBalances = useCallback(async (forceUpdate = false, showSkeletonLoading = false) => {
         if (!userData) return;
 
         try {
             const now = Date.now();
             if (!forceUpdate && now - lastRefreshTime.current < MIN_REFRESH_INTERVAL) {
+                setIsRefreshing(false);
                 return; // Слишком рано для обновления
             }
 
-            if (showLoading) {
-                setIsRefreshing(true);
+            // Показываем скелетоны при обновлении через спиннер
+            if (showSkeletonLoading || isInitialLoad) {
                 setShowSkeleton(true);
             }
             
@@ -139,10 +132,9 @@ function Wallet({ isActive, userData }) {
                 if (!Array.isArray(allTokens) || allTokens.length === 0) {
                     setWallets([]);
                     localStorage.setItem('cached_wallets', JSON.stringify([]));
-                    if (showLoading) {
-                        setIsRefreshing(false);
-                        setShowSkeleton(false);
-                    }
+                    setShowSkeleton(false);
+                    setIsRefreshing(false);
+                    setIsInitialLoad(false);
                     return;
                 }
             } else {
@@ -181,20 +173,17 @@ function Wallet({ isActive, userData }) {
                 setWallets(cachedWallets);
             }
         } finally {
-            if (showLoading) {
-                setTimeout(() => {
-                    setIsRefreshing(false);
-                    setShowSkeleton(false);
-                }, 500); // Небольшая задержка для плавности
-            }
+            setIsRefreshing(false);
+            setShowSkeleton(false);
+            setIsInitialLoad(false);
         }
-    }, [userData, wallets]);
+    }, [userData, wallets, isInitialLoad]);
 
     // Инициализация при монтировании
     useEffect(() => {
         if (userData && !hasInitialized.current) {
             hasInitialized.current = true;
-            updateBalances(true, true); // Принудительное обновление при первой загрузке
+            updateBalances(true, true); // Принудительное обновление при первой загрузке с скелетонами
         }
     }, [userData, updateBalances]);
 
@@ -257,7 +246,7 @@ function Wallet({ isActive, userData }) {
 
     // Функция для обновления по pull-to-refresh
     const handleRefresh = () => {
-        updateBalances(true, true);
+        updateBalances(true, true); // Обновление с скелетонами
     };
 
     if (showBackupPage) {
@@ -273,14 +262,24 @@ function Wallet({ isActive, userData }) {
         <div className="page-container-sw">
             <Header userData={userData} />
 
-            <div className="refresh-indicator">
-                <div className="refresh-spinner">
-                    <div className="spinner"></div>
-                </div>
-            </div>
-
             <div className="page-content" ref={pageContentRef}>
-                <div className="total-balance-section">
+                <div 
+                    className="total-balance-section" 
+                    ref={totalBalanceRef}
+                    style={{ marginTop: isRefreshing ? '50px' : '0' }}
+                >
+                    {isRefreshing && (
+                        <div className="bars-spinner">
+                            <div className="bars-spinner-bar"></div>
+                            <div className="bars-spinner-bar"></div>
+                            <div className="bars-spinner-bar"></div>
+                            <div className="bars-spinner-bar"></div>
+                            <div className="bars-spinner-bar"></div>
+                            <div className="bars-spinner-bar"></div>
+                            <div className="bars-spinner-bar"></div>
+                            <div className="bars-spinner-bar"></div>
+                        </div>
+                    )}
                     <div className="balance-display">
                         <p className="total-balance-label">Total Balance</p>
                         {showSkeleton ? (
@@ -343,8 +342,8 @@ function Wallet({ isActive, userData }) {
 
                 <div className="assets-container">
                     {showSkeleton ? (
-                        // Показываем скелетоны во время загрузки
-                        Array.from({ length: Math.max(wallets.length, 10) }).map((_, index) => (
+                        // Показываем скелетоны при загрузке (первой или при обновлении через спиннер)
+                        Array.from({ length: 10 }).map((_, index) => (
                             <div 
                                 key={`skeleton-${index}`} 
                                 className="token-block"
