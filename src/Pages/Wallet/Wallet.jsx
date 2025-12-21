@@ -264,7 +264,7 @@ function Wallet({ isActive, userData }) {
     }
 
     return (
-        <div className="wallet-page">
+        <div className="wallet-page-wallet">
             <Header userData={userData} />
 
             <div 

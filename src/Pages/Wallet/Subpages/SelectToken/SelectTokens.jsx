@@ -154,14 +154,14 @@ const SelectToken = () => {
                             >
                                 <div className="token-grid-icon skeleton-loader" style={{ background: 'rgba(255, 255, 255, 0.03)' }}></div>
                                 <div className="token-grid-symbol skeleton-loader" style={{ 
-                                    height: '16px', 
-                                    width: '40px',
-                                    margin: '8px auto 4px',
+                                    height: '14px', 
+                                    width: '35px',
+                                    margin: '6px auto 3px',
                                     background: 'rgba(255, 255, 255, 0.03)'
                                 }}></div>
                                 <div className="token-grid-name skeleton-loader" style={{ 
-                                    height: '12px', 
-                                    width: '60px',
+                                    height: '10px', 
+                                    width: '50px',
                                     margin: '0 auto',
                                     background: 'rgba(255, 255, 255, 0.03)'
                                 }}></div>

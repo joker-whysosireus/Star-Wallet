@@ -15,21 +15,21 @@
 
 .select-token-header {
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
     width: 100%;
     max-width: 400px;
 }
 
 .select-token-header h1 {
     color: white;
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 600;
-    margin: 0 0 15px 0;
+    margin: 0 0 12px 0;
 }
 
 .search-container {
     width: 100%;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
 }
 
 .search-input {
@@ -37,9 +37,9 @@
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
-    padding: 12px 15px;
+    padding: 10px 14px;
     color: white;
-    font-size: 14px;
+    font-size: 13px;
     font-family: 'Rubik', sans-serif;
     box-sizing: border-box;
 }
@@ -56,7 +56,7 @@
 .tokens-grid-container {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
+    gap: 10px;
     width: 100%;
     max-width: 400px;
     margin: 0 auto;
@@ -64,8 +64,8 @@
 
 .token-grid-item {
     background: rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
-    padding: 15px;
+    border-radius: 10px;
+    padding: 10px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -74,28 +74,29 @@
     aspect-ratio: 1/1;
     justify-content: center;
     position: relative;
+    min-height: 90px;
 }
 
 .token-grid-item:hover {
     background: rgba(255, 255, 255, 0.08);
-    transform: translateY(-2px);
+    transform: translateY(-1px);
 }
 
 .token-grid-icon {
-    width: 50px;
-    height: 50px;
+    width: 35px;
+    height: 35px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     background: rgba(255, 215, 0, 0.1);
     overflow: hidden;
 }
 
 .token-grid-icon img {
-    width: 30px;
-    height: 30px;
+    width: 22px;
+    height: 22px;
     object-fit: contain;
 }
 
@@ -105,14 +106,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
+    font-size: 14px;
     font-weight: bold;
     color: #FFD700;
     background: rgba(255, 215, 0, 0.1);
 }
 
 .token-grid-symbol {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
     color: white;
     margin-bottom: 2px;
@@ -120,10 +121,10 @@
 }
 
 .token-grid-name {
-    font-size: 11px;
+    font-size: 10px;
     color: rgba(255, 255, 255, 0.7);
     text-align: center;
-    margin-bottom: 8px;
+    margin-bottom: 5px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -131,18 +132,18 @@
 }
 
 .token-grid-badge {
-    padding: 3px 8px;
-    border-radius: 8px;
-    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 8px;
     font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
     text-align: center;
     position: absolute;
-    bottom: 8px;
+    bottom: 6px;
     left: 50%;
     transform: translateX(-50%);
-    width: calc(100% - 30px);
+    width: calc(100% - 20px);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -150,19 +151,20 @@
 
 .skeleton-item {
     background: rgba(255, 255, 255, 0.03);
-    border-radius: 12px;
-    padding: 15px;
+    border-radius: 10px;
+    padding: 10px;
     display: flex;
     flex-direction: column;
     align-items: center;
     aspect-ratio: 1/1;
     justify-content: center;
+    min-height: 90px;
 }
 
 /* Стили для скелетон-загрузчика */
 .skeleton-loader {
     background: rgba(255, 255, 255, 0.03);
-    border-radius: 8px;
+    border-radius: 6px;
     overflow: hidden;
     position: relative;
 }
@@ -193,21 +195,22 @@
 .no-tokens-message {
     grid-column: 1 / -1;
     text-align: center;
-    padding: 40px 20px;
+    padding: 30px 20px;
     color: rgba(255, 255, 255, 0.5);
 }
 
 .no-tokens-message p {
     margin: 5px 0;
+    font-size: 14px;
 }
 
 .action-button {
     background: linear-gradient(135deg, #FFD700, #FFA500);
     border: none;
     border-radius: 10px;
-    padding: 12px 24px;
+    padding: 10px 20px;
     color: #000;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     margin-top: 20px;
