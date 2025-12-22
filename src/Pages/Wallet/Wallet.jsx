@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import Header from "../../assets/Header/Header";
 import Menu from '../../assets/Menus/Menu/Menu';
 import TokenCard from './Components/List/TokenCard';
+import PinCodeScreen from '../../assets/PIN/PinCodeScreen';
 import { 
     getAllTokens,
     getBalances, 
     calculateTotalBalance
 } from './Services/storageService';
-import BackupSeedPhrase from './Subpages/BackupSeedPhrase/BackupSeedPhrase';
 import './Wallet.css';
 
 function Wallet({ isActive, userData }) {
@@ -24,7 +24,7 @@ function Wallet({ isActive, userData }) {
     
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [showSkeleton, setShowSkeleton] = useState(false);
-    const [showBackupPage, setShowBackupPage] = useState(false);
+    const [showPinForBackup, setShowPinForBackup] = useState(false);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [contentMargin, setContentMargin] = useState(0);
     const navigate = useNavigate();
@@ -220,7 +220,6 @@ function Wallet({ isActive, userData }) {
         if (!userData) return;
 
         if (action === 'receive') {
-            // Переходим на страницу выбора токена для получения
             navigate('/select-token', { 
                 state: { 
                     mode: 'receive',
@@ -228,7 +227,6 @@ function Wallet({ isActive, userData }) {
                 } 
             });
         } else if (action === 'send') {
-            // Переходим на страницу выбора токена для отправки
             navigate('/select-token', { 
                 state: { 
                     mode: 'send',
@@ -243,22 +241,30 @@ function Wallet({ isActive, userData }) {
     }, [navigate, userData]);
 
     const handleBackupClick = () => {
-        setShowBackupPage(true);
+        setShowPinForBackup(true);
     };
 
-    const handleBackToWallet = () => {
-        setShowBackupPage(false);
+    const handlePinVerified = (pin) => {
+        setShowPinForBackup(false);
+        navigate('/backup-seed-phrase', { state: { userData } });
+    };
+
+    const handlePinCreated = (pin) => {
+        setShowPinForBackup(false);
+        navigate('/backup-seed-phrase', { state: { userData } });
     };
 
     const handleRefresh = () => {
         updateBalances(true, true);
     };
 
-    if (showBackupPage) {
+    if (showPinForBackup) {
         return (
-            <BackupSeedPhrase 
-                userData={userData} 
-                onBack={handleBackToWallet}
+            <PinCodeScreen
+                userData={userData}
+                onPinVerified={handlePinVerified}
+                onPinCreated={handlePinCreated}
+                mode="verify"
             />
         );
     }
@@ -358,16 +364,16 @@ function Wallet({ isActive, userData }) {
                             >
                                 <div className="token-card">
                                     <div className="token-left">
-                                        <div className="token-icon skeleton-loader" style={{ background: 'rgba(255, 255, 255, 0.03)' }}></div>
+                                        <div className="token-icon skeleton-loader"></div>
                                         <div className="token-names">
-                                            <div className="skeleton-loader" style={{ height: '14px', width: '80px', marginBottom: '6px', background: 'rgba(255, 255, 255, 0.03)' }}></div>
-                                            <div className="skeleton-loader" style={{ height: '18px', width: '60px', background: 'rgba(255, 255, 255, 0.03)' }}></div>
+                                            <div className="skeleton-loader" style={{ height: '14px', width: '80px', marginBottom: '6px' }}></div>
+                                            <div className="skeleton-loader" style={{ height: '18px', width: '60px' }}></div>
                                         </div>
                                     </div>
                                     <div className="token-right">
                                         <div className="skeleton-loader skeleton-token-balance"></div>
                                         <div className="skeleton-loader skeleton-usd-balance"></div>
-                                        <div className="skeleton-loader" style={{ height: '12px', width: '40px', marginTop: '4px', background: 'rgba(255, 255, 255, 0.03)' }}></div>
+                                        <div className="skeleton-loader" style={{ height: '12px', width: '40px', marginTop: '4px' }}></div>
                                     </div>
                                 </div>
                             </div>
