@@ -1,16 +1,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap');
 
 /* Используем уникальные классы для SelectToken чтобы не влиять на другие страницы */
-.select-token-page {
-    min-height: 100vh;
-    background-color: #000000;
-    color: white;
-    font-family: 'Rubik', sans-serif;
+.page-content.select-token-page {
+    flex: 1;
+    padding: 20px;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    position: relative;
-    padding-top: 80px;
-    padding-bottom: 80px;
+    align-items: center;
+    width: 100%;
+    overflow-y: auto;
 }
 
 .select-token-header {
@@ -60,6 +59,7 @@
     width: 100%;
     max-width: 400px;
     margin: 0 auto;
+    align-items: stretch; /* Равномерное растягивание карточек */
 }
 
 .token-grid-item {
@@ -75,6 +75,8 @@
     justify-content: center;
     position: relative;
     min-height: 90px;
+    box-sizing: border-box;
+    overflow: hidden; /* Для сохранения ровных краев */
 }
 
 .token-grid-item:hover {
@@ -92,6 +94,7 @@
     margin-bottom: 6px;
     background: rgba(255, 215, 0, 0.1);
     overflow: hidden;
+    flex-shrink: 0;
 }
 
 .token-grid-icon img {
@@ -118,6 +121,11 @@
     color: white;
     margin-bottom: 2px;
     text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    flex-shrink: 0;
 }
 
 .token-grid-name {
@@ -129,6 +137,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 100%;
+    flex-shrink: 0;
 }
 
 .token-grid-badge {
@@ -147,6 +156,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .skeleton-item {
@@ -159,6 +169,7 @@
     aspect-ratio: 1/1;
     justify-content: center;
     min-height: 90px;
+    box-sizing: border-box;
 }
 
 /* Стили для скелетон-загрузчика */

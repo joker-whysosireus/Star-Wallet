@@ -130,7 +130,7 @@ const SelectToken = () => {
         <div className="page-container">
             <Header userData={userData} />
             
-            <div className="page-content">
+            <div className="page-content select-token-page">
                 <div className="select-token-header">
                     <h1>{getTitle()}</h1>
                     <div className="search-container">
