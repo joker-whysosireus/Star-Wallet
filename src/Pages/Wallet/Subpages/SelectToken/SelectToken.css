@@ -14,7 +14,7 @@
 
 .select-token-header {
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 25px; /* Увеличен отступ снизу */
     width: 100%;
     max-width: 400px;
 }
@@ -23,12 +23,12 @@
     color: white;
     font-size: 20px;
     font-weight: 600;
-    margin: 0 0 15px 0; /* Увеличен отступ снизу заголовка */
+    margin: 0 0 18px 0; /* Увеличен отступ между заголовком и полем ввода */
 }
 
 .search-container {
     width: 100%;
-    margin-bottom: 15px; /* Увеличен отступ между полем ввода и карточками */
+    margin-bottom: 20px; /* Увеличен отступ между полем ввода и карточками */
 }
 
 .search-input {
@@ -55,7 +55,7 @@
 .tokens-grid-container {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 12px; /* Увеличен gap между карточками */
+    gap: 12px;
     width: 100%;
     max-width: 400px;
     margin: 0 auto;
@@ -65,7 +65,7 @@
 .token-grid-item {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 10px;
-    padding: 12px; /* Увеличен padding внутри карточки */
+    padding: 12px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -74,7 +74,7 @@
     aspect-ratio: 1/1;
     justify-content: center;
     position: relative;
-    min-height: 100px; /* Увеличен минимальная высота карточки */
+    min-height: 100px;
     box-sizing: border-box;
     overflow: hidden; /* Для сохранения ровных краев */
 }
@@ -85,20 +85,20 @@
 }
 
 .token-grid-icon {
-    width: 38px; /* Увеличен размер иконки */
+    width: 38px;
     height: 38px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 8px; /* Увеличен отступ под иконкой */
+    margin-bottom: 8px;
     background: rgba(255, 215, 0, 0.1);
     overflow: hidden;
     flex-shrink: 0;
 }
 
 .token-grid-icon img {
-    width: 24px; /* Увеличен размер изображения внутри иконки */
+    width: 24px;
     height: 24px;
     object-fit: contain;
 }
@@ -109,17 +109,17 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 15px; /* Увеличен размер шрифта fallback */
+    font-size: 15px;
     font-weight: bold;
     color: #FFD700;
     background: rgba(255, 215, 0, 0.1);
 }
 
 .token-grid-symbol {
-    font-size: 15px; /* Увеличен размер символа */
+    font-size: 15px;
     font-weight: 600;
     color: white;
-    margin-bottom: 4px; /* Увеличен отступ под символом */
+    margin-bottom: 4px;
     text-align: center;
     white-space: nowrap;
     overflow: hidden;
@@ -129,10 +129,10 @@
 }
 
 .token-grid-name {
-    font-size: 11px; /* Увеличен размер названия */
+    font-size: 11px;
     color: rgba(255, 255, 255, 0.7);
     text-align: center;
-    margin-bottom: 10px; /* Увеличен отступ под названием (перед бейджем) */
+    margin-bottom: 12px; /* Увеличен отступ под названием (перед бейджем) */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -140,24 +140,24 @@
     flex-shrink: 0;
 }
 
-.token-grid-chain {
-    padding: 3px 8px; /* Увеличен padding бейджа */
-    border-radius: 8px; /* Увеличен радиус скругления */
-    font-size: 9px; /* Увеличен размер шрифта */
+.token-grid-chain-badge {
+    padding: 4px 8px; /* Увеличен padding бейджа */
+    border-radius: 8px;
+    font-size: 9px;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.4px;
     text-align: center;
     position: absolute;
-    bottom: 8px; /* Увеличен отступ снизу */
+    bottom: 10px; /* Увеличен отступ снизу */
     left: 50%;
     transform: translateX(-50%);
-    width: calc(100% - 24px); /* Увеличенная ширина с учетом отступов */
+    width: calc(100% - 24px);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     flex-shrink: 0;
-    margin-top: 4px; /* Добавлен отступ сверху */
+    margin-top: 6px; /* Увеличен отступ сверху */
 }
 
 .skeleton-item {

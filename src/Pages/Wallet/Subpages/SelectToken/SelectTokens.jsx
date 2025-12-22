@@ -94,8 +94,8 @@ const SelectToken = () => {
         return 'Select Token';
     };
     
-    const getBlockchainChain = (blockchain) => {
-        const chains = {
+    const getBlockchainBadge = (blockchain) => {
+        const badges = {
             'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)' },
             'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)' },
             'Ethereum': { color: '#8c8cff', bg: 'rgba(140, 140, 255, 0.1)' },
@@ -105,7 +105,7 @@ const SelectToken = () => {
             'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)' },
         };
         
-        return chains[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)' };
+        return badges[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)' };
     };
     
     if (!mode || !userData) {
@@ -156,7 +156,7 @@ const SelectToken = () => {
                                 <div className="token-grid-symbol skeleton-loader" style={{ 
                                     height: '14px', 
                                     width: '35px',
-                                    margin: '6px auto 3px',
+                                    margin: '8px auto 4px',
                                     background: 'rgba(255, 255, 255, 0.03)'
                                 }}></div>
                                 <div className="token-grid-name skeleton-loader" style={{ 
@@ -165,11 +165,17 @@ const SelectToken = () => {
                                     margin: '0 auto',
                                     background: 'rgba(255, 255, 255, 0.03)'
                                 }}></div>
+                                <div className="token-grid-chain-badge skeleton-loader" style={{ 
+                                    height: '10px',
+                                    width: '40px',
+                                    marginTop: '8px',
+                                    background: 'rgba(255, 255, 255, 0.03)'
+                                }}></div>
                             </div>
                         ))
                     ) : filteredWallets.length > 0 ? (
                         filteredWallets.map((wallet) => {
-                            const chain = getBlockchainChain(wallet.blockchain);
+                            const badge = getBlockchainBadge(wallet.blockchain);
                             return (
                                 <div 
                                     key={wallet.id} 
@@ -192,10 +198,10 @@ const SelectToken = () => {
                                     <div className="token-grid-symbol">{wallet.symbol}</div>
                                     <div className="token-grid-name">{wallet.name}</div>
                                     <div 
-                                        className="token-grid-chain"
+                                        className="token-grid-chain-badge"
                                         style={{ 
-                                            color: chain.color,
-                                            backgroundColor: chain.bg
+                                            color: badge.color,
+                                            backgroundColor: badge.bg
                                         }}
                                     >
                                         {wallet.blockchain}
