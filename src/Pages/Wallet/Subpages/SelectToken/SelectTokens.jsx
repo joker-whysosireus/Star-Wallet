@@ -94,8 +94,8 @@ const SelectToken = () => {
         return 'Select Token';
     };
     
-    const getBlockchainBadge = (blockchain) => {
-        const badges = {
+    const getBlockchainChain = (blockchain) => {
+        const chains = {
             'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)' },
             'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)' },
             'Ethereum': { color: '#8c8cff', bg: 'rgba(140, 140, 255, 0.1)' },
@@ -105,7 +105,7 @@ const SelectToken = () => {
             'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)' },
         };
         
-        return badges[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)' };
+        return chains[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)' };
     };
     
     if (!mode || !userData) {
@@ -169,7 +169,7 @@ const SelectToken = () => {
                         ))
                     ) : filteredWallets.length > 0 ? (
                         filteredWallets.map((wallet) => {
-                            const badge = getBlockchainBadge(wallet.blockchain);
+                            const chain = getBlockchainChain(wallet.blockchain);
                             return (
                                 <div 
                                     key={wallet.id} 
@@ -192,10 +192,10 @@ const SelectToken = () => {
                                     <div className="token-grid-symbol">{wallet.symbol}</div>
                                     <div className="token-grid-name">{wallet.name}</div>
                                     <div 
-                                        className="token-grid-badge"
+                                        className="token-grid-chain"
                                         style={{ 
-                                            color: badge.color,
-                                            backgroundColor: badge.bg
+                                            color: chain.color,
+                                            backgroundColor: chain.bg
                                         }}
                                     >
                                         {wallet.blockchain}
