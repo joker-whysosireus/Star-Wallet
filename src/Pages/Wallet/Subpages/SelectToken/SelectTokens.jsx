@@ -19,6 +19,7 @@ const SelectToken = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [showSkeleton, setShowSkeleton] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [skeletonCount, setSkeletonCount] = useState(9); // Начальное количество скелетонов
     
     useEffect(() => {
         if (!userData) {
@@ -38,10 +39,16 @@ const SelectToken = () => {
             if (!Array.isArray(allTokens) || allTokens.length === 0) {
                 setWallets([]);
                 setFilteredWallets([]);
+                setSkeletonCount(6); // Показываем 6 скелетонов если нет токенов
                 setShowSkeleton(false);
                 setIsLoading(false);
                 return;
             }
+            
+            // Устанавливаем количество скелетонов равное количеству токенов (округленное до ближайшего кратного 3)
+            const tokenCount = allTokens.length;
+            const roundedCount = Math.ceil(tokenCount / 3) * 3;
+            setSkeletonCount(roundedCount);
             
             const updatedWallets = await getBalances(allTokens, userData);
             setWallets(updatedWallets);
@@ -146,31 +153,16 @@ const SelectToken = () => {
                 
                 <div className="tokens-grid-container">
                     {showSkeleton ? (
-                        // Скелетоны для квадратных блоков (3 в ряд)
-                        Array.from({ length: 9 }).map((_, index) => (
+                        // Скелетоны в количестве, кратном 3 (для сетки 3 в ряд)
+                        Array.from({ length: skeletonCount }).map((_, index) => (
                             <div 
                                 key={`skeleton-${index}`} 
                                 className="token-grid-item skeleton-item"
                             >
-                                <div className="token-grid-icon skeleton-loader" style={{ background: 'rgba(255, 255, 255, 0.03)' }}></div>
-                                <div className="token-grid-symbol skeleton-loader" style={{ 
-                                    height: '14px', 
-                                    width: '35px',
-                                    margin: '8px auto 4px',
-                                    background: 'rgba(255, 255, 255, 0.03)'
-                                }}></div>
-                                <div className="token-grid-name skeleton-loader" style={{ 
-                                    height: '10px', 
-                                    width: '50px',
-                                    margin: '0 auto',
-                                    background: 'rgba(255, 255, 255, 0.03)'
-                                }}></div>
-                                <div className="token-grid-chain-badge skeleton-loader" style={{ 
-                                    height: '10px',
-                                    width: '40px',
-                                    marginTop: '8px',
-                                    background: 'rgba(255, 255, 255, 0.03)'
-                                }}></div>
+                                <div className="skeleton-icon"></div>
+                                <div className="skeleton-text" style={{ width: '40px', marginTop: '12px' }}></div>
+                                <div className="skeleton-text" style={{ width: '60px', marginTop: '6px' }}></div>
+                                <div className="skeleton-badge" style={{ marginTop: '12px' }}></div>
                             </div>
                         ))
                     ) : filteredWallets.length > 0 ? (
@@ -198,10 +190,11 @@ const SelectToken = () => {
                                     <div className="token-grid-symbol">{wallet.symbol}</div>
                                     <div className="token-grid-name">{wallet.name}</div>
                                     <div 
-                                        className="token-grid-chain-badge"
+                                        className="token-grid-chain"
                                         style={{ 
                                             color: badge.color,
-                                            backgroundColor: badge.bg
+                                            backgroundColor: badge.bg,
+                                            marginTop: '8px' // Добавлен отступ сверху для бейджа
                                         }}
                                     >
                                         {wallet.blockchain}
