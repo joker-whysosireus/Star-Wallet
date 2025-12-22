@@ -14,7 +14,7 @@
 
 .select-token-header {
     text-align: center;
-    margin-bottom: 20px; /* Уменьшен отступ снизу для всей шапки */
+    margin-bottom: 15px; /* Уменьшен общий отступ шапки */
     width: 100%;
     max-width: 400px;
 }
@@ -23,12 +23,12 @@
     color: white;
     font-size: 20px;
     font-weight: 600;
-    margin: 0 0 15px 0; /* Установлен такой же отступ как у search-container */
+    margin: 0 0 20px 0; /* Увеличен отступ от заголовка до поля ввода */
 }
 
 .search-container {
     width: 100%;
-    margin-bottom: 15px; /* Теперь отступы одинаковые: h1→поле и поле→карточки */
+    margin-bottom: 10px; /* Уменьшен отступ между полем ввода и карточками */
 }
 
 .search-input {
@@ -65,7 +65,7 @@
 .token-grid-item {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 10px;
-    padding: 12px 8px;
+    padding: 12px 6px; /* Уменьшен горизонтальный padding */
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -124,24 +124,24 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 100%;
+    max-width: 90%;
 }
 
 .token-grid-name {
     font-size: 10px;
     color: rgba(255, 255, 255, 0.7);
     text-align: center;
-    margin-bottom: 8px; /* Увеличен отступ под названием */
+    margin-bottom: 8px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 100%;
+    max-width: 90%;
     min-height: 12px;
     line-height: 1.2;
 }
 
 .token-grid-chain {
-    padding: 4px 6px;
+    padding: 4px 0; /* Уменьшен горизонтальный padding */
     border-radius: 6px;
     font-size: 8px;
     font-weight: 500;
@@ -151,11 +151,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    width: auto;
-    max-width: 90%;
-    /* Убираем position: absolute, чтобы бейдж был в потоке */
+    width: 70px; /* Фиксированная ширина для всех бейджей */
+    min-width: 70px;
+    max-width: 70px;
     position: relative;
-    margin-top: 2px; /* Небольшой отступ сверху */
+    margin-top: 2px;
     flex-shrink: 0;
 }
 
@@ -163,7 +163,7 @@
 .skeleton-item {
     background: rgba(255, 255, 255, 0.03);
     border-radius: 10px;
-    padding: 12px 8px;
+    padding: 12px 6px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -200,7 +200,7 @@
 }
 
 .token-grid-chain.skeleton-loader {
-    width: 50px;
+    width: 70px; /* Такая же ширина как у реальных бейджей */
     height: 16px;
     margin-top: 2px;
 }
