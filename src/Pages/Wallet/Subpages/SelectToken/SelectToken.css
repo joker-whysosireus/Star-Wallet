@@ -14,7 +14,7 @@
 
 .select-token-header {
     text-align: center;
-    margin-bottom: 18px; /* Уменьшен отступ снизу */
+    margin-bottom: 20px; /* Уменьшен отступ снизу для всей шапки */
     width: 100%;
     max-width: 400px;
 }
@@ -23,12 +23,12 @@
     color: white;
     font-size: 20px;
     font-weight: 600;
-    margin: 0 0 22px 0; /* Увеличен отступ между заголовком и полем ввода */
+    margin: 0 0 15px 0; /* Установлен такой же отступ как у search-container */
 }
 
 .search-container {
     width: 100%;
-    margin-bottom: 15px; /* Уменьшен отступ между полем ввода и карточками */
+    margin-bottom: 15px; /* Теперь отступы одинаковые: h1→поле и поле→карточки */
 }
 
 .search-input {
@@ -65,7 +65,7 @@
 .token-grid-item {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 10px;
-    padding: 12px 8px; /* Уменьшен горизонтальный padding */
+    padding: 12px 8px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -73,10 +73,10 @@
     transition: all 0.2s ease;
     aspect-ratio: 1/1;
     justify-content: center;
-    position: relative;
-    min-height: 110px; /* Увеличена минимальная высота */
+    min-height: 110px;
     box-sizing: border-box;
     overflow: hidden;
+    position: relative;
 }
 
 .token-grid-item:hover {
@@ -91,7 +91,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
     background: rgba(255, 215, 0, 0.1);
     overflow: hidden;
     flex-shrink: 0;
@@ -125,21 +125,19 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
-    flex-shrink: 0;
 }
 
 .token-grid-name {
     font-size: 10px;
     color: rgba(255, 255, 255, 0.7);
     text-align: center;
-    margin-bottom: 4px; /* Уменьшен отступ под названием */
+    margin-bottom: 8px; /* Увеличен отступ под названием */
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 100%;
-    flex-shrink: 0;
+    min-height: 12px;
     line-height: 1.2;
-    height: 12px; /* Фиксированная высота для названия */
 }
 
 .token-grid-chain {
@@ -153,12 +151,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    width: auto;
+    max-width: 90%;
+    /* Убираем position: absolute, чтобы бейдж был в потоке */
+    position: relative;
+    margin-top: 2px; /* Небольшой отступ сверху */
     flex-shrink: 0;
-    position: absolute;
-    bottom: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: calc(100% - 16px);
 }
 
 /* Стили для скелетонов */
@@ -173,43 +171,61 @@
     justify-content: center;
     min-height: 110px;
     box-sizing: border-box;
+}
+
+.skeleton-loader {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 4px;
+    position: relative;
     overflow: hidden;
 }
 
-.skeleton-icon {
+.token-grid-icon.skeleton-loader {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.04);
-    animation: skeleton-pulse 1.5s ease-in-out infinite;
+    margin-bottom: 8px;
 }
 
-.skeleton-text {
+.token-grid-symbol.skeleton-loader {
+    width: 40px;
+    height: 14px;
+    margin-bottom: 4px;
+}
+
+.token-grid-name.skeleton-loader {
+    width: 60px;
     height: 10px;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.04);
-    animation: skeleton-pulse 1.5s ease-in-out infinite;
+    margin-bottom: 8px;
 }
 
-.skeleton-badge {
-    height: 16px;
+.token-grid-chain.skeleton-loader {
     width: 50px;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.04);
-    animation: skeleton-pulse 1.5s ease-in-out infinite;
-    position: absolute;
-    bottom: 10px;
-    left: 50%;
-    transform: translateX(-50%);
+    height: 16px;
+    margin-top: 2px;
 }
 
-@keyframes skeleton-pulse {
-    0%, 100% {
-        opacity: 0.6;
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
     }
-    50% {
-        opacity: 0.8;
+    100% {
+        transform: translateX(100%);
     }
+}
+
+.skeleton-loader::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, 
+        transparent, 
+        rgba(255, 255, 255, 0.05), 
+        transparent);
+    animation: shimmer 1.5s infinite;
 }
 
 .no-tokens-message {
