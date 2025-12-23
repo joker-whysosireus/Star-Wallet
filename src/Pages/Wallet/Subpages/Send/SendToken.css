@@ -36,7 +36,7 @@
     max-width: 350px;
     margin: 0 auto;
     padding: 0;
-    gap: 15px;
+    gap: 25px;
     overflow-y: auto;
     margin-top: 40px;
 }
@@ -73,101 +73,116 @@
     cursor: not-allowed;
 }
 
-/* Поле ввода адреса */
-.address-input-container {
+/* Секция адреса */
+.address-section {
     width: 100%;
     margin-bottom: 10px;
     box-sizing: border-box;
-    margin-top: 5px;
 }
 
 .address-input-wrapper {
     display: flex;
     align-items: center;
-    background: #151517;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    overflow: hidden;
-    box-sizing: border-box;
+    justify-content: space-between;
     width: 100%;
+    gap: 10px;
 }
 
 .address-input {
     flex: 1;
-    background: transparent;
-    border: none;
+    background: #151517;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
     padding: 14px;
     color: white;
     font-size: 14px;
     font-family: 'Rubik', sans-serif;
     min-width: 0;
     box-sizing: border-box;
-    width: calc(100% - 50px);
 }
 
 .address-input::placeholder {
     color: rgba(255, 255, 255, 0.3);
 }
 
-.scan-btn {
-    background: transparent;
-    border: none;
-    padding: 0 15px;
-    cursor: pointer;
-    height: 100%;
+.address-input.invalid {
+    border-color: #ff5555;
+}
+
+.qr-button-wrapper {
+    flex-shrink: 0;
+}
+
+.qr-button {
+    background: #151517;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    width: 50px;
+    height: 50px;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 50px;
+    cursor: pointer;
+    padding: 0;
+    transition: all 0.2s;
+}
+
+.qr-button:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 215, 0, 0.3);
+}
+
+.qr-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .qr-icon {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     color: #FFD700;
 }
 
-/* Блок ввода количества */
+/* Секция ввода количества - БЕЗ ФОНА */
 .amount-section {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 15px;
-    margin-bottom: 10px;
     width: 100%;
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
 }
 
 .amount-input-container {
-    margin-bottom: 15px;
+    width: 100%;
     cursor: pointer;
-}
-
-.amount-display-wrapper {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 10px;
+    margin-bottom: 15px;
 }
 
 .amount-display {
     display: flex;
     align-items: center;
-    flex: 1;
-    min-width: 0;
+    justify-content: center;
+    width: 100%;
+    position: relative;
+    margin-bottom: 5px;
 }
 
 .amount-input {
     background: transparent;
     border: none;
     color: white;
-    font-size: 24px;
+    font-size: 32px;
     font-weight: 600;
     font-family: 'Rubik', sans-serif;
     outline: none;
     padding: 0;
     box-sizing: border-box;
-    width: 100%;
+    text-align: center;
+    max-width: 150px;
     min-width: 0;
 }
 
@@ -188,67 +203,70 @@
 
 .token-symbol-display {
     color: rgba(255, 255, 255, 0.7);
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 500;
     margin-left: 8px;
     white-space: nowrap;
 }
 
-.token-icon-small {
-    width: 32px;
-    height: 32px;
+.token-icon-large {
+    width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: rgba(255, 215, 0, 0.1);
-    border-radius: 8px;
+    border-radius: 10px;
     flex-shrink: 0;
-    margin-left: 10px;
+    margin-left: 15px;
 }
 
-.token-icon-small img {
-    width: 20px;
-    height: 20px;
+.token-icon-large img {
+    width: 24px;
+    height: 24px;
     object-fit: contain;
     border-radius: 50%;
 }
 
-.token-icon-fallback-small {
+.token-icon-fallback-large {
     width: 100%;
     height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
     background: rgba(255, 215, 0, 0.2);
-    border-radius: 8px;
+    border-radius: 10px;
     color: #FFD700;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: bold;
 }
 
 .amount-underline {
     width: 100%;
+    max-width: 250px;
     height: 1px;
     background: rgba(255, 255, 255, 0.2);
     margin: 8px 0;
 }
 
-.balance-display-small {
+.balance-display {
     color: rgba(255, 255, 255, 0.5);
-    font-size: 11px;
-    text-align: left;
+    font-size: 12px;
+    text-align: center;
+    margin-top: 5px;
 }
 
-/* Кнопки для выбора количества */
-.amount-buttons {
+/* Кнопки процентов */
+.percentage-buttons {
     display: flex;
-    gap: 8px;
-    margin-bottom: 15px;
+    gap: 10px;
     width: 100%;
+    max-width: 300px;
+    justify-content: center;
     box-sizing: border-box;
 }
 
-.amount-button {
+.percentage-button {
     flex: 1;
     display: flex;
     align-items: center;
@@ -256,42 +274,24 @@
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
-    padding: 10px 5px;
+    padding: 12px 5px;
     color: white;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
     box-sizing: border-box;
-    min-height: 36px;
+    min-height: 40px;
 }
 
-.amount-button:hover {
+.percentage-button:hover {
     background: rgba(255, 255, 255, 0.08);
 }
 
-.amount-button.max-button {
+.percentage-button.max-button {
     background: rgba(255, 215, 0, 0.1);
     border-color: rgba(255, 215, 0, 0.3);
     color: #FFD700;
-}
-
-/* Поле комментария */
-.comment-input {
-    width: 100%;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    padding: 12px;
-    color: white;
-    font-size: 12px;
-    font-family: 'Rubik', sans-serif;
-    box-sizing: border-box;
-    margin-top: 5px;
-}
-
-.comment-input::placeholder {
-    color: rgba(255, 255, 255, 0.3);
 }
 
 /* Transaction Status */

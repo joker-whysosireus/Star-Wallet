@@ -20,7 +20,6 @@ const SendToken = () => {
     const [token, setToken] = useState(wallet);
     const [amount, setAmount] = useState('');
     const [toAddress, setToAddress] = useState('');
-    const [comment, setComment] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [showQRScanner, setShowQRScanner] = useState(false);
     const [transactionStatus, setTransactionStatus] = useState(null);
@@ -126,7 +125,7 @@ const SendToken = () => {
                 amount: amount,
                 symbol: token.symbol,
                 contractAddress: token.contractAddress,
-                memo: comment,
+                memo: '',
                 privateKey: privateKey,
                 seedPhrase: userData.seed_phrases
             });
@@ -145,7 +144,6 @@ const SendToken = () => {
                     setTimeout(() => {
                         setAmount('');
                         setToAddress('');
-                        setComment('');
                     }, 3000);
                 }, 5000);
             } else {
@@ -206,7 +204,7 @@ const SendToken = () => {
                 </div>
                 
                 <div className="send-content">
-                    <div className="address-input-container">
+                    <div className="address-section">
                         <div className="address-input-wrapper">
                             <input
                                 type="text"
@@ -215,45 +213,45 @@ const SendToken = () => {
                                 placeholder={`Enter ${token.blockchain} address`}
                                 className={`address-input ${!isAddressValid && toAddress ? 'invalid' : ''}`}
                             />
-                            <button 
-                                className="scan-btn"
-                                onClick={() => setShowQRScanner(true)}
-                                disabled={isLoading}
-                                title="Scan QR Code"
-                            >
-                                <svg className="qr-icon" viewBox="0 0 24 24" fill="currentColor">
-                                    <path d="M1 1h8v8H1V1zm2 2v4h4V3H3zM1 15h8v8H1v-8zm2 2v4h4v-4H3zM15 1h8v8h-8V1zm2 2v4h4V3h-4zM15 15h8v8h-8v-8zm2 2v4h4v-4h-4z"/>
-                                </svg>
-                            </button>
+                            <div className="qr-button-wrapper">
+                                <button 
+                                    className="qr-button"
+                                    onClick={() => setShowQRScanner(true)}
+                                    disabled={isLoading}
+                                    title="Scan QR Code"
+                                >
+                                    <svg className="qr-icon" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M1 1h8v8H1V1zm2 2v4h4V3H3zM1 15h8v8H1v-8zm2 2v4h4v-4H3zM15 1h8v8h-8V1zm2 2v4h4V3h-4zM15 15h8v8h-8v-8zm2 2v4h4v-4h-4z"/>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                     
                     <div className="amount-section">
                         <div className="amount-input-container" onClick={focusAmountInput}>
-                            <div className="amount-display-wrapper">
-                                <div className="amount-display">
-                                    <input
-                                        ref={amountInputRef}
-                                        type="number"
-                                        value={amount}
-                                        onChange={(e) => setAmount(e.target.value)}
-                                        placeholder="0"
-                                        className="amount-input"
-                                        min="0"
-                                        max={balance}
-                                        step="0.000001"
-                                        inputMode="decimal"
-                                    />
-                                    <div className="token-symbol-display">{token.symbol}</div>
-                                </div>
-                                <div className="token-icon-small">
+                            <div className="amount-display">
+                                <input
+                                    ref={amountInputRef}
+                                    type="number"
+                                    value={amount}
+                                    onChange={(e) => setAmount(e.target.value)}
+                                    placeholder="0"
+                                    className="amount-input"
+                                    min="0"
+                                    max={balance}
+                                    step="0.000001"
+                                    inputMode="decimal"
+                                />
+                                <div className="token-symbol-display">{token.symbol}</div>
+                                <div className="token-icon-large">
                                     <img 
                                         src={token.logo} 
                                         alt={token.symbol}
                                         onError={(e) => {
                                             e.target.style.display = 'none';
                                             const fallback = document.createElement('div');
-                                            fallback.className = 'token-icon-fallback-small';
+                                            fallback.className = 'token-icon-fallback-large';
                                             fallback.textContent = token.symbol.substring(0, 2);
                                             e.target.parentNode.appendChild(fallback);
                                         }}
@@ -261,45 +259,37 @@ const SendToken = () => {
                                 </div>
                             </div>
                             <div className="amount-underline"></div>
-                            <div className="balance-display-small">
+                            <div className="balance-display">
                                 Balance: {balance} {token.symbol}
                             </div>
                         </div>
                         
-                        <div className="amount-buttons">
+                        <div className="percentage-buttons">
                             <button 
-                                className="amount-button"
+                                className="percentage-button"
                                 onClick={() => handleSetAmount(25)}
                             >
                                 25%
                             </button>
                             <button 
-                                className="amount-button"
+                                className="percentage-button"
                                 onClick={() => handleSetAmount(50)}
                             >
                                 50%
                             </button>
                             <button 
-                                className="amount-button"
+                                className="percentage-button"
                                 onClick={() => handleSetAmount(75)}
                             >
                                 75%
                             </button>
                             <button 
-                                className="amount-button max-button"
+                                className="percentage-button max-button"
                                 onClick={handleMaxAmount}
                             >
                                 MAX
                             </button>
                         </div>
-                        
-                        <input
-                            type="text"
-                            value={comment}
-                            onChange={(e) => setComment(e.target.value)}
-                            placeholder="Comment (optional)"
-                            className="comment-input"
-                        />
                     </div>
                     
                     {transactionStatus && (
