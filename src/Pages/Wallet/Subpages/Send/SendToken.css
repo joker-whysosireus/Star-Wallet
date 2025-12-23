@@ -197,6 +197,7 @@
     flex-direction: column;
     align-items: center;
     position: relative;
+    width: 30px; /* Фиксированная ширина 30px */
 }
 
 .amount-input {
@@ -210,8 +211,8 @@
     padding: 0;
     box-sizing: border-box;
     text-align: center;
-    width: 150px;
-    min-width: 80px;
+    width: 100%; /* Занимает всю ширину контейнера (30px) */
+    min-width: 0;
 }
 
 /* Скрываем стрелки у number input */
@@ -232,7 +233,7 @@
 .amount-underline {
     height: 2px;
     background: rgba(255, 255, 255, 0.3);
-    width: 100%;
+    width: 100%; /* 30px - ширина контейнера */
     margin-top: 5px;
     transition: all 0.3s ease;
 }
