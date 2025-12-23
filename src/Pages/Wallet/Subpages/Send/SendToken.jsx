@@ -20,6 +20,7 @@ const SendToken = () => {
     const [token, setToken] = useState(wallet);
     const [amount, setAmount] = useState('');
     const [toAddress, setToAddress] = useState('');
+    const [comment, setComment] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [showQRScanner, setShowQRScanner] = useState(false);
     const [transactionStatus, setTransactionStatus] = useState(null);
@@ -53,7 +54,6 @@ const SendToken = () => {
     }, [amount, token, toAddress, isAddressValid]);
     
     useEffect(() => {
-        // Запускаем пульсацию полосы при фокусе
         if (amountInputRef.current === document.activeElement) {
             if (underlineRef.current) {
                 underlineRef.current.classList.add('pulsing');
@@ -135,7 +135,7 @@ const SendToken = () => {
                 amount: amount,
                 symbol: token.symbol,
                 contractAddress: token.contractAddress,
-                memo: '',
+                memo: comment,
                 privateKey: privateKey,
                 seedPhrase: userData.seed_phrases
             });
@@ -154,6 +154,7 @@ const SendToken = () => {
                     setTimeout(() => {
                         setAmount('');
                         setToAddress('');
+                        setComment('');
                     }, 3000);
                 }, 5000);
             } else {
@@ -261,24 +262,42 @@ const SendToken = () => {
                                 </button>
                             </div>
                         </div>
+                        
+                        <input
+                            type="text"
+                            value={comment}
+                            onChange={(e) => setComment(e.target.value)}
+                            placeholder="Comment (optional)"
+                            className="comment-input"
+                        />
                     </div>
                     
                     <div className="amount-section">
                         <div className="amount-input-container" onClick={focusAmountInput}>
                             <div className="amount-row">
-                                <input
-                                    ref={amountInputRef}
-                                    type="number"
-                                    value={amount}
-                                    onChange={(e) => setAmount(e.target.value)}
-                                    onBlur={handleInputBlur}
-                                    placeholder="0"
-                                    className="amount-input"
-                                    min="0"
-                                    max={balance}
-                                    step="0.000001"
-                                    inputMode="decimal"
-                                />
+                                <div className="amount-input-wrapper">
+                                    <input
+                                        ref={amountInputRef}
+                                        type="number"
+                                        value={amount}
+                                        onChange={(e) => setAmount(e.target.value)}
+                                        onBlur={handleInputBlur}
+                                        placeholder="0"
+                                        className="amount-input"
+                                        min="0"
+                                        max={balance}
+                                        step="0.000001"
+                                        inputMode="decimal"
+                                    />
+                                    <div 
+                                        ref={underlineRef}
+                                        className="amount-underline"
+                                        style={{ 
+                                            width: `${Math.max(40, amount ? amount.length * 20 : 40)}px`,
+                                            maxWidth: '250px'
+                                        }}
+                                    ></div>
+                                </div>
                                 <div className="token-icon-large">
                                     <img 
                                         src={token.logo} 
@@ -302,14 +321,6 @@ const SendToken = () => {
                                     {token.blockchain}
                                 </div>
                             </div>
-                            <div 
-                                ref={underlineRef}
-                                className="amount-underline"
-                                style={{ 
-                                    width: `${Math.max(40, amount ? amount.length * 20 : 40)}px`,
-                                    maxWidth: '250px'
-                                }}
-                            ></div>
                             <div className="balance-display">
                                 Balance: {balance} {token.symbol}
                             </div>

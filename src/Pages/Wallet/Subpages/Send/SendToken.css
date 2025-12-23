@@ -78,6 +78,9 @@
     width: 100%;
     margin-bottom: 10px;
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
 }
 
 .address-input-wrapper {
@@ -143,6 +146,22 @@
     color: #FFD700;
 }
 
+.comment-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 12px 15px;
+    color: white;
+    font-size: 13px;
+    font-family: 'Rubik', sans-serif;
+    box-sizing: border-box;
+}
+
+.comment-input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+}
+
 /* Секция ввода количества - БЕЗ ФОНА */
 .amount-section {
     width: 100%;
@@ -167,10 +186,16 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 5px;
     width: 100%;
-    position: relative;
     margin-bottom: 10px;
-    gap: 0; /* Убираем gap между элементами */
+}
+
+.amount-input-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
 }
 
 .amount-input {
@@ -187,8 +212,6 @@
     max-width: 250px;
     min-width: 80px;
     width: auto;
-    margin: 0;
-    padding: 0;
 }
 
 /* Скрываем стрелки у number input */
@@ -206,66 +229,11 @@
     color: rgba(255, 255, 255, 0.3);
 }
 
-.token-icon-large {
-    width: 48px;
-    height: 48px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    flex-shrink: 0;
-    margin: 0;
-    padding: 0;
-    background: none !important;
-}
-
-.token-icon-large img {
-    width: 48px;
-    height: 48px;
-    object-fit: contain;
-    border-radius: 50%;
-    margin: 0;
-    padding: 0;
-}
-
-.token-icon-fallback-large {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 215, 0, 0.2);
-    border-radius: 50%;
-    color: #FFD700;
-    font-size: 18px;
-    font-weight: bold;
-    margin: 0;
-    padding: 0;
-}
-
-.blockchain-badge {
-    padding: 6px 12px;
-    border-radius: 8px;
-    font-size: 12px;
-    font-weight: 600;
-    color: white;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-    flex-shrink: 0;
-    margin: 0;
-    padding-left: 8px;
-    padding-right: 8px;
-}
-
-/* Анимация пульсации для полосы */
 .amount-underline {
     height: 2px;
     background: rgba(255, 255, 255, 0.3);
-    margin: 10px 0;
+    margin-top: 5px;
     transition: all 0.3s ease;
-    align-self: center;
-    margin-left: 0;
 }
 
 .amount-underline.pulsing {
@@ -285,6 +253,49 @@
         opacity: 0.5;
         background: rgba(255, 255, 255, 0.3);
     }
+}
+
+.token-icon-large {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: none !important;
+}
+
+.token-icon-large img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    border-radius: 50%;
+}
+
+.token-icon-fallback-large {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 215, 0, 0.2);
+    border-radius: 50%;
+    color: #FFD700;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.blockchain-badge {
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .balance-display {
