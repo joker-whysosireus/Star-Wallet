@@ -28,6 +28,7 @@ const SendToken = () => {
     const [balance, setBalance] = useState('0');
     
     const amountInputRef = useRef(null);
+    const underlineRef = useRef(null);
     
     useEffect(() => {
         if (!wallet || !userData) {
@@ -50,6 +51,15 @@ const SendToken = () => {
             estimateFeeAsync();
         }
     }, [amount, token, toAddress, isAddressValid]);
+    
+    useEffect(() => {
+        // Запускаем пульсацию полосы при фокусе
+        if (amountInputRef.current === document.activeElement) {
+            if (underlineRef.current) {
+                underlineRef.current.classList.add('pulsing');
+            }
+        }
+    }, [amount]);
     
     const loadBalances = async () => {
         try {
@@ -186,12 +196,37 @@ const SendToken = () => {
     const focusAmountInput = () => {
         if (amountInputRef.current) {
             amountInputRef.current.focus();
+            if (underlineRef.current) {
+                underlineRef.current.classList.add('pulsing');
+            }
         }
+    };
+    
+    const handleInputBlur = () => {
+        if (underlineRef.current) {
+            underlineRef.current.classList.remove('pulsing');
+        }
+    };
+    
+    const getBlockchainBadge = (blockchain) => {
+        const badges = {
+            'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)' },
+            'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)' },
+            'Ethereum': { color: '#8c8cff', bg: 'rgba(140, 140, 255, 0.1)' },
+            'Tron': { color: '#ff0000', bg: 'rgba(255, 0, 0, 0.1)' },
+            'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)' },
+            'NEAR': { color: '#0b4731', bg: 'rgba(11, 71, 49, 0.1)' },
+            'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)' },
+        };
+        
+        return badges[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)' };
     };
     
     if (!token || !userData) {
         return null;
     }
+    
+    const badge = getBlockchainBadge(token.blockchain);
     
     return (
         <div className="wallet-page">
@@ -230,12 +265,13 @@ const SendToken = () => {
                     
                     <div className="amount-section">
                         <div className="amount-input-container" onClick={focusAmountInput}>
-                            <div className="amount-display">
+                            <div className="amount-row">
                                 <input
                                     ref={amountInputRef}
                                     type="number"
                                     value={amount}
                                     onChange={(e) => setAmount(e.target.value)}
+                                    onBlur={handleInputBlur}
                                     placeholder="0"
                                     className="amount-input"
                                     min="0"
@@ -243,7 +279,6 @@ const SendToken = () => {
                                     step="0.000001"
                                     inputMode="decimal"
                                 />
-                                <div className="token-symbol-display">{token.symbol}</div>
                                 <div className="token-icon-large">
                                     <img 
                                         src={token.logo} 
@@ -257,8 +292,24 @@ const SendToken = () => {
                                         }}
                                     />
                                 </div>
+                                <div 
+                                    className="blockchain-badge"
+                                    style={{ 
+                                        color: badge.color,
+                                        backgroundColor: badge.bg
+                                    }}
+                                >
+                                    {token.blockchain}
+                                </div>
                             </div>
-                            <div className="amount-underline"></div>
+                            <div 
+                                ref={underlineRef}
+                                className="amount-underline"
+                                style={{ 
+                                    width: `${Math.max(40, amount ? amount.length * 20 : 40)}px`,
+                                    maxWidth: '250px'
+                                }}
+                            ></div>
                             <div className="balance-display">
                                 Balance: {balance} {token.symbol}
                             </div>
