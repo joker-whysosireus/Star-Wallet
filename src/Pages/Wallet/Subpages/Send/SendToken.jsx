@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import QRScannerModal from './Components/QR/QRScannerModal';
 import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
 import { 
     getBalances, 
-    getTokenPrices, // Исправлен импорт - используем getTokenPrices вместо getTokenPricesFromRPC
+    getTokenPrices,
     sendTransaction,
     validateAddress,
     estimateTransactionFee
@@ -24,10 +24,11 @@ const SendToken = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [showQRScanner, setShowQRScanner] = useState(false);
     const [transactionStatus, setTransactionStatus] = useState(null);
-    const [usdValue, setUsdValue] = useState('0.00');
     const [transactionFee, setTransactionFee] = useState('0');
     const [isAddressValid, setIsAddressValid] = useState(true);
     const [balance, setBalance] = useState('0');
+    
+    const amountInputRef = useRef(null);
     
     useEffect(() => {
         if (!wallet || !userData) {
@@ -58,11 +59,6 @@ const SendToken = () => {
                 const updatedToken = updatedWallets[0];
                 setToken(updatedToken);
                 setBalance(updatedToken.balance || '0');
-                
-                const prices = await getTokenPrices(); // Использована исправленная функция
-                const price = prices[token.symbol] || 1;
-                const usd = parseFloat(updatedToken.balance || 0) * price;
-                setUsdValue(usd.toFixed(2));
             }
         } catch (error) {
             console.error('Error loading balances:', error);
@@ -189,8 +185,14 @@ const SendToken = () => {
         }
     };
     
+    const focusAmountInput = () => {
+        if (amountInputRef.current) {
+            amountInputRef.current.focus();
+        }
+    };
+    
     if (!token || !userData) {
-        return null; // Не показываем loader
+        return null;
     }
     
     return (
@@ -213,36 +215,54 @@ const SendToken = () => {
                                 placeholder={`Enter ${token.blockchain} address`}
                                 className={`address-input ${!isAddressValid && toAddress ? 'invalid' : ''}`}
                             />
-                            <div className="address-divider"></div>
                             <button 
                                 className="scan-btn"
                                 onClick={() => setShowQRScanner(true)}
                                 disabled={isLoading}
+                                title="Scan QR Code"
                             >
-                                QR
+                                <svg className="qr-icon" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M1 1h8v8H1V1zm2 2v4h4V3H3zM1 15h8v8H1v-8zm2 2v4h4v-4H3zM15 1h8v8h-8V1zm2 2v4h4V3h-4zM15 15h8v8h-8v-8zm2 2v4h4v-4h-4z"/>
+                                </svg>
                             </button>
                         </div>
                     </div>
                     
                     <div className="amount-section">
-                        <div className="amount-header">
-                            <div className="amount-left">
-                                <div className="amount-label">Enter amount</div>
+                        <div className="amount-input-container" onClick={focusAmountInput}>
+                            <div className="amount-display-wrapper">
                                 <div className="amount-display">
-                                    <span className="token-amount-small">{amount || '0'}</span>
-                                    <span className="token-symbol-small">{token.symbol}</span>
+                                    <input
+                                        ref={amountInputRef}
+                                        type="number"
+                                        value={amount}
+                                        onChange={(e) => setAmount(e.target.value)}
+                                        placeholder="0"
+                                        className="amount-input"
+                                        min="0"
+                                        max={balance}
+                                        step="0.000001"
+                                        inputMode="decimal"
+                                    />
+                                    <div className="token-symbol-display">{token.symbol}</div>
                                 </div>
-                                <div className="usd-display">
-                                    ${(parseFloat(amount || 0) * (parseFloat(usdValue) / parseFloat(balance || 1))).toFixed(2)}
+                                <div className="token-icon-small">
+                                    <img 
+                                        src={token.logo} 
+                                        alt={token.symbol}
+                                        onError={(e) => {
+                                            e.target.style.display = 'none';
+                                            const fallback = document.createElement('div');
+                                            fallback.className = 'token-icon-fallback-small';
+                                            fallback.textContent = token.symbol.substring(0, 2);
+                                            e.target.parentNode.appendChild(fallback);
+                                        }}
+                                    />
                                 </div>
                             </div>
-                            <div className="amount-right">
-                                <button className="max-btn" onClick={handleMaxAmount}>
-                                    Max
-                                </button>
-                                <div className="balance-display">
-                                    Balance: {balance} {token.symbol}
-                                </div>
+                            <div className="amount-underline"></div>
+                            <div className="balance-display-small">
+                                Balance: {balance} {token.symbol}
                             </div>
                         </div>
                         
@@ -251,43 +271,26 @@ const SendToken = () => {
                                 className="amount-button"
                                 onClick={() => handleSetAmount(25)}
                             >
-                                <span className="amount-button-icon">¼</span>
                                 25%
                             </button>
                             <button 
                                 className="amount-button"
                                 onClick={() => handleSetAmount(50)}
                             >
-                                <span className="amount-button-icon">½</span>
                                 50%
                             </button>
                             <button 
                                 className="amount-button"
                                 onClick={() => handleSetAmount(75)}
                             >
-                                <span className="amount-button-icon">¾</span>
                                 75%
                             </button>
                             <button 
-                                className="amount-button"
+                                className="amount-button max-button"
                                 onClick={handleMaxAmount}
                             >
-                                <span className="amount-button-icon">M</span>
-                                Max
+                                MAX
                             </button>
-                        </div>
-                        
-                        <div className="amount-input-container">
-                            <input
-                                type="number"
-                                value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
-                                placeholder="0.0"
-                                className="amount-input"
-                                min="0"
-                                max={balance}
-                                step="0.000001"
-                            />
                         </div>
                         
                         <input

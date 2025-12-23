@@ -36,7 +36,7 @@
     max-width: 350px;
     margin: 0 auto;
     padding: 0;
-    gap: 10px;
+    gap: 15px;
     overflow-y: auto;
     margin-top: 40px;
 }
@@ -73,8 +73,7 @@
     cursor: not-allowed;
 }
 
-/* Стили для страницы Send */
-
+/* Поле ввода адреса */
 .address-input-container {
     width: 100%;
     margin-bottom: 10px;
@@ -103,36 +102,32 @@
     font-family: 'Rubik', sans-serif;
     min-width: 0;
     box-sizing: border-box;
-    width: calc(100% - 60px);
+    width: calc(100% - 50px);
 }
 
 .address-input::placeholder {
     color: rgba(255, 255, 255, 0.3);
 }
 
-.address-divider {
-    width: 1px;
-    height: 100%;
-    background: rgba(255, 255, 255, 0.2);
-    flex-shrink: 0;
-    margin: 0;
-}
-
 .scan-btn {
     background: transparent;
     border: none;
-    padding: 0 16px;
-    color: #FFD700;
+    padding: 0 15px;
     cursor: pointer;
     height: 100%;
     display: flex;
     align-items: center;
-    font-size: 18px;
-    width: 60px;
     justify-content: center;
-    font-weight: bold;
+    width: 50px;
 }
 
+.qr-icon {
+    width: 22px;
+    height: 22px;
+    color: #FFD700;
+}
+
+/* Блок ввода количества */
 .amount-section {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -143,71 +138,108 @@
     box-sizing: border-box;
 }
 
-.amount-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
+.amount-input-container {
     margin-bottom: 15px;
+    cursor: pointer;
 }
 
-.amount-left {
+.amount-display-wrapper {
     display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.amount-label {
-    color: rgba(255, 255, 255, 0.8);
-    font-size: 13px;
-    font-weight: 500;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
 }
 
 .amount-display {
     display: flex;
-    align-items: baseline;
-    gap: 5px;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
 }
 
-.token-amount-small {
+.amount-input {
+    background: transparent;
+    border: none;
     color: white;
-    font-size: 18px;
+    font-size: 24px;
     font-weight: 600;
+    font-family: 'Rubik', sans-serif;
+    outline: none;
+    padding: 0;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
 }
 
-.token-symbol-small {
+/* Скрываем стрелки у number input */
+.amount-input::-webkit-outer-spin-button,
+.amount-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.amount-input[type=number] {
+    -moz-appearance: textfield;
+}
+
+.amount-input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.token-symbol-display {
     color: rgba(255, 255, 255, 0.7);
-    font-size: 14px;
-}
-
-.usd-display {
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 11px;
-}
-
-.amount-right {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 5px;
-}
-
-.max-btn {
-    background: rgba(255, 215, 0, 0.1);
-    border: 1px solid rgba(255, 215, 0, 0.3);
-    border-radius: 6px;
-    padding: 5px 10px;
-    color: #FFD700;
-    font-size: 11px;
+    font-size: 16px;
     font-weight: 500;
-    cursor: pointer;
+    margin-left: 8px;
+    white-space: nowrap;
 }
 
-.balance-display {
+.token-icon-small {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 215, 0, 0.1);
+    border-radius: 8px;
+    flex-shrink: 0;
+    margin-left: 10px;
+}
+
+.token-icon-small img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    border-radius: 50%;
+}
+
+.token-icon-fallback-small {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 215, 0, 0.2);
+    border-radius: 8px;
+    color: #FFD700;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.amount-underline {
+    width: 100%;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.2);
+    margin: 8px 0;
+}
+
+.balance-display-small {
     color: rgba(255, 255, 255, 0.5);
     font-size: 11px;
+    text-align: left;
 }
 
-/* Кнопки для выбора количества - исправленные границы */
+/* Кнопки для выбора количества */
 .amount-buttons {
     display: flex;
     gap: 8px;
@@ -221,13 +253,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
-    padding: 8px 5px;
+    padding: 10px 5px;
     color: white;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
@@ -239,47 +270,10 @@
     background: rgba(255, 255, 255, 0.08);
 }
 
-.amount-button.active {
+.amount-button.max-button {
     background: rgba(255, 215, 0, 0.1);
     border-color: rgba(255, 215, 0, 0.3);
     color: #FFD700;
-}
-
-.amount-button-icon {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #FFD700, #FFA500);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 8px;
-    color: #000;
-    font-weight: bold;
-}
-
-/* Поле ввода количества */
-.amount-input-container {
-    margin-bottom: 15px;
-    width: 100%;
-}
-
-.amount-input {
-    width: 100%;
-    background: transparent;
-    border: none;
-    color: white;
-    font-size: 28px;
-    font-weight: 600;
-    font-family: 'Rubik', sans-serif;
-    outline: none;
-    padding: 0;
-    box-sizing: border-box;
-    text-align: center;
-}
-
-.amount-input::placeholder {
-    color: rgba(255, 255, 255, 0.3);
 }
 
 /* Поле комментария */
@@ -322,4 +316,21 @@
     background: rgba(255, 0, 0, 0.1);
     border: 1px solid rgba(255, 0, 0, 0.3);
     color: #FF5555;
+}
+
+.transaction-hash {
+    font-size: 10px;
+    margin-top: 5px;
+    word-break: break-all;
+}
+
+.view-explorer-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 6px;
+    padding: 5px 10px;
+    color: white;
+    font-size: 11px;
+    cursor: pointer;
+    margin-top: 8px;
 }

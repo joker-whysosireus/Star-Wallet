@@ -105,7 +105,7 @@
 .blockchain-badge {
     padding: 2px 8px;
     border-radius: 10px;
-    font-size: 10px;
+    font-size: 8px;
     font-weight: 600;
     color: white;
     text-transform: uppercase;
@@ -116,6 +116,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 80px;
+    /* Убираем белую обводку */
+    border: none;
+    box-shadow: none;
 }
 
 /* Стили для скелетонов */
