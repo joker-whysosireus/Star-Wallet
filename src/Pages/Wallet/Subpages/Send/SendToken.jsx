@@ -292,10 +292,6 @@ const SendToken = () => {
                                     <div 
                                         ref={underlineRef}
                                         className="amount-underline"
-                                        style={{ 
-                                            width: `${Math.max(40, amount ? amount.length * 20 : 40)}px`,
-                                            maxWidth: '250px'
-                                        }}
                                     ></div>
                                 </div>
                                 <div className="token-icon-large">
