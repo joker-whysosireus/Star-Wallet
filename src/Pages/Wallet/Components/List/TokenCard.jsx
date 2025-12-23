@@ -103,7 +103,7 @@ const TokenCard = ({ wallet, isLoading = false }) => {
                 <div className="token-usd-balance">{usdBalance}</div>
                 {wallet.showBlockchain && (
                     <div 
-                        className="blockchain-badge-card" 
+                        className="blockchain-badge" 
                         style={{ backgroundColor: badge.color }}
                         title={wallet.blockchain}
                     >
