@@ -27,6 +27,7 @@ const SendToken = () => {
     const [transactionFee, setTransactionFee] = useState('0');
     const [isAddressValid, setIsAddressValid] = useState(true);
     const [balance, setBalance] = useState('0');
+    const [isCameraAvailable, setIsCameraAvailable] = useState(true);
     
     const amountInputRef = useRef(null);
     const underlineRef = useRef(null);
@@ -39,7 +40,26 @@ const SendToken = () => {
         
         setToken(wallet);
         loadBalances();
+        
+        // Проверяем доступность камеры при монтировании
+        checkCameraAvailability();
     }, []);
+    
+    const checkCameraAvailability = async () => {
+        try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                setIsCameraAvailable(false);
+                return;
+            }
+            
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(device => device.kind === 'videoinput');
+            setIsCameraAvailable(videoDevices.length > 0);
+        } catch (error) {
+            console.error('Camera check error:', error);
+            setIsCameraAvailable(false);
+        }
+    };
     
     useEffect(() => {
         if (toAddress && token) {
@@ -75,6 +95,11 @@ const SendToken = () => {
     };
     
     const validateAddressAsync = async () => {
+        if (!toAddress.trim()) {
+            setIsAddressValid(true);
+            return;
+        }
+        
         try {
             const isValid = await validateAddress(token.blockchain, toAddress);
             setIsAddressValid(isValid);
@@ -242,6 +267,14 @@ const SendToken = () => {
         return badges[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)' };
     };
     
+    const handleQRButtonClick = () => {
+        if (!isCameraAvailable) {
+            alert('Camera is not available on this device');
+            return;
+        }
+        setShowQRScanner(true);
+    };
+    
     if (!token || !userData) {
         return null;
     }
@@ -271,8 +304,8 @@ const SendToken = () => {
                             <div className="qr-button-wrapper">
                                 <button 
                                     className="qr-button"
-                                    onClick={() => setShowQRScanner(true)}
-                                    disabled={isLoading}
+                                    onClick={handleQRButtonClick}
+                                    disabled={isLoading || !isCameraAvailable}
                                     title="Scan QR Code"
                                 >
                                     <svg className="qr-icon" viewBox="0 0 24 24" fill="currentColor">

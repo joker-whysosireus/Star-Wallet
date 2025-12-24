@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import jsQR from 'jsqr';
 import './QRScannerModal.css';
 
@@ -8,27 +8,19 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
     const streamRef = useRef(null);
     const modalRef = useRef(null);
     const animationFrameRef = useRef(null);
-    const isScanningRef = useRef(false);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
         if (isOpen) {
             startCamera();
             // Добавляем обработчик клика вне модалки
             document.addEventListener('mousedown', handleClickOutside);
-            // Запускаем сканирование через 500мс после старта камеры
-            setTimeout(() => {
-                if (isOpen) {
-                    startQRScanning();
-                }
-            }, 500);
         } else {
             stopCamera();
-            stopQRScanning();
         }
 
         return () => {
             stopCamera();
-            stopQRScanning();
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, [isOpen]);
@@ -36,7 +28,7 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
     const startCamera = async () => {
         try {
             if (!('mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices)) {
-                alert('Camera not supported');
+                setError('Camera not supported in this browser');
                 return;
             }
 
@@ -52,17 +44,36 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
             
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
-                await videoRef.current.play();
+                videoRef.current.onloadedmetadata = () => {
+                    videoRef.current.play()
+                        .then(() => {
+                            startQRScanning();
+                        })
+                        .catch(e => {
+                            console.error('Video play error:', e);
+                            setError('Failed to start camera');
+                        });
+                };
             }
         } catch (err) {
             console.error('Camera error:', err);
-            alert('Cannot access camera');
+            if (err.name === 'NotAllowedError') {
+                setError('Camera access denied. Please allow camera access.');
+            } else if (err.name === 'NotFoundError') {
+                setError('No camera found on this device.');
+            } else {
+                setError('Cannot access camera. Please try again.');
+            }
         }
     };
 
     const stopCamera = () => {
+        stopQRScanning();
+        
         if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current.getTracks().forEach(track => {
+                track.stop();
+            });
             streamRef.current = null;
         }
         
@@ -76,28 +87,43 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
         
         const video = videoRef.current;
         const canvas = canvasRef.current;
+        
+        // Ждем, пока видео будет готово
+        if (video.readyState < 2) {
+            video.onloadeddata = () => {
+                scanFrame();
+            };
+            return;
+        }
+        
+        scanFrame();
+    };
+
+    const scanFrame = () => {
+        if (!videoRef.current || !canvasRef.current) return;
+        
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        
+        // Проверяем, что видео готово
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+            animationFrameRef.current = requestAnimationFrame(scanFrame);
+            return;
+        }
+
+        // Устанавливаем размер canvas такой же как у video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
         const context = canvas.getContext('2d', { willReadFrequently: true });
         
-        isScanningRef.current = true;
+        // Рисуем текущий кадр видео на canvas
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
         
-        const scanFrame = () => {
-            if (!isScanningRef.current || !video.videoWidth || !video.videoHeight) {
-                if (isScanningRef.current) {
-                    animationFrameRef.current = requestAnimationFrame(scanFrame);
-                }
-                return;
-            }
-
-            // Устанавливаем размер canvas такой же как у video
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-
-            // Рисуем текущий кадр видео на canvas
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            // Получаем данные изображения
-            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-            
+        // Получаем данные изображения
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        
+        try {
             // Сканируем QR-код
             const code = jsQR(imageData.data, imageData.width, imageData.height, {
                 inversionAttempts: 'dontInvert',
@@ -126,18 +152,15 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
                 
                 return;
             }
+        } catch (err) {
+            console.error('QR scanning error:', err);
+        }
 
-            // Продолжаем сканирование
-            if (isScanningRef.current) {
-                animationFrameRef.current = requestAnimationFrame(scanFrame);
-            }
-        };
-
+        // Продолжаем сканирование
         animationFrameRef.current = requestAnimationFrame(scanFrame);
     };
 
     const stopQRScanning = () => {
-        isScanningRef.current = false;
         if (animationFrameRef.current) {
             cancelAnimationFrame(animationFrameRef.current);
             animationFrameRef.current = null;
@@ -200,6 +223,11 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
         }
     };
 
+    const handleClose = () => {
+        stopCamera();
+        onClose();
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -218,6 +246,18 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
                         ref={canvasRef}
                         style={{ display: 'none' }}
                     />
+                    {error && (
+                        <div className="qr-scanner-error">
+                            <div className="qr-scanner-error-icon">⚠️</div>
+                            <div className="qr-scanner-error-text">{error}</div>
+                            <button 
+                                className="qr-scanner-error-close"
+                                onClick={handleClose}
+                            >
+                                Close
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
