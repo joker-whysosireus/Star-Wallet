@@ -9,9 +9,8 @@ import * as ecc from 'tiny-secp256k1';
 import TronWeb from 'tronweb';
 import crypto from 'crypto';
 import { providers, KeyPair, keyStores } from 'near-api-js';
-import * as ripple from 'ripple-lib';
-import * as litecoin from 'litecore-lib';
-import * as dogecoin from 'dogecoinjs-lib';
+// @ts-ignore
+import * as xrpl from 'xrpl';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -42,18 +41,34 @@ const MAINNET_CONFIG = {
         RPC_URL: 'https://bsc-dataseed.binance.org/'
     },
     XRP: {
-        RPC_URL: 'https://s1.ripple.com:51234',
-        EXPLORER_URL: 'https://xrpscan.com'
+        RPC_URL: 'wss://s1.ripple.com:51233',
+        EXPLORER_URL: 'https://xrpscan.com/tx/'
     },
     LTC: {
-        RPC_URL: 'https://litecoin-mainnet.gateway.tatum.io',
-        EXPLORER_URL: 'https://live.blockcypher.com/ltc/',
-        NETWORK: litecoin.Networks.mainnet
+        NETWORK: {
+            messagePrefix: '\x19Litecoin Signed Message:\n',
+            bech32: 'ltc',
+            bip32: {
+                public: 0x019da462,
+                private: 0x019d9cfe
+            },
+            pubKeyHash: 0x30,
+            scriptHash: 0x32,
+            wif: 0xb0
+        }
     },
     DOGE: {
-        RPC_URL: 'https://dogecoin-mainnet.gateway.tatum.io',
-        EXPLORER_URL: 'https://dogechain.info',
-        NETWORK: dogecoin.networks.mainnet
+        NETWORK: {
+            messagePrefix: '\x19Dogecoin Signed Message:\n',
+            bech32: 'doge',
+            bip32: {
+                public: 0x02facafd,
+                private: 0x02fac398
+            },
+            pubKeyHash: 0x1e,
+            scriptHash: 0x16,
+            wif: 0x9e
+        }
     }
 };
 
@@ -118,15 +133,19 @@ const getBitcoinWalletFromSeed = async (seedPhrase) => {
 // === НОВЫЕ ФУНКЦИИ ДЛЯ XRP, LTC, DOGE ===
 const getXrpWalletFromSeed = async (seedPhrase) => {
     try {
+        // Генерируем детерминированный seed из мнемонической фразы
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
         const wallet = masterNode.derivePath("m/44'/144'/0'/0/0");
+        
+        // Используем приватный ключ для генерации XRP seed
         const privateKey = wallet.privateKey.slice(2);
-        const api = new ripple.RippleAPI({ server: MAINNET_CONFIG.XRP.RPC_URL });
-        await api.connect();
-        const { address, secret } = api.generateAddress({ privateKey });
-        await api.disconnect();
-        return { address, secret, api };
+        const xrpSeed = privateKey.substring(0, 29); // XRP seed обычно 29 символов
+        
+        // Создаем кошелек XRPL
+        const xrplWallet = xrpl.Wallet.fromSeed(xrpSeed);
+        
+        return xrplWallet;
     } catch (error) {
         console.error('Error getting XRP wallet from seed:', error);
         throw error;
@@ -138,7 +157,7 @@ const getLtcWalletFromSeed = async (seedPhrase) => {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const root = bip32.fromSeed(seedBuffer, MAINNET_CONFIG.LTC.NETWORK);
         const child = root.derivePath("m/44'/2'/0'/0/0");
-        const { address } = litecoin.payments.p2wpkh({
+        const { address } = bitcoin.payments.p2wpkh({
             pubkey: child.publicKey,
             network: MAINNET_CONFIG.LTC.NETWORK
         });
@@ -154,7 +173,7 @@ const getDogeWalletFromSeed = async (seedPhrase) => {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const root = bip32.fromSeed(seedBuffer, MAINNET_CONFIG.DOGE.NETWORK);
         const child = root.derivePath("m/44'/3'/0'/0/0");
-        const { address } = dogecoin.payments.p2pkh({
+        const { address } = bitcoin.payments.p2pkh({
             pubkey: child.publicKey,
             network: MAINNET_CONFIG.DOGE.NETWORK
         });
@@ -390,38 +409,47 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase }) => {
 export const sendXrp = async ({ toAddress, amount, seedPhrase }) => {
     try {
         console.log(`[XRP] Sending ${amount} XRP to ${toAddress}`);
-        const { address, secret, api } = await getXrpWalletFromSeed(seedPhrase);
         
-        await api.connect();
-        const prepared = await api.preparePayment(address, {
-            source: {
-                address: address,
-                maxAmount: {
-                    value: amount.toString(),
-                    currency: 'XRP'
-                }
-            },
-            destination: {
-                address: toAddress,
-                amount: {
-                    value: amount.toString(),
-                    currency: 'XRP'
-                }
+        // Получаем кошелек из seed фразы
+        const wallet = await getXrpWalletFromSeed(seedPhrase);
+        
+        // Создаем клиент XRPL
+        const client = new xrpl.Client(MAINNET_CONFIG.XRP.RPC_URL);
+        await client.connect();
+        
+        try {
+            // Подготавливаем транзакцию
+            const prepared = await client.autofill({
+                TransactionType: "Payment",
+                Account: wallet.address,
+                Amount: xrpl.xrpToDrops(amount.toString()),
+                Destination: toAddress,
+                Fee: "12" // Базовая комиссия
+            });
+            
+            // Подписываем транзакцию
+            const signed = wallet.sign(prepared);
+            
+            // Отправляем транзакцию
+            const result = await client.submitAndWait(signed.tx_blob);
+            
+            await client.disconnect();
+            
+            if (result.result.meta.TransactionResult === "tesSUCCESS") {
+                return {
+                    success: true,
+                    hash: signed.hash,
+                    message: `Successfully sent ${amount} XRP`,
+                    explorerUrl: `${MAINNET_CONFIG.XRP.EXPLORER_URL}${signed.hash}`,
+                    timestamp: new Date().toISOString()
+                };
+            } else {
+                throw new Error(`Transaction failed: ${result.result.meta.TransactionResult}`);
             }
-        });
-        
-        const signed = api.sign(prepared.txJSON, secret);
-        const result = await api.submit(signed.signedTransaction);
-        
-        await api.disconnect();
-        
-        return {
-            success: true,
-            hash: result.tx_json.hash,
-            message: `Successfully sent ${amount} XRP`,
-            explorerUrl: `${MAINNET_CONFIG.XRP.EXPLORER_URL}/tx/${result.tx_json.hash}`,
-            timestamp: new Date().toISOString()
-        };
+        } catch (error) {
+            await client.disconnect();
+            throw error;
+        }
     } catch (error) {
         console.error('[XRP ERROR]:', error);
         throw new Error(`Failed to send XRP: ${error.message}`);
@@ -439,7 +467,7 @@ export const sendLtc = async ({ toAddress, amount, seedPhrase }) => {
             success: true,
             hash: `ltc_tx_${Date.now()}`,
             message: `Successfully sent ${amount} LTC`,
-            explorerUrl: `${MAINNET_CONFIG.LTC.EXPLORER_URL}/tx/ltc_tx_${Date.now()}`,
+            explorerUrl: `https://live.blockcypher.com/ltc/tx/ltc_tx_${Date.now()}`,
             timestamp: new Date().toISOString()
         };
     } catch (error) {
@@ -459,7 +487,7 @@ export const sendDoge = async ({ toAddress, amount, seedPhrase }) => {
             success: true,
             hash: `doge_tx_${Date.now()}`,
             message: `Successfully sent ${amount} DOGE`,
-            explorerUrl: `${MAINNET_CONFIG.DOGE.EXPLORER_URL}/tx/doge_tx_${Date.now()}`,
+            explorerUrl: `https://dogechain.info/tx/doge_tx_${Date.now()}`,
             timestamp: new Date().toISOString()
         };
     } catch (error) {
@@ -557,14 +585,14 @@ export const validateAddress = (blockchain, address) => {
                 return /^r[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(address);
             case 'LTC':
                 try {
-                    litecoin.address.fromString(address, MAINNET_CONFIG.LTC.NETWORK);
+                    bitcoin.address.toOutputScript(address, MAINNET_CONFIG.LTC.NETWORK);
                     return true;
                 } catch {
                     return false;
                 }
             case 'DOGE':
                 try {
-                    dogecoin.address.fromString(address, MAINNET_CONFIG.DOGE.NETWORK);
+                    bitcoin.address.toOutputScript(address, MAINNET_CONFIG.DOGE.NETWORK);
                     return true;
                 } catch {
                     return false;
@@ -633,19 +661,19 @@ export const checkAddressExists = async (blockchain, address) => {
                 const tronData = await tronResponse.json();
                 return tronData.data && tronData.data.length > 0;
             case 'XRP':
-                const xrpResponse = await fetch(MAINNET_CONFIG.XRP.RPC_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        method: 'account_info',
-                        params: [{
-                            account: address,
-                            ledger_index: 'validated'
-                        }]
-                    })
-                });
-                const xrpData = await xrpResponse.json();
-                return !xrpData.error;
+                try {
+                    const client = new xrpl.Client(MAINNET_CONFIG.XRP.RPC_URL);
+                    await client.connect();
+                    const accountInfo = await client.request({
+                        command: "account_info",
+                        account: address,
+                        ledger_index: "validated"
+                    });
+                    await client.disconnect();
+                    return accountInfo.result.account_data !== undefined;
+                } catch {
+                    return false;
+                }
             default:
                 return true;
         }

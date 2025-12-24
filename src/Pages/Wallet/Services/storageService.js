@@ -9,9 +9,8 @@ import * as ecc from 'tiny-secp256k1';
 import TronWeb from 'tronweb';
 import crypto from 'crypto';
 import { providers, KeyPair, keyStores } from 'near-api-js';
-import * as ripple from 'ripple-lib';
-import * as litecoin from 'litecore-lib';
-import * as dogecoin from 'dogecoinjs-lib';
+// @ts-ignore
+import * as xrpl from 'xrpl';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -42,18 +41,34 @@ const MAINNET_CONFIG = {
         RPC_URL: 'https://bsc-dataseed.binance.org/'
     },
     XRP: {
-        RPC_URL: 'https://s1.ripple.com:51234',
+        RPC_URL: 'wss://s1.ripple.com:51233',
         EXPLORER_URL: 'https://xrpscan.com'
     },
     LTC: {
-        RPC_URL: 'https://litecoin-mainnet.gateway.tatum.io',
-        EXPLORER_URL: 'https://live.blockcypher.com/ltc/',
-        NETWORK: litecoin.Networks.mainnet
+        NETWORK: {
+            messagePrefix: '\x19Litecoin Signed Message:\n',
+            bech32: 'ltc',
+            bip32: {
+                public: 0x019da462,
+                private: 0x019d9cfe
+            },
+            pubKeyHash: 0x30,
+            scriptHash: 0x32,
+            wif: 0xb0
+        }
     },
     DOGE: {
-        RPC_URL: 'https://dogecoin-mainnet.gateway.tatum.io',
-        EXPLORER_URL: 'https://dogechain.info',
-        NETWORK: dogecoin.networks.mainnet
+        NETWORK: {
+            messagePrefix: '\x19Dogecoin Signed Message:\n',
+            bech32: 'doge',
+            bip32: {
+                public: 0x02facafd,
+                private: 0x02fac398
+            },
+            pubKeyHash: 0x1e,
+            scriptHash: 0x16,
+            wif: 0x9e
+        }
     }
 };
 
@@ -292,11 +307,13 @@ const generateXrpAddress = async (seedPhrase) => {
         const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
         const wallet = masterNode.derivePath("m/44'/144'/0'/0/0");
         const privateKey = wallet.privateKey.slice(2);
-        const api = new ripple.RippleAPI({ server: MAINNET_CONFIG.XRP.RPC_URL });
-        await api.connect();
-        const { address } = api.generateAddress({ privateKey });
-        await api.disconnect();
-        return address;
+        
+        // Используем приватный ключ для генерации XRP seed
+        const xrpSeed = privateKey.substring(0, 29); // XRP seed обычно 29 символов
+        
+        // Создаем кошелек XRPL
+        const xrplWallet = xrpl.Wallet.fromSeed(xrpSeed);
+        return xrplWallet.address;
     } catch (error) {
         console.error('Error generating XRP address:', error);
         return 'rG1QQv2nh2gr7RCZ1P8YYcBUKCCN633jCn';
@@ -308,7 +325,7 @@ const generateLtcAddress = async (seedPhrase) => {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const root = bip32.fromSeed(seedBuffer, MAINNET_CONFIG.LTC.NETWORK);
         const child = root.derivePath("m/44'/2'/0'/0/0");
-        const { address } = litecoin.payments.p2wpkh({ 
+        const { address } = bitcoin.payments.p2wpkh({ 
             pubkey: child.publicKey, 
             network: MAINNET_CONFIG.LTC.NETWORK 
         });
@@ -324,7 +341,7 @@ const generateDogeAddress = async (seedPhrase) => {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const root = bip32.fromSeed(seedBuffer, MAINNET_CONFIG.DOGE.NETWORK);
         const child = root.derivePath("m/44'/3'/0'/0/0");
-        const { address } = dogecoin.payments.p2pkh({ 
+        const { address } = bitcoin.payments.p2pkh({ 
             pubkey: child.publicKey, 
             network: MAINNET_CONFIG.DOGE.NETWORK 
         });
@@ -372,7 +389,7 @@ export const getRealBalances = async (wallets) => {
                         case 'Ethereum':
                             balance = wallet.isNative ?
                                 await getEthBalance(wallet.address) :
-                                await getERC20Balance(wlet.address, wallet.contractAddress);
+                                await getERC20Balance(wallet.address, wallet.contractAddress);
                             break;
                         case 'Solana':
                             balance = wallet.isNative ?
@@ -666,22 +683,20 @@ const getBEP20Balance = async (address, contractAddress) => {
 // Новые функции получения балансов
 const getXrpBalance = async (address) => {
     try {
-        const response = await fetch(MAINNET_CONFIG.XRP.RPC_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                method: 'account_info',
-                params: [{
-                    account: address,
-                    ledger_index: 'validated'
-                }]
-            })
+        const client = new xrpl.Client(MAINNET_CONFIG.XRP.RPC_URL);
+        await client.connect();
+        
+        const response = await client.request({
+            command: "account_info",
+            account: address,
+            ledger_index: "validated"
         });
         
-        const data = await response.json();
-        if (data.result?.account_data?.Balance) {
-            const balanceDrops = parseInt(data.result.account_data.Balance);
-            return (balanceDrops / 1_000_000).toFixed(6); // 1 XRP = 1,000,000 drops
+        await client.disconnect();
+        
+        if (response.result.account_data?.Balance) {
+            const balanceDrops = parseInt(response.result.account_data.Balance);
+            return xrpl.dropsToXrp(balanceDrops);
         }
         return '0';
     } catch (error) {
@@ -692,14 +707,12 @@ const getXrpBalance = async (address) => {
 
 const getLtcBalance = async (address) => {
     try {
-        const response = await fetch(`${MAINNET_CONFIG.LTC.EXPLORER_URL}/address/${address}`);
+        // Используем BlockCypher API для LTC
+        const response = await fetch(`https://api.blockcypher.com/v1/ltc/main/addresses/${address}/balance`);
         const data = await response.json();
         
-        if (data.chain_stats) {
-            const confirmed = data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum;
-            const mempool = data.mempool_stats?.funded_txo_sum - data.mempool_stats?.spent_txo_sum || 0;
-            const totalSatoshis = confirmed + mempool;
-            return (totalSatoshis / 1e8).toFixed(6);
+        if (data.balance) {
+            return (data.balance / 1e8).toFixed(6);
         }
         return '0';
     } catch (error) {
@@ -710,7 +723,8 @@ const getLtcBalance = async (address) => {
 
 const getDogeBalance = async (address) => {
     try {
-        const response = await fetch(`${MAINNET_CONFIG.DOGE.EXPLORER_URL}/api/v1/address/${address}`);
+        // Используем DogeChain API
+        const response = await fetch(`https://dogechain.info/api/v1/address/balance/${address}`);
         const data = await response.json();
         
         if (data.balance) {
@@ -933,12 +947,12 @@ export const validateAddress = async (blockchain, address) => {
                 return xrpRegex.test(address);
             case 'LTC':
                 try {
-                    litecoin.address.fromString(address, MAINNET_CONFIG.LTC.NETWORK);
+                    bitcoin.address.toOutputScript(address, MAINNET_CONFIG.LTC.NETWORK);
                     return true;
                 } catch { return false; }
             case 'DOGE':
                 try {
-                    dogecoin.address.fromString(address, MAINNET_CONFIG.DOGE.NETWORK);
+                    bitcoin.address.toOutputScript(address, MAINNET_CONFIG.DOGE.NETWORK);
                     return true;
                 } catch { return false; }
             default:
