@@ -55,7 +55,8 @@
     "util": "^0.12.5",
     "vite-plugin-top-level-await": "^1.6.0",
     "vite-plugin-wasm": "^3.5.0",
-    "vm-browserify": "^1.1.2"
+    "vm-browserify": "^1.1.2",
+    "xrpl": "^4.5.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
