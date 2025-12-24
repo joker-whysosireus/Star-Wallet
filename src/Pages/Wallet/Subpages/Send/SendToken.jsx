@@ -175,8 +175,24 @@ const SendToken = () => {
     };
     
     const handleScanQR = (scannedData) => {
+        console.log('Scanned data received:', scannedData);
+        
+        // Проверяем, что данные не пустые
+        if (!scannedData || typeof scannedData !== 'string') {
+            console.error('Invalid QR code data');
+            return;
+        }
+        
+        // Устанавливаем отсканированный адрес
         setToAddress(scannedData);
         setShowQRScanner(false);
+        
+        // Автоматически запускаем валидацию адреса
+        if (scannedData && token) {
+            setTimeout(() => {
+                validateAddressAsync();
+            }, 100);
+        }
     };
     
     const handleMaxAmount = () => {
@@ -218,6 +234,9 @@ const SendToken = () => {
             'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)' },
             'NEAR': { color: '#0b4731', bg: 'rgba(11, 71, 49, 0.1)' },
             'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)' },
+            'XRP': { color: '#23292f', bg: 'rgba(35, 41, 47, 0.1)' },
+            'LTC': { color: '#bfbbbb', bg: 'rgba(191, 187, 187, 0.1)' },
+            'DOGE': { color: '#c2a633', bg: 'rgba(194, 166, 51, 0.1)' }
         };
         
         return badges[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)' };

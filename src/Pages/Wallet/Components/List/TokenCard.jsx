@@ -60,7 +60,10 @@ const TokenCard = ({ wallet, isLoading = false }) => {
             'Tron': { color: '#ff0000', text: 'TRX' },
             'Bitcoin': { color: '#E49E00', text: 'BTC' },
             'NEAR': { color: '#0b4731ff', text: 'NEAR' },
-            'BSC': { color: '#bfcd43ff', text: 'BNB' }, 
+            'BSC': { color: '#bfcd43ff', text: 'BNB' },
+            'XRP': { color: '#23292f', text: 'XRP' },
+            'LTC': { color: '#bfbbbb', text: 'LTC' },
+            'DOGE': { color: '#c2a633', text: 'DOGE' }
         };
         
         return badges[blockchain] || { color: '#666', text: blockchain };
@@ -68,9 +71,16 @@ const TokenCard = ({ wallet, isLoading = false }) => {
     
     const badge = getBlockchainBadge(wallet.blockchain);
 
+    // Используем SVG иконки для USDT и NEAR
     const getLogoUrl = () => {
         if (wallet.symbol === 'TON') {
             return 'https://ton.org/download/ton_symbol.svg';
+        }
+        if (wallet.symbol === 'USDT') {
+            return 'https://cryptologos.cc/logos/tether-usdt-logo.svg';
+        }
+        if (wallet.symbol === 'NEAR') {
+            return 'https://cryptologos.cc/logos/near-protocol-near-logo.svg';
         }
         return wallet.logo;
     };

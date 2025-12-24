@@ -56,7 +56,7 @@ const ReceiveToken = () => {
     };
     
     if (!token || !userData) {
-        return null; // Не показываем loader, просто ничего не показываем
+        return null;
     }
     
     return (
@@ -78,6 +78,7 @@ const ReceiveToken = () => {
                         <>
                             <div className="qr-container">
                                 <div className="qr-wrapper">
+                                    {/* QR-код кодирует адрес кошелька */}
                                     <QRCode 
                                         value={token.address} 
                                         size={180}

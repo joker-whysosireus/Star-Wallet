@@ -356,7 +356,7 @@ function Wallet({ isActive, userData }) {
 
                 <div className="assets-container">
                     {showSkeleton && (isInitialLoad || isRefreshing) ? (
-                        Array.from({ length: 10 }).map((_, index) => (
+                        Array.from({ length: 13 }).map((_, index) => (
                             <div 
                                 key={`skeleton-${index}`} 
                                 className="token-block"

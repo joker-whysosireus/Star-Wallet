@@ -6,8 +6,12 @@ import * as bitcoin from 'bitcoinjs-lib';
 import * as bip39 from 'bip39';
 import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
-import crypto from 'crypto';
 import TronWeb from 'tronweb';
+import crypto from 'crypto';
+import { providers, KeyPair, keyStores } from 'near-api-js';
+import * as ripple from 'ripple-lib';
+import * as litecoin from 'litecore-lib';
+import * as dogecoin from 'dogecoinjs-lib';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -26,13 +30,30 @@ const MAINNET_CONFIG = {
         RPC_URL: 'https://api.trongrid.io'
     },
     BITCOIN: {
-        EXPLORER_URL: 'https://blockstream.info/api'
+        EXPLORER_URL: 'https://blockstream.info/api',
+        NETWORK: bitcoin.networks.bitcoin
     },
     NEAR: {
-        RPC_URL: 'https://rpc.mainnet.near.org'
+        RPC_URL: 'https://rpc.mainnet.near.org',
+        NETWORK_ID: 'mainnet',
+        EXPLORER_URL: 'https://nearblocks.io'
     },
     BSC: {
         RPC_URL: 'https://bsc-dataseed.binance.org/'
+    },
+    XRP: {
+        RPC_URL: 'https://s1.ripple.com:51234',
+        EXPLORER_URL: 'https://xrpscan.com'
+    },
+    LTC: {
+        RPC_URL: 'https://litecoin-mainnet.gateway.tatum.io',
+        EXPLORER_URL: 'https://live.blockcypher.com/ltc/',
+        NETWORK: litecoin.Networks.mainnet
+    },
+    DOGE: {
+        RPC_URL: 'https://dogecoin-mainnet.gateway.tatum.io',
+        EXPLORER_URL: 'https://dogechain.info',
+        NETWORK: dogecoin.networks.mainnet
     }
 };
 
@@ -42,31 +63,38 @@ const WALLET_API_URL = 'https://star-wallet-backend.netlify.app/.netlify/functio
 // === ТОКЕНЫ И КОНТРАКТЫ ===
 export const TOKENS = {
     // Native tokens
-    TON: { symbol: 'TON', name: 'Toncoin', blockchain: 'TON', decimals: 9, isNative: true, logo: 'https://cryptologos.cc/logos/toncoin-ton-logo.png' },
-    USDT_TON: { symbol: 'USDT', name: 'Tether', blockchain: 'TON', decimals: 6, isNative: false, contractAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
+    TON: { symbol: 'TON', name: 'Toncoin', blockchain: 'TON', decimals: 9, isNative: true, logo: 'https://ton.org/download/ton_symbol.svg' },
+    // USDT (обновленная иконка)
+    USDT_TON: { symbol: 'USDT', name: 'Tether', blockchain: 'TON', decimals: 6, isNative: false, contractAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' },
     USDC_TON: { symbol: 'USDC', name: 'USD Coin', blockchain: 'TON', decimals: 6, isNative: false, contractAddress: 'EQB-MPwrd1G6WKNkLz_VnV6WqBDd142KMQv-g1O-8QUA3727', logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' },
     
     ETH: { symbol: 'ETH', name: 'Ethereum', blockchain: 'Ethereum', decimals: 18, isNative: true, logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png' },
-    USDT_ETH: { symbol: 'USDT', name: 'Tether', blockchain: 'Ethereum', decimals: 6, isNative: false, contractAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
+    USDT_ETH: { symbol: 'USDT', name: 'Tether', blockchain: 'Ethereum', decimals: 6, isNative: false, contractAddress: '0xdAC17F958D2ee523a2206206994597C13D831ec7', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' },
     USDC_ETH: { symbol: 'USDC', name: 'USD Coin', blockchain: 'Ethereum', decimals: 6, isNative: false, contractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' },
     
     SOL: { symbol: 'SOL', name: 'Solana', blockchain: 'Solana', decimals: 9, isNative: true, logo: 'https://cryptologos.cc/logos/solana-sol-logo.png' },
-    USDT_SOL: { symbol: 'USDT', name: 'Tether', blockchain: 'Solana', decimals: 6, isNative: false, contractAddress: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
+    USDT_SOL: { symbol: 'USDT', name: 'Tether', blockchain: 'Solana', decimals: 6, isNative: false, contractAddress: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' },
     USDC_SOL: { symbol: 'USDC', name: 'USD Coin', blockchain: 'Solana', decimals: 6, isNative: false, contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' },
     
     BNB: { symbol: 'BNB', name: 'BNB', blockchain: 'BSC', decimals: 18, isNative: true, logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' },
-    USDT_BSC: { symbol: 'USDT', name: 'Tether', blockchain: 'BSC', decimals: 18, isNative: false, contractAddress: '0x55d398326f99059ff775485246999027b3197955', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
+    USDT_BSC: { symbol: 'USDT', name: 'Tether', blockchain: 'BSC', decimals: 18, isNative: false, contractAddress: '0x55d398326f99059ff775485246999027b3197955', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' },
     USDC_BSC: { symbol: 'USDC', name: 'USD Coin', blockchain: 'BSC', decimals: 18, isNative: false, contractAddress: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' },
     
     TRX: { symbol: 'TRX', name: 'TRON', blockchain: 'Tron', decimals: 6, isNative: true, logo: 'https://cryptologos.cc/logos/tron-trx-logo.png' },
-    USDT_TRX: { symbol: 'USDT', name: 'Tether', blockchain: 'Tron', decimals: 6, isNative: false, contractAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
+    USDT_TRX: { symbol: 'USDT', name: 'Tether', blockchain: 'Tron', decimals: 6, isNative: false, contractAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' },
     USDC_TRX: { symbol: 'USDC', name: 'USD Coin', blockchain: 'Tron', decimals: 6, isNative: false, contractAddress: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8', logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' },
     
     BTC: { symbol: 'BTC', name: 'Bitcoin', blockchain: 'Bitcoin', decimals: 8, isNative: true, logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png' },
     
-    NEAR: { symbol: 'NEAR', name: 'NEAR Protocol', blockchain: 'NEAR', decimals: 24, isNative: true, logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.png' },
-    USDT_NEAR: { symbol: 'USDT', name: 'Tether', blockchain: 'NEAR', decimals: 6, isNative: false, contractAddress: 'usdt.near', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.png' },
-    USDC_NEAR: { symbol: 'USDC', name: 'USD Coin', blockchain: 'NEAR', decimals: 6, isNative: false, contractAddress: 'usdc.near', logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' }
+    // NEAR (обновленная иконка)
+    NEAR: { symbol: 'NEAR', name: 'NEAR Protocol', blockchain: 'NEAR', decimals: 24, isNative: true, logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' },
+    USDT_NEAR: { symbol: 'USDT', name: 'Tether', blockchain: 'NEAR', decimals: 6, isNative: false, contractAddress: 'usdt.near', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' },
+    USDC_NEAR: { symbol: 'USDC', name: 'USD Coin', blockchain: 'NEAR', decimals: 6, isNative: false, contractAddress: 'usdc.near', logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' },
+    
+    // Новые блокчейны
+    XRP: { symbol: 'XRP', name: 'Ripple', blockchain: 'XRP', decimals: 6, isNative: true, logo: 'https://cryptologos.cc/logos/ripple-xrp-logo.png' },
+    LTC: { symbol: 'LTC', name: 'Litecoin', blockchain: 'LTC', decimals: 8, isNative: true, logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' },
+    DOGE: { symbol: 'DOGE', name: 'Dogecoin', blockchain: 'DOGE', decimals: 8, isNative: true, logo: 'https://cryptologos.cc/logos/dogecoin-doge-logo.png' }
 };
 
 // === ОСНОВНЫЕ ФУНКЦИИ ГЕНЕРАЦИИ КОШЕЛЬКОВ ===
@@ -83,14 +111,17 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
     try {
         if (!seedPhrase) throw new Error('Seed phrase is required');
 
-        const [tonAddress, solanaAddress, ethAddress, bscAddress, tronAddress, bitcoinAddress, nearAddress] = await Promise.all([
+        const [tonAddress, solanaAddress, ethAddress, bscAddress, tronAddress, bitcoinAddress, nearAddress, xrpAddress, ltcAddress, dogeAddress] = await Promise.all([
             generateTonAddress(seedPhrase),
             generateSolanaAddress(seedPhrase),
             generateEthereumAddress(seedPhrase),
             generateBSCAddress(seedPhrase),
             generateTronAddress(seedPhrase),
             generateBitcoinAddress(seedPhrase),
-            generateNearAddress(seedPhrase)
+            generateNearAddress(seedPhrase),
+            generateXrpAddress(seedPhrase),
+            generateLtcAddress(seedPhrase),
+            generateDogeAddress(seedPhrase)
         ]);
 
         // Создаем кошельки в нужном порядке
@@ -128,6 +159,11 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
         walletArray.push(createWallet(TOKENS.NEAR, nearAddress));
         walletArray.push(createWallet(TOKENS.USDT_NEAR, nearAddress));
         walletArray.push(createWallet(TOKENS.USDC_NEAR, nearAddress));
+        
+        // Новые блокчейны
+        walletArray.push(createWallet(TOKENS.XRP, xrpAddress));
+        walletArray.push(createWallet(TOKENS.LTC, ltcAddress));
+        walletArray.push(createWallet(TOKENS.DOGE, dogeAddress));
         
         return walletArray;
     } catch (error) {
@@ -249,6 +285,56 @@ const generateNearAddress = async (seedPhrase) => {
     }
 };
 
+// Новые функции генерации адресов
+const generateXrpAddress = async (seedPhrase) => {
+    try {
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
+        const wallet = masterNode.derivePath("m/44'/144'/0'/0/0");
+        const privateKey = wallet.privateKey.slice(2);
+        const api = new ripple.RippleAPI({ server: MAINNET_CONFIG.XRP.RPC_URL });
+        await api.connect();
+        const { address } = api.generateAddress({ privateKey });
+        await api.disconnect();
+        return address;
+    } catch (error) {
+        console.error('Error generating XRP address:', error);
+        return 'rG1QQv2nh2gr7RCZ1P8YYcBUKCCN633jCn';
+    }
+};
+
+const generateLtcAddress = async (seedPhrase) => {
+    try {
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const root = bip32.fromSeed(seedBuffer, MAINNET_CONFIG.LTC.NETWORK);
+        const child = root.derivePath("m/44'/2'/0'/0/0");
+        const { address } = litecoin.payments.p2wpkh({ 
+            pubkey: child.publicKey, 
+            network: MAINNET_CONFIG.LTC.NETWORK 
+        });
+        return address;
+    } catch (error) {
+        console.error('Error generating LTC address:', error);
+        return 'Lg2UrtoWrQr6r1f4W2eY8W6z6q6q6q6q6q';
+    }
+};
+
+const generateDogeAddress = async (seedPhrase) => {
+    try {
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const root = bip32.fromSeed(seedBuffer, MAINNET_CONFIG.DOGE.NETWORK);
+        const child = root.derivePath("m/44'/3'/0'/0/0");
+        const { address } = dogecoin.payments.p2pkh({ 
+            pubkey: child.publicKey, 
+            network: MAINNET_CONFIG.DOGE.NETWORK 
+        });
+        return address;
+    } catch (error) {
+        console.error('Error generating DOGE address:', error);
+        return 'D8eX6q6q6q6q6q6q6q6q6q6q6q6q6q6q6q';
+    }
+};
+
 // === ФУНКЦИИ ПОЛУЧЕНИЯ БАЛАНСОВ ===
 export const getAllTokens = async (userData) => {
     try {
@@ -286,7 +372,7 @@ export const getRealBalances = async (wallets) => {
                         case 'Ethereum':
                             balance = wallet.isNative ?
                                 await getEthBalance(wallet.address) :
-                                await getERC20Balance(wallet.address, wallet.contractAddress);
+                                await getERC20Balance(wlet.address, wallet.contractAddress);
                             break;
                         case 'Solana':
                             balance = wallet.isNative ?
@@ -310,6 +396,15 @@ export const getRealBalances = async (wallets) => {
                             balance = wallet.isNative ?
                                 await getBNBBalance(wallet.address) :
                                 await getBEP20Balance(wallet.address, wallet.contractAddress);
+                            break;
+                        case 'XRP':
+                            balance = await getXrpBalance(wallet.address);
+                            break;
+                        case 'LTC':
+                            balance = await getLtcBalance(wallet.address);
+                            break;
+                        case 'DOGE':
+                            balance = await getDogeBalance(wallet.address);
                             break;
                     }
                     
@@ -568,6 +663,66 @@ const getBEP20Balance = async (address, contractAddress) => {
     }
 };
 
+// Новые функции получения балансов
+const getXrpBalance = async (address) => {
+    try {
+        const response = await fetch(MAINNET_CONFIG.XRP.RPC_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                method: 'account_info',
+                params: [{
+                    account: address,
+                    ledger_index: 'validated'
+                }]
+            })
+        });
+        
+        const data = await response.json();
+        if (data.result?.account_data?.Balance) {
+            const balanceDrops = parseInt(data.result.account_data.Balance);
+            return (balanceDrops / 1_000_000).toFixed(6); // 1 XRP = 1,000,000 drops
+        }
+        return '0';
+    } catch (error) {
+        console.error('XRP balance error:', error);
+        return '0';
+    }
+};
+
+const getLtcBalance = async (address) => {
+    try {
+        const response = await fetch(`${MAINNET_CONFIG.LTC.EXPLORER_URL}/address/${address}`);
+        const data = await response.json();
+        
+        if (data.chain_stats) {
+            const confirmed = data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum;
+            const mempool = data.mempool_stats?.funded_txo_sum - data.mempool_stats?.spent_txo_sum || 0;
+            const totalSatoshis = confirmed + mempool;
+            return (totalSatoshis / 1e8).toFixed(6);
+        }
+        return '0';
+    } catch (error) {
+        console.error('LTC balance error:', error);
+        return '0';
+    }
+};
+
+const getDogeBalance = async (address) => {
+    try {
+        const response = await fetch(`${MAINNET_CONFIG.DOGE.EXPLORER_URL}/api/v1/address/${address}`);
+        const data = await response.json();
+        
+        if (data.balance) {
+            return (parseFloat(data.balance) / 1e8).toFixed(6);
+        }
+        return '0';
+    } catch (error) {
+        console.error('DOGE balance error:', error);
+        return '0';
+    }
+};
+
 // === ФУНКЦИИ ДЛЯ РАБОТЫ С ПОЛЬЗОВАТЕЛЕМ ===
 export const initializeUserWallets = async (userData) => {
     try {
@@ -673,7 +828,7 @@ export const getUserWallets = async (telegramUserId) => {
 export const getTokenPrices = async () => {
     try {
         // Используем CoinGecko API для получения актуальных цен
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ethereum,solana,binancecoin,tron,bitcoin,near-protocol&vs_currencies=usd');
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ethereum,solana,binancecoin,tron,bitcoin,near-protocol,ripple,litecoin,dogecoin&vs_currencies=usd');
         
         if (response.ok) {
             const data = await response.json();
@@ -685,6 +840,9 @@ export const getTokenPrices = async () => {
                 'TRX': data.tron?.usd || 0.12,
                 'BTC': data.bitcoin?.usd || 68000.00,
                 'NEAR': data['near-protocol']?.usd || 8.50,
+                'XRP': data.ripple?.usd || 0.52,
+                'LTC': data.litecoin?.usd || 74.30,
+                'DOGE': data.dogecoin?.usd || 0.15,
                 'USDT': 1.00,
                 'USDC': 1.00
             };
@@ -699,6 +857,9 @@ export const getTokenPrices = async () => {
             'TRX': 0.12,
             'BTC': 68000.00,
             'NEAR': 8.50,
+            'XRP': 0.52,
+            'LTC': 74.30,
+            'DOGE': 0.15,
             'USDT': 1.00,
             'USDC': 1.00
         };
@@ -712,6 +873,9 @@ export const getTokenPrices = async () => {
             'TRX': 0.12,
             'BTC': 68000.00,
             'NEAR': 8.50,
+            'XRP': 0.52,
+            'LTC': 74.30,
+            'DOGE': 0.15,
             'USDT': 1.00,
             'USDC': 1.00
         };
@@ -764,6 +928,19 @@ export const validateAddress = async (blockchain, address) => {
             case 'NEAR':
                 const nearRegex = /^[a-z0-9_-]+\.(near|testnet)$/;
                 return nearRegex.test(address);
+            case 'XRP':
+                const xrpRegex = /^r[1-9A-HJ-NP-Za-km-z]{25,34}$/;
+                return xrpRegex.test(address);
+            case 'LTC':
+                try {
+                    litecoin.address.fromString(address, MAINNET_CONFIG.LTC.NETWORK);
+                    return true;
+                } catch { return false; }
+            case 'DOGE':
+                try {
+                    dogecoin.address.fromString(address, MAINNET_CONFIG.DOGE.NETWORK);
+                    return true;
+                } catch { return false; }
             default:
                 return true;
         }
@@ -842,7 +1019,10 @@ export const estimateTransactionFee = async (blockchain) => {
         'Solana': '0.000005',
         'Tron': '0.1',
         'Bitcoin': '0.0001',
-        'NEAR': '0.01'
+        'NEAR': '0.01',
+        'XRP': '0.00001',
+        'LTC': '0.001',
+        'DOGE': '0.01'
     };
     
     return defaultFees[blockchain] || '0.01';
@@ -863,6 +1043,9 @@ export const getTokenPricesFromRPC = async () => {
             'TRX': 0.12,
             'BTC': 68000.00,
             'NEAR': 8.50,
+            'XRP': 0.52,
+            'LTC': 74.30,
+            'DOGE': 0.15,
             'USDT': 1.00,
             'USDC': 1.00
         };

@@ -103,6 +103,9 @@ const SelectToken = () => {
             'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)' },
             'NEAR': { color: '#0b4731', bg: 'rgba(11, 71, 49, 0.1)' },
             'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)' },
+            'XRP': { color: '#23292f', bg: 'rgba(35, 41, 47, 0.1)' },
+            'LTC': { color: '#bfbbbb', bg: 'rgba(191, 187, 187, 0.1)' },
+            'DOGE': { color: '#c2a633', bg: 'rgba(194, 166, 51, 0.1)' }
         };
         
         return badges[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)' };
@@ -146,7 +149,7 @@ const SelectToken = () => {
                 
                 <div className="tokens-grid-container">
                     {showSkeleton ? (
-                        Array.from({ length: 9 }).map((_, index) => (
+                        Array.from({ length: 12 }).map((_, index) => (
                             <div 
                                 key={`skeleton-${index}`} 
                                 className="token-grid-item skeleton-item"
