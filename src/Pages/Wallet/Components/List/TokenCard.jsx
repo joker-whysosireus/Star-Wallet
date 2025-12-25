@@ -72,16 +72,22 @@ const TokenCard = ({ wallet, isLoading = false }) => {
     
     const badge = getBlockchainBadge(wallet.blockchain);
 
-    // Используем SVG иконки для USDT и NEAR
+    // Используем обновленные логотипы с круглой формой
     const getLogoUrl = () => {
         if (wallet.symbol === 'TON') {
-            return 'https://ton.org/download/ton_symbol.svg';
+            return 'https://cryptologos.cc/logos/toncoin-ton-logo.png?v=029';
         }
-        if (wallet.symbol === 'USDT') {
-            return 'https://cryptologos.cc/logos/tether-usdt-logo.svg';
+        if (wallet.symbol === 'USDT' || wallet.symbol === 'USDC') {
+            // USDT и USDC с круглым логотипом
+            return wallet.symbol === 'USDT' 
+                ? 'https://cryptologos.cc/logos/tether-usdt-logo.png?v=029'
+                : 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png?v=029';
         }
         if (wallet.symbol === 'NEAR') {
-            return 'https://cryptologos.cc/logos/near-protocol-near-logo.svg';
+            return 'https://cryptologos.cc/logos/near-protocol-near-logo.png?v=029';
+        }
+        if (wallet.symbol === 'ADA') {
+            return 'https://cryptologos.cc/logos/cardano-ada-logo.png?v=029';
         }
         return wallet.logo;
     };

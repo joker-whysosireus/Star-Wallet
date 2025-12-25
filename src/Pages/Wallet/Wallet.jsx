@@ -147,7 +147,7 @@ function Wallet({ isActive, userData }) {
                 allTokens = wallets;
             }
 
-            const updatedWallets = await getBalances(allTokens, userData);
+            const updatedWallets = await getBalances(allTokens);
             
             updatedWallets.forEach(wallet => {
                 balanceCache.current[wallet.id] = {
