@@ -5,6 +5,7 @@
     justify-content: flex-start;
     gap: 0;
     height: 100%;
+    overflow: hidden;
 }
 
 .send-header {
@@ -36,9 +37,10 @@
     max-width: 350px;
     margin: 0 auto;
     padding: 0;
-    gap: 40px;
+    gap: 20px;
     overflow-y: auto;
-    margin-top: 40px;
+    margin-top: 20px;
+    padding-bottom: 100px;
 }
 
 .send-button {
@@ -162,7 +164,7 @@
     color: rgba(255, 255, 255, 0.3);
 }
 
-/* Секция ввода количества - БЕЗ ФОНА */
+/* Секция ввода количества */
 .amount-section {
     width: 100%;
     box-sizing: border-box;
@@ -180,16 +182,19 @@
     flex-direction: column;
     align-items: center;
     margin-bottom: 20px;
+    position: relative;
 }
 
 .amount-row {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 12px;
     width: 100%;
-    margin-bottom: 10px;
+    margin-bottom: 5px;
     position: relative;
+    padding: 0 10px;
+    min-height: 60px;
 }
 
 .amount-input-wrapper {
@@ -197,7 +202,8 @@
     flex-direction: column;
     align-items: center;
     position: relative;
-    width: 30px; /* Фиксированная ширина 30px */
+    width: 180px;
+    min-width: 180px;
 }
 
 .amount-input {
@@ -211,11 +217,13 @@
     padding: 0;
     box-sizing: border-box;
     text-align: center;
-    width: 100%; /* Занимает всю ширину контейнера (30px) */
+    width: 100%;
     min-width: 0;
+    max-width: 180px;
+    line-height: 1;
+    height: 56px;
 }
 
-/* Скрываем стрелки у number input */
 .amount-input::-webkit-outer-spin-button,
 .amount-input::-webkit-inner-spin-button {
     -webkit-appearance: none;
@@ -233,7 +241,7 @@
 .amount-underline {
     height: 2px;
     background: rgba(255, 255, 255, 0.3);
-    width: 100%; /* 30px - ширина контейнера */
+    width: 100%;
     margin-top: 5px;
     transition: all 0.3s ease;
 }
@@ -302,11 +310,20 @@
     margin: 0;
 }
 
+/* БАЛАНС - ЦЕНТРИРОВАН ПОД БЛОКОМ */
 .balance-display {
     color: rgba(255, 255, 255, 0.5);
     font-size: 12px;
     text-align: center;
-    margin-top: 15px;
+    margin-top: 5px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: absolute;
+    bottom: -25px;
+    left: 0;
+    right: 0;
 }
 
 /* Кнопки процентов */
@@ -317,7 +334,7 @@
     max-width: 320px;
     justify-content: center;
     box-sizing: border-box;
-    margin-top: 10px;
+    margin-top: 40px;
 }
 
 .percentage-button {
@@ -326,26 +343,37 @@
     align-items: center;
     justify-content: center;
     background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
     border-radius: 8px;
-    padding: 14px 8px;
+    padding: 12px 8px;
     color: white;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
     box-sizing: border-box;
-    min-height: 45px;
+    min-height: 40px;
+    min-width: 70px;
+    outline: none !important;
 }
 
 .percentage-button:hover {
     background: rgba(255, 255, 255, 0.08);
 }
 
+.percentage-button:active {
+    background: rgba(255, 255, 255, 0.1);
+    transform: scale(0.98);
+}
+
 .percentage-button.max-button {
     background: rgba(255, 215, 0, 0.1);
-    border-color: rgba(255, 215, 0, 0.3);
+    border: 1px solid rgba(255, 215, 0, 0.3) !important;
     color: #FFD700;
+}
+
+.percentage-button.max-button:hover {
+    background: rgba(255, 215, 0, 0.15);
 }
 
 /* Transaction Status */
@@ -387,4 +415,17 @@
     font-size: 11px;
     cursor: pointer;
     margin-top: 8px;
+    transition: all 0.2s;
+}
+
+.view-explorer-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Исправление для фокуса */
+.amount-input:focus,
+.address-input:focus,
+.comment-input:focus {
+    outline: none;
+    border-color: rgba(255, 215, 0, 0.5);
 }
