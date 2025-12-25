@@ -10,7 +10,6 @@ import TronWeb from 'tronweb';
 import crypto from 'crypto';
 import { providers, KeyPair, keyStores } from 'near-api-js';
 import * as xrpl from 'xrpl';
-import { mnemonicToEntropy } from '@cardano-sdk/crypto';
 
 const bip32 = BIP32Factory(ecc);
 
