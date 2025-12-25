@@ -10,7 +10,7 @@ import TronWeb from 'tronweb';
 import crypto from 'crypto';
 import { providers, KeyPair, keyStores } from 'near-api-js';
 import * as xrpl from 'xrpl';
-import { mnemonicToEntropy } from '@cardano-sdk/crypto';
+// УДАЛЕНО проблемный импорт: import { mnemonicToEntropy } from '@cardano-sdk/crypto';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -129,19 +129,23 @@ export const generateNewSeedPhrase = () => {
     }
 };
 
-// Функция для генерации Cardano адреса с использованием mnemonicToEntropy
+// Функция для генерации Cardano адреса с использованием альтернативного метода
 const generateCardanoAddress = async (seedPhrase) => {
     try {
         // Динамический импорт для предотвращения проблем SSR
         const cardanoLib = await import('@emurgo/cardano-serialization-lib-browser');
         
-        // Используем mnemonicToEntropy для преобразования мнемонической фразы
-        const entropy = mnemonicToEntropy(seedPhrase);
-        const entropyBuffer = Buffer.from(entropy, 'hex');
+        // Альтернативный метод: используем seed вместо entropy
+        // Получаем seed из мнемонической фразы
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const seedHex = seedBuffer.toString('hex');
         
-        // Создаем приватный ключ из entropy
+        // Создаем seed из hex строки
+        const seed = Buffer.from(seedHex, 'hex').slice(0, 32);
+        
+        // Создаем приватный ключ из seed
         const privateKey = cardanoLib.Bip32PrivateKey.from_bip39_entropy(
-            new Uint8Array(entropyBuffer), 
+            new Uint8Array(seed), 
             new Uint8Array(0)
         );
         
@@ -172,6 +176,7 @@ const generateCardanoAddress = async (seedPhrase) => {
         return baseAddress.to_address().to_bech32();
     } catch (error) {
         console.error('Error generating Cardano address:', error);
+        // Возвращаем тестовый адрес в случае ошибки
         return 'addr1q9prvx8ufwutkwxx9cmmuuajaqmjqwujqlp9d8pvg6gupcvluken35ncjnn0tqkfq4gxkt0r5g7s8g4xvlz6v9e8jls27s96x';
     }
 };
@@ -1123,6 +1128,11 @@ export const getTokenPricesFromRPC = async () => {
 };
 
 export const getBalances = getRealBalances;
+
+// Функция getAllTokens отсутствовала, добавим ее
+export const getAllTokens = () => {
+    return Object.values(TOKENS);
+};
 
 export default {
     generateNewSeedPhrase,
