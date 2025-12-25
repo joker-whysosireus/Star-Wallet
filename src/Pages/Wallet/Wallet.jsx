@@ -7,7 +7,10 @@ import PinCodeScreen from '../../assets/PIN/PinCodeScreen';
 import { 
     getAllTokens,
     getBalances, 
-    calculateTotalBalance
+    calculateTotalBalance,
+    setTestnetMode,
+    getTestnetMode,
+    switchNetwork
 } from './Services/storageService';
 import './Wallet.css';
 
@@ -27,6 +30,10 @@ function Wallet({ isActive, userData }) {
     const [showPinForBackup, setShowPinForBackup] = useState(false);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [contentMargin, setContentMargin] = useState(0);
+    const [isTestnet, setIsTestnet] = useState(getTestnetMode());
+    const [showNetworkMenu, setShowNetworkMenu] = useState(false);
+    const [isSwitchingNetwork, setIsSwitchingNetwork] = useState(false);
+    
     const navigate = useNavigate();
     
     const hasInitialized = useRef(false);
@@ -34,6 +41,7 @@ function Wallet({ isActive, userData }) {
     const touchStartY = useRef(0);
     const pageContentRef = useRef(null);
     const totalBalanceRef = useRef(null);
+    const networkMenuRef = useRef(null);
     const lastRefreshTime = useRef(0);
     const MIN_REFRESH_INTERVAL = 10000;
     const loadingTimerRef = useRef(null);
@@ -55,6 +63,14 @@ function Wallet({ isActive, userData }) {
 
         setupPullToRefresh();
         
+        const handleClickOutside = (event) => {
+            if (networkMenuRef.current && !networkMenuRef.current.contains(event.target)) {
+                setShowNetworkMenu(false);
+            }
+        };
+        
+        document.addEventListener('mousedown', handleClickOutside);
+        
         return () => {
             const totalBalanceEl = totalBalanceRef.current;
             if (totalBalanceEl) {
@@ -65,8 +81,15 @@ function Wallet({ isActive, userData }) {
             if (loadingTimerRef.current) {
                 clearTimeout(loadingTimerRef.current);
             }
+            document.removeEventListener('mousedown', handleClickOutside);
         };
     }, []);
+
+    useEffect(() => {
+        if (hasInitialized.current) {
+            handleRefresh();
+        }
+    }, [isTestnet]);
 
     const setupPullToRefresh = () => {
         const totalBalanceEl = totalBalanceRef.current;
@@ -128,11 +151,14 @@ function Wallet({ isActive, userData }) {
             
             lastRefreshTime.current = now;
             
-            console.log('Updating wallet balances...');
+            console.log(`Updating wallet balances for ${isTestnet ? 'testnet' : 'mainnet'}...`);
             
             let allTokens = [];
             if (wallets.length === 0 || forceUpdate) {
-                allTokens = await getAllTokens(userData);
+                allTokens = await getAllTokens({
+                    ...userData,
+                    is_testnet: isTestnet
+                });
                 if (!Array.isArray(allTokens) || allTokens.length === 0) {
                     setWallets([]);
                     localStorage.setItem('cached_wallets', JSON.stringify([]));
@@ -144,10 +170,10 @@ function Wallet({ isActive, userData }) {
                     return;
                 }
             } else {
-                allTokens = wallets;
+                allTokens = wallets.filter(wallet => wallet.isTestnet === isTestnet);
             }
 
-            const updatedWallets = await getBalances(allTokens, userData);
+            const updatedWallets = await getBalances(allTokens);
             
             updatedWallets.forEach(wallet => {
                 balanceCache.current[wallet.id] = {
@@ -156,8 +182,11 @@ function Wallet({ isActive, userData }) {
                 };
             });
             
-            setWallets(updatedWallets);
-            localStorage.setItem('cached_wallets', JSON.stringify(updatedWallets));
+            const otherWallets = wallets.filter(w => w.isTestnet !== isTestnet);
+            const newWallets = [...otherWallets, ...updatedWallets];
+            
+            setWallets(newWallets);
+            localStorage.setItem('cached_wallets', JSON.stringify(newWallets));
             
             const total = await calculateTotalBalance(updatedWallets);
             setTotalBalance(`$${total}`);
@@ -185,7 +214,7 @@ function Wallet({ isActive, userData }) {
                 loadingTimerRef.current = null;
             }, 300);
         }
-    }, [userData, wallets, isInitialLoad, isRefreshing]);
+    }, [userData, wallets, isInitialLoad, isRefreshing, isTestnet]);
 
     useEffect(() => {
         if (userData && !hasInitialized.current) {
@@ -203,6 +232,34 @@ function Wallet({ isActive, userData }) {
         
         return () => clearInterval(interval);
     }, [userData, updateBalances]);
+
+    const handleNetworkSwitch = async (newMode) => {
+        if (isSwitchingNetwork || isTestnet === newMode) return;
+        
+        try {
+            setIsSwitchingNetwork(true);
+            setShowNetworkMenu(false);
+            
+            setTestnetMode(newMode);
+            setIsTestnet(newMode);
+            
+            if (userData?.telegram_user_id) {
+                await switchNetwork(userData, newMode);
+            }
+            
+            const filteredWallets = wallets.filter(wallet => wallet.isTestnet !== newMode);
+            setWallets(filteredWallets);
+            localStorage.setItem('cached_wallets', JSON.stringify(filteredWallets));
+            
+            await updateBalances(true, true);
+            
+            console.log(`Switched to ${newMode ? 'testnet' : 'mainnet'}`);
+        } catch (error) {
+            console.error('Error switching network:', error);
+        } finally {
+            setIsSwitchingNetwork(false);
+        }
+    };
 
     const handleTokenClick = useCallback((wallet) => {
         if (wallet && wallet.symbol) {
@@ -258,6 +315,12 @@ function Wallet({ isActive, userData }) {
         updateBalances(true, true);
     };
 
+    const toggleNetworkMenu = () => {
+        setShowNetworkMenu(!showNetworkMenu);
+    };
+
+    const filteredWallets = wallets.filter(wallet => wallet.isTestnet === isTestnet);
+
     if (showPinForBackup) {
         return (
             <PinCodeScreen
@@ -300,6 +363,47 @@ function Wallet({ isActive, userData }) {
                             <div className="skeleton-loader skeleton-total-balance"></div>
                         ) : (
                             <p className="total-balance-amount">{totalBalance}</p>
+                        )}
+                    </div>
+                    
+                    {/* Переключатель сети в правом углу */}
+                    <div className="network-switch-container">
+                        <div 
+                            className={`network-badge ${isTestnet ? 'testnet' : 'mainnet'} ${isSwitchingNetwork ? 'switching' : ''}`}
+                            onClick={toggleNetworkMenu}
+                        >
+                            {isSwitchingNetwork ? '...' : (isTestnet ? 'TESTNET' : 'MAINNET')}
+                        </div>
+                        
+                        {showNetworkMenu && (
+                            <div className="network-menu" ref={networkMenuRef}>
+                                <div 
+                                    className={`network-menu-item ${!isTestnet ? 'active' : ''}`}
+                                    onClick={() => handleNetworkSwitch(false)}
+                                >
+                                    <div className="network-menu-icon mainnet-icon">M</div>
+                                    <div className="network-menu-text">
+                                        <div className="network-menu-title">Mainnet</div>
+                                        <div className="network-menu-subtitle">Real funds</div>
+                                    </div>
+                                    {!isTestnet && <div className="network-menu-check">✓</div>}
+                                </div>
+                                <div 
+                                    className={`network-menu-item ${isTestnet ? 'active' : ''}`}
+                                    onClick={() => handleNetworkSwitch(true)}
+                                >
+                                    <div className="network-menu-icon testnet-icon">T</div>
+                                    <div className="network-menu-text">
+                                        <div className="network-menu-title">Testnet</div>
+                                        <div className="network-menu-subtitle">Test funds</div>
+                                    </div>
+                                    {isTestnet && <div className="network-menu-check">✓</div>}
+                                </div>
+                                <div className="network-menu-divider"></div>
+                                <div className="network-menu-info">
+                                    Currently viewing: {isTestnet ? 'Testnet' : 'Mainnet'} wallets
+                                </div>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -378,8 +482,8 @@ function Wallet({ isActive, userData }) {
                                 </div>
                             </div>
                         ))
-                    ) : wallets.length > 0 ? (
-                        wallets.map((wallet) => (
+                    ) : filteredWallets.length > 0 ? (
+                        filteredWallets.map((wallet) => (
                             <div 
                                 key={wallet.id} 
                                 className="token-block"
@@ -390,7 +494,14 @@ function Wallet({ isActive, userData }) {
                         ))
                     ) : (
                         <div className="no-wallets-message">
-                            <p>No wallets found</p>
+                            <p>No {isTestnet ? 'testnet' : 'mainnet'} wallets found</p>
+                            <button 
+                                className="refresh-btn"
+                                onClick={handleRefresh}
+                                disabled={isRefreshing}
+                            >
+                                {isRefreshing ? 'Loading...' : 'Refresh'}
+                            </button>
                         </div>
                     )}
                 </div>

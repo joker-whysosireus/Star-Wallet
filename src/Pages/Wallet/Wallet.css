@@ -409,3 +409,196 @@
         transform: scaleY(1.0);
     }
 }
+
+/* Network switch styles - добавить в конец файла */
+.network-switch-container {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 100;
+}
+
+.network-badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 80px;
+    height: 32px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.network-badge.mainnet {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: 2px solid #667eea;
+}
+
+.network-badge.testnet {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+    border: 2px solid #f093fb;
+}
+
+.network-badge.switching {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+.network-badge:hover:not(.switching) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.network-menu {
+    position: absolute;
+    top: 40px;
+    right: 0;
+    background: rgba(30, 30, 40, 0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 12px;
+    padding: 10px;
+    min-width: 200px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 1000;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.network-menu-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-bottom: 4px;
+}
+
+.network-menu-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.network-menu-item.active {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.network-menu-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    margin-right: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.network-menu-icon.mainnet-icon {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.network-menu-icon.testnet-icon {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+}
+
+.network-menu-text {
+    flex: 1;
+}
+
+.network-menu-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: white;
+}
+
+.network-menu-subtitle {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 2px;
+}
+
+.network-menu-check {
+    color: #00ff88;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.network-menu-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    margin: 10px 0;
+}
+
+.network-menu-info {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    text-align: center;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+}
+
+.total-balance-section {
+    position: relative;
+    padding-top: 20px;
+    padding-bottom: 20px;
+}
+
+.balance-display {
+    text-align: center;
+    padding-right: 100px;
+}
+
+.refresh-btn {
+    padding: 8px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 20px;
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 10px;
+}
+
+.refresh-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.refresh-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.no-wallets-message {
+    text-align: center;
+    padding: 40px 20px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.no-wallets-message p {
+    margin-bottom: 15px;
+    font-size: 16px;
+}

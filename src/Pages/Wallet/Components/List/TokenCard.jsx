@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getTokenPrices } from '../../Services/storageService';
+import { getTokenPrices, getTestnetMode } from '../../Services/storageService';
 import './TokenCard.css';
 
 const TokenCard = ({ wallet, isLoading = false }) => {
@@ -63,7 +63,8 @@ const TokenCard = ({ wallet, isLoading = false }) => {
             'BSC': { color: '#bfcd43ff', text: 'BNB' },
             'XRP': { color: '#23292f', text: 'XRP' },
             'LTC': { color: '#bfbbbb', text: 'LTC' },
-            'DOGE': { color: '#c2a633', text: 'DOGE' }
+            'DOGE': { color: '#c2a633', text: 'DOGE' },
+            'Cardano': { color: '#0033AD', text: 'ADA' }
         };
         
         return badges[blockchain] || { color: '#666', text: blockchain };
@@ -71,7 +72,6 @@ const TokenCard = ({ wallet, isLoading = false }) => {
     
     const badge = getBlockchainBadge(wallet.blockchain);
 
-    // Используем SVG иконки для USDT и NEAR
     const getLogoUrl = () => {
         if (wallet.symbol === 'TON') {
             return 'https://ton.org/download/ton_symbol.svg';
@@ -81,6 +81,9 @@ const TokenCard = ({ wallet, isLoading = false }) => {
         }
         if (wallet.symbol === 'NEAR') {
             return 'https://cryptologos.cc/logos/near-protocol-near-logo.svg';
+        }
+        if (wallet.symbol === 'ADA') {
+            return 'https://cryptologos.cc/logos/cardano-ada-logo.png';
         }
         return wallet.logo;
     };
@@ -106,6 +109,9 @@ const TokenCard = ({ wallet, isLoading = false }) => {
                 <div className="token-names">
                     <div className="token-name">{wallet.name}</div>
                     <div className="token-symbol">{wallet.symbol}</div>
+                    {wallet.isTestnet && (
+                        <div className="token-network-badge">TEST</div>
+                    )}
                 </div>
             </div>
             <div className="token-right">

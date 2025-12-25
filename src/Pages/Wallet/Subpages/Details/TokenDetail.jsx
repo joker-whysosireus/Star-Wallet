@@ -84,7 +84,11 @@ const TokenDetail = () => {
             'Tron': { color: '#ff0000', text: 'TRX' },
             'Bitcoin': { color: '#f7931a', text: 'BTC' },
             'NEAR': { color: '#0b4731ff', text: 'NEAR' },
-            'BSC': { color: '#bfcd43ff', text: 'BNB' }, 
+            'BSC': { color: '#bfcd43ff', text: 'BNB' },
+            'XRP': { color: '#23292f', text: 'XRP' },
+            'LTC': { color: '#bfbbbb', text: 'LTC' },
+            'DOGE': { color: '#c2a633', text: 'DOGE' },
+            'Cardano': { color: '#0033AD', text: 'ADA' } 
         };
         
         return badges[blockchain] || { color: '#666', text: blockchain };
