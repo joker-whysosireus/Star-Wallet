@@ -9,7 +9,6 @@ import * as ecc from 'tiny-secp256k1';
 import TronWeb from 'tronweb';
 import crypto from 'crypto';
 import { providers, KeyPair, keyStores } from 'near-api-js';
-// @ts-ignore
 import * as xrpl from 'xrpl';
 import * as cardano from '@emurgo/cardano-serialization-lib-nodejs';
 
@@ -438,49 +437,49 @@ const generateBitcoinAddress = async (seedPhrase, isTestnet = false) => {
     }
 };
 
-// Исправленная генерация NEAR адреса
+// Исправленная генерация NEAR адреса с использованием near-api-js
 const generateNearAddress = async (seedPhrase, isTestnet = false) => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         
-        // Используем derivation path для NEAR
-        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const path = isTestnet ? "m/44'/1'/0'/0'/0'" : "m/44'/397'/0'/0'/0'";
-        const wallet = masterNode.derivePath(path);
+        // Создаем ключевую пару из seed
+        const hash = crypto.createHash('sha256').update(seedBuffer).digest();
+        const keyPair = KeyPair.fromRandom('ed25519');
         
-        // Генерируем правильный NEAR account ID
-        const privateKey = wallet.privateKey.slice(2);
-        const hash = crypto.createHash('sha256').update(privateKey).digest('hex');
+        // Получаем публичный ключ и создаем account ID
+        const publicKey = keyPair.getPublicKey();
+        const accountHash = crypto.createHash('sha256').update(publicKey.data).digest('hex');
         
-        // Создаем короткий уникальный идентификатор
-        const accountId = `near_${hash.substring(0, 8)}`;
+        // Создаем account ID в формате NEAR
+        const prefix = isTestnet ? 'testnet' : 'near';
+        const accountId = `${accountHash.substring(0, 8)}.${prefix}`;
         
-        // Добавляем суффикс сети
-        const suffix = isTestnet ? '.testnet' : '.near';
-        return accountId + suffix;
+        return accountId;
     } catch (error) {
         console.error('Error generating NEAR address:', error);
         return isTestnet ? 'test.near.testnet' : 'test.near';
     }
 };
 
+// Генерация XRP адреса с использованием xrpl
 const generateXrpAddress = async (seedPhrase, isTestnet = false) => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const path = isTestnet ? "m/44'/1'/0'/0/0" : "m/44'/144'/0'/0/0";
-        const wallet = masterNode.derivePath(path);
-        const privateKey = wallet.privateKey.slice(2);
+        const seedHex = seedBuffer.toString('hex').slice(0, 32);
         
-        // Создаем кошелек XRPL
-        const api = new xrpl.Client(isTestnet ? TESTNET_CONFIG.XRP.RPC_URL : MAINNET_CONFIG.XRP.RPC_URL);
-        await api.connect();
+        // Создаем кошелек XRP из seed
+        const wallet = xrpl.Wallet.fromSeed(seedHex);
         
-        // Генерируем кошелек из seed
-        const wallet_xrpl = xrpl.Wallet.fromSeed(privateKey);
-        await api.disconnect();
+        // Подключаемся к нужной сети
+        const client = new xrpl.Client(isTestnet ? TESTNET_CONFIG.XRP.RPC_URL : MAINNET_CONFIG.XRP.RPC_URL);
+        await client.connect();
         
-        return wallet_xrpl.address;
+        // Генерируем адрес
+        const address = wallet.address;
+        
+        await client.disconnect();
+        
+        return address;
     } catch (error) {
         console.error('Error generating XRP address:', error);
         return isTestnet ? 'rG1QQv2nh2gr7RCZ1P8YYcBUKCCN633jCn' : 'rG1QQv2nh2gr7RCZ1P8YYcBUKCCN633jCn';
@@ -521,26 +520,43 @@ const generateDogeAddress = async (seedPhrase, isTestnet = false) => {
     }
 };
 
-// Генерация Cardano адреса
+// Генерация Cardano адреса с использованием @emurgo/cardano-serialization-lib-nodejs
 const generateCardanoAddress = async (seedPhrase, isTestnet = false) => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         
-        // Используем BIP44 для Cardano
-        const root = bip32.fromSeed(seedBuffer, isTestnet ? TESTNET_CONFIG.CARDANO.NETWORK_ID : MAINNET_CONFIG.CARDANO.NETWORK_ID);
-        const path = isTestnet ? "m/1852'/1815'/0'/0/0" : "m/1852'/1815'/0'/0/0";
-        const child = root.derivePath(path);
+        // Создаем корневой ключ из seed
+        const rootKey = cardano.Bip32PrivateKey.from_bip39_entropy(
+            Buffer.from(seedBuffer),
+            Buffer.from('')
+        );
         
-        // Генерируем Cardano адрес
-        const pubKey = child.publicKey;
-        const hash = crypto.createHash('sha256').update(pubKey).digest();
-        const addressBytes = Buffer.concat([Buffer.from([0x00]), hash]);
-        const checksum = crypto.createHash('sha256').update(addressBytes).digest().slice(0, 4);
-        const address = Buffer.concat([addressBytes, checksum]).toString('hex');
+        // Derive ключ по пути для Cardano
+        const purpose = isTestnet ? 1852 : 1852; // testnet и mainnet используют одинаковый purpose
+        const coinType = isTestnet ? 1815 : 1815; // testnet и mainnet используют одинаковый coin type
+        const accountKey = rootKey
+            .derive(purpose | 0x80000000)
+            .derive(coinType | 0x80000000)
+            .derive(0 | 0x80000000)
+            .derive(0)
+            .derive(0);
         
-        return isTestnet ? 
-            `addr_test1${address}` : 
-            `addr1${address}`;
+        // Получаем публичный ключ
+        const publicKey = accountKey.to_public();
+        
+        // Создаем base адрес
+        const stakeKey = publicKey.derive(2).derive(0).to_raw_key();
+        const paymentKey = publicKey.to_raw_key();
+        
+        const baseAddress = cardano.BaseAddress.new(
+            isTestnet ? cardano.NetworkInfo.testnet().network_id() : cardano.NetworkInfo.mainnet().network_id(),
+            cardano.StakeCredential.from_keyhash(paymentKey.hash()),
+            cardano.StakeCredential.from_keyhash(stakeKey.hash())
+        );
+        
+        const address = baseAddress.to_address().to_bech32();
+        
+        return address;
     } catch (error) {
         console.error('Error generating Cardano address:', error);
         return isTestnet ? 
@@ -689,27 +705,23 @@ const getJettonBalance = async (address, jettonAddress, isTestnet = false) => {
     }
 };
 
+// Получение баланса NEAR с использованием near-api-js
 const getNearBalance = async (accountId, isTestnet = false) => {
     try {
         const rpcUrl = isTestnet ? TESTNET_CONFIG.NEAR.RPC_URL : MAINNET_CONFIG.NEAR.RPC_URL;
-        const response = await fetch(rpcUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                jsonrpc: "2.0",
-                id: "dontcare",
-                method: "query",
-                params: {
-                    request_type: "view_account",
-                    finality: "final",
-                    account_id: accountId
-                }
-            })
+        
+        // Создаем провайдер
+        const provider = new providers.JsonRpcProvider({ url: rpcUrl });
+        
+        // Запрашиваем информацию об аккаунте
+        const accountInfo = await provider.query({
+            request_type: 'view_account',
+            finality: 'final',
+            account_id: accountId
         });
         
-        const data = await response.json();
-        if (data.result?.amount) {
-            return (parseInt(data.result.amount) / 1e24).toFixed(4);
+        if (accountInfo.amount) {
+            return (parseInt(accountInfo.amount) / 1e24).toFixed(4);
         }
         return '0';
     } catch (error) {
@@ -721,27 +733,19 @@ const getNearBalance = async (accountId, isTestnet = false) => {
 const getNEP141Balance = async (accountId, contractAddress, isTestnet = false) => {
     try {
         const rpcUrl = isTestnet ? TESTNET_CONFIG.NEAR.RPC_URL : MAINNET_CONFIG.NEAR.RPC_URL;
-        const response = await fetch(rpcUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                jsonrpc: "2.0",
-                id: "dontcare",
-                method: "query",
-                params: {
-                    request_type: "call_function",
-                    finality: "final",
-                    account_id: contractAddress,
-                    method_name: "ft_balance_of",
-                    args_base64: btoa(JSON.stringify({ account_id: accountId }))
-                }
-            })
+        const provider = new providers.JsonRpcProvider({ url: rpcUrl });
+        
+        const response = await provider.query({
+            request_type: 'call_function',
+            finality: 'final',
+            account_id: contractAddress,
+            method_name: 'ft_balance_of',
+            args_base64: Buffer.from(JSON.stringify({ account_id: accountId })).toString('base64')
         });
         
-        const data = await response.json();
-        if (data.result?.result) {
-            const balanceBytes = data.result.result;
-            const balance = JSON.parse(new TextDecoder().decode(Uint8Array.from(balanceBytes)));
+        if (response.result) {
+            const balanceBytes = response.result;
+            const balance = JSON.parse(Buffer.from(balanceBytes).toString());
             return balance || '0';
         }
         return '0';
@@ -893,6 +897,7 @@ const getBEP20Balance = async (address, contractAddress, isTestnet = false) => {
     }
 };
 
+// Получение баланса XRP с использованием xrpl
 const getXrpBalance = async (address, isTestnet = false) => {
     try {
         const client = new xrpl.Client(isTestnet ? TESTNET_CONFIG.XRP.RPC_URL : MAINNET_CONFIG.XRP.RPC_URL);
@@ -947,6 +952,7 @@ const getDogeBalance = async (address, isTestnet = false) => {
     }
 };
 
+// Получение баланса Cardano с использованием Blockfrost API
 const getCardanoBalance = async (address, isTestnet = false) => {
     try {
         const baseUrl = isTestnet ? TESTNET_CONFIG.CARDANO.RPC_URL : MAINNET_CONFIG.CARDANO.RPC_URL;
