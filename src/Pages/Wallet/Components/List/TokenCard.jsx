@@ -63,8 +63,7 @@ const TokenCard = ({ wallet, isLoading = false }) => {
             'BSC': { color: '#bfcd43ff', text: 'BNB' },
             'XRP': { color: '#23292f', text: 'XRP' },
             'LTC': { color: '#bfbbbb', text: 'LTC' },
-            'DOGE': { color: '#c2a633', text: 'DOGE' },
-            'Cardano': { color: '#0033AD', text: 'ADA' }
+            'DOGE': { color: '#c2a633', text: 'DOGE' }
         };
         
         return badges[blockchain] || { color: '#666', text: blockchain };
@@ -72,22 +71,16 @@ const TokenCard = ({ wallet, isLoading = false }) => {
     
     const badge = getBlockchainBadge(wallet.blockchain);
 
-    // Используем обновленные логотипы с круглой формой
+    // Используем SVG иконки для USDT и NEAR
     const getLogoUrl = () => {
         if (wallet.symbol === 'TON') {
-            return 'https://cryptologos.cc/logos/toncoin-ton-logo.png?v=029';
+            return 'https://ton.org/download/ton_symbol.svg';
         }
-        if (wallet.symbol === 'USDT' || wallet.symbol === 'USDC') {
-            // USDT и USDC с круглым логотипом
-            return wallet.symbol === 'USDT' 
-                ? 'https://cryptologos.cc/logos/tether-usdt-logo.png?v=029'
-                : 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png?v=029';
+        if (wallet.symbol === 'USDT') {
+            return 'https://cryptologos.cc/logos/tether-usdt-logo.svg';
         }
         if (wallet.symbol === 'NEAR') {
-            return 'https://cryptologos.cc/logos/near-protocol-near-logo.png?v=029';
-        }
-        if (wallet.symbol === 'ADA') {
-            return 'https://cryptologos.cc/logos/cardano-ada-logo.png?v=029';
+            return 'https://cryptologos.cc/logos/near-protocol-near-logo.svg';
         }
         return wallet.logo;
     };
