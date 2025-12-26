@@ -148,7 +148,6 @@ const WALLET_API_URL = 'https://your-domain.netlify.app/.netlify/functions';
 export const TOKENS = {
     // Native tokens
     TON: { symbol: 'TON', name: 'Toncoin', blockchain: 'TON', decimals: 9, isNative: true, logo: 'https://ton.org/download/ton_symbol.svg' },
-    // USDT (обновленная иконка)
     USDT_TON: { symbol: 'USDT', name: 'Tether', blockchain: 'TON', decimals: 6, isNative: false, contractAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' },
     USDC_TON: { symbol: 'USDC', name: 'USD Coin', blockchain: 'TON', decimals: 6, isNative: false, contractAddress: 'EQB-MPwrd1G6WKNkLz_VnV6WqBDd142KMQv-g1O-8QUA3727', logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' },
     
@@ -170,12 +169,10 @@ export const TOKENS = {
     
     BTC: { symbol: 'BTC', name: 'Bitcoin', blockchain: 'Bitcoin', decimals: 8, isNative: true, logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png' },
     
-    // NEAR (обновленная иконка)
     NEAR: { symbol: 'NEAR', name: 'NEAR Protocol', blockchain: 'NEAR', decimals: 24, isNative: true, logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' },
     USDT_NEAR: { symbol: 'USDT', name: 'Tether', blockchain: 'NEAR', decimals: 6, isNative: false, contractAddress: 'usdt.near', logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' },
     USDC_NEAR: { symbol: 'USDC', name: 'USD Coin', blockchain: 'NEAR', decimals: 6, isNative: false, contractAddress: 'usdc.near', logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' },
     
-    // Новые блокчейны
     XRP: { symbol: 'XRP', name: 'Ripple', blockchain: 'XRP', decimals: 6, isNative: true, logo: 'https://cryptologos.cc/logos/ripple-xrp-logo.png' },
     LTC: { symbol: 'LTC', name: 'Litecoin', blockchain: 'LTC', decimals: 8, isNative: true, logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' },
     DOGE: { symbol: 'DOGE', name: 'Dogecoin', blockchain: 'DOGE', decimals: 8, isNative: true, logo: 'https://cryptologos.cc/logos/dogecoin-doge-logo.png' }
@@ -209,22 +206,25 @@ const createWallet = (token, address) => ({
 });
 
 // Вспомогательная функция для создания testnet кошелька
-const createTestnetWallet = (symbol, address, blockchain) => ({
-    id: `${symbol.toLowerCase()}_${blockchain.toLowerCase()}_testnet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    name: `${symbol} Testnet`,
-    symbol: symbol,
-    address: address,
-    blockchain: blockchain,
-    decimals: blockchain === 'Bitcoin' ? 8 : blockchain === 'XRP' ? 6 : 18,
-    isNative: true,
-    contractAddress: '',
-    showBlockchain: true,
-    balance: '0',
-    isActive: true,
-    logo: TOKENS[`${symbol}_${blockchain}`]?.logo || TOKENS[symbol]?.logo || '',
-    lastUpdated: new Date().toISOString(),
-    isTestnet: true
-});
+const createTestnetWallet = (symbol, address, blockchain) => {
+    const token = TOKENS[`${symbol}_${blockchain}`] || TOKENS[symbol];
+    return {
+        id: `${symbol.toLowerCase()}_${blockchain.toLowerCase()}_testnet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: `${symbol} Testnet`,
+        symbol: symbol,
+        address: address,
+        blockchain: blockchain,
+        decimals: blockchain === 'Bitcoin' ? 8 : blockchain === 'XRP' ? 6 : (token?.decimals || 18),
+        isNative: true,
+        contractAddress: '',
+        showBlockchain: true,
+        balance: '0',
+        isActive: true,
+        logo: token?.logo || TOKENS[symbol]?.logo || '',
+        lastUpdated: new Date().toISOString(),
+        isTestnet: true
+    };
+};
 
 // Функции генерации адресов MAINNET
 const generateTonAddress = async (seedPhrase) => {
@@ -409,7 +409,17 @@ const generateEthereumTestnetAddress = async (seedPhrase) => {
     }
 };
 
-const generateBSCTestnetAddress = generateEthereumTestnetAddress;
+const generateBSCTestnetAddress = async (seedPhrase) => {
+    try {
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
+        const wallet = masterNode.derivePath("m/44'/60'/0'/0/0"); // Используем тот же путь, что и для mainnet
+        return wallet.address;
+    } catch (error) {
+        console.error('Error generating BSC testnet address:', error);
+        return '0x0000000000000000000000000000000000000000';
+    }
+};
 
 const generateTronTestnetAddress = async (seedPhrase) => {
     try {
@@ -463,7 +473,7 @@ const generateXrpTestnetAddress = async (seedPhrase) => {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const seedHex = seedBuffer.toString('hex');
         
-        const api = new ripple.RippleAPI({ server: TESTNET_CONFIG.XRP.RPC_URL });
+        const api = new ripple.RippleAPI();
         const seedHash = crypto.createHash('sha256').update(seedHex + "XRP_TESTNET").digest('hex');
         const seed = seedHash.substring(0, 29);
         
@@ -656,9 +666,22 @@ export const generateWalletsFromSeed = async (seedPhrase) => {
 // === ФУНКЦИИ ПОЛУЧЕНИЯ БАЛАНСОВ ===
 export const getAllTokens = async (userData, includeTestnet = false) => {
     try {
+        // Если есть кэшированные кошельки в localStorage, используем их
+        if (includeTestnet) {
+            const cachedTestnetWallets = localStorage.getItem('cached_testnet_wallets');
+            if (cachedTestnetWallets) {
+                return JSON.parse(cachedTestnetWallets);
+            }
+        } else {
+            const cachedWallets = localStorage.getItem('cached_wallets');
+            if (cachedWallets) {
+                return JSON.parse(cachedWallets);
+            }
+        }
+
         if (userData?.wallets && Array.isArray(userData.wallets)) {
             if (includeTestnet && userData?.testnet_wallets_list) {
-                return [...userData.wallets, ...userData.testnet_wallets_list];
+                return [...userData.testnet_wallets_list];
             }
             return userData.wallets;
         }
@@ -668,9 +691,13 @@ export const getAllTokens = async (userData, includeTestnet = false) => {
             
             if (includeTestnet) {
                 const testnetWallets = await generateTestnetWalletsFromSeed(userData.seed_phrases);
-                return [...wallets, ...testnetWallets];
+                // Кэшируем testnet кошельки
+                localStorage.setItem('cached_testnet_wallets', JSON.stringify(testnetWallets));
+                return testnetWallets;
             }
             
+            // Кэшируем mainnet кошельки
+            localStorage.setItem('cached_wallets', JSON.stringify(wallets));
             return wallets;
         }
         
@@ -1082,19 +1109,23 @@ export const initializeUserWallets = async (userData) => {
         const testnetAddresses = {};
         
         mainnetWallets.forEach(wallet => {
-            addresses[wallet.blockchain] = {
-                address: wallet.address,
-                symbol: wallet.symbol,
-                network: 'mainnet'
-            };
+            if (!addresses[wallet.blockchain]) {
+                addresses[wallet.blockchain] = {
+                    address: wallet.address,
+                    symbol: wallet.symbol,
+                    network: 'mainnet'
+                };
+            }
         });
         
         testnetWallets.forEach(wallet => {
-            testnetAddresses[wallet.blockchain] = {
-                address: wallet.address,
-                symbol: wallet.symbol,
-                network: 'testnet'
-            };
+            if (!testnetAddresses[wallet.blockchain]) {
+                testnetAddresses[wallet.blockchain] = {
+                    address: wallet.address,
+                    symbol: wallet.symbol,
+                    network: 'testnet'
+                };
+            }
         });
 
         // Сохраняем оба набора адресов
@@ -1312,6 +1343,7 @@ export const validateAddress = async (blockchain, address) => {
 export const clearAllData = () => {
     try {
         localStorage.removeItem('cached_wallets');
+        localStorage.removeItem('cached_testnet_wallets');
         localStorage.removeItem('cached_total_balance');
         console.log('Cached wallet data cleared from localStorage');
         return true;

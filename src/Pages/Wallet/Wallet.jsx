@@ -17,6 +17,11 @@ function Wallet({ isActive, userData }) {
         return cached ? JSON.parse(cached) : [];
     });
     
+    const [testnetWallets, setTestnetWallets] = useState(() => {
+        const cached = localStorage.getItem('cached_testnet_wallets');
+        return cached ? JSON.parse(cached) : [];
+    });
+    
     const [totalBalance, setTotalBalance] = useState(() => {
         const cachedBalance = localStorage.getItem('cached_total_balance');
         return cachedBalance || '$0.00';
@@ -27,6 +32,10 @@ function Wallet({ isActive, userData }) {
     const [showPinForBackup, setShowPinForBackup] = useState(false);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [contentMargin, setContentMargin] = useState(0);
+    const [currentNetwork, setCurrentNetwork] = useState(() => {
+        return localStorage.getItem('current_network') || 'mainnet';
+    });
+    
     const navigate = useNavigate();
     
     const hasInitialized = useRef(false);
@@ -131,8 +140,8 @@ function Wallet({ isActive, userData }) {
             console.log('Updating wallet balances...');
             
             let allTokens = [];
-            if (wallets.length === 0 || forceUpdate) {
-                allTokens = await getAllTokens(userData);
+            if ((currentNetwork === 'mainnet' && wallets.length === 0) || forceUpdate) {
+                allTokens = await getAllTokens(userData, false);
                 if (!Array.isArray(allTokens) || allTokens.length === 0) {
                     setWallets([]);
                     localStorage.setItem('cached_wallets', JSON.stringify([]));
@@ -143,32 +152,43 @@ function Wallet({ isActive, userData }) {
                     isUpdatingRef.current = false;
                     return;
                 }
+            } else if (currentNetwork === 'testnet' && testnetWallets.length === 0) {
+                allTokens = await getAllTokens(userData, true);
+                allTokens = allTokens.filter(wallet => wallet.isTestnet);
             } else {
-                allTokens = wallets;
+                allTokens = currentNetwork === 'mainnet' ? wallets : testnetWallets;
             }
 
-            const updatedWallets = await getBalances(allTokens, userData);
-            
-            updatedWallets.forEach(wallet => {
-                balanceCache.current[wallet.id] = {
-                    balance: wallet.balance,
-                    timestamp: Date.now()
-                };
-            });
-            
-            setWallets(updatedWallets);
-            localStorage.setItem('cached_wallets', JSON.stringify(updatedWallets));
-            
-            const total = await calculateTotalBalance(updatedWallets);
-            setTotalBalance(`$${total}`);
-            localStorage.setItem('cached_total_balance', `$${total}`);
+            if (currentNetwork === 'testnet') {
+                setTestnetWallets(allTokens);
+                localStorage.setItem('cached_testnet_wallets', JSON.stringify(allTokens));
+                
+                setTotalBalance('$0.00');
+                localStorage.setItem('cached_total_balance', '$0.00');
+            } else {
+                const updatedWallets = await getBalances(allTokens, userData);
+                
+                updatedWallets.forEach(wallet => {
+                    balanceCache.current[wallet.id] = {
+                        balance: wallet.balance,
+                        timestamp: Date.now()
+                    };
+                });
+                
+                setWallets(updatedWallets);
+                localStorage.setItem('cached_wallets', JSON.stringify(updatedWallets));
+                
+                const total = await calculateTotalBalance(updatedWallets);
+                setTotalBalance(`$${total}`);
+                localStorage.setItem('cached_total_balance', `$${total}`);
+            }
             
             console.log('Balances updated successfully');
             
         } catch (error) {
             console.error('Error updating balances:', error);
             
-            if (Object.keys(balanceCache.current).length > 0) {
+            if (currentNetwork === 'mainnet' && Object.keys(balanceCache.current).length > 0) {
                 const cachedWallets = wallets.map(wallet => {
                     const cachedBalance = balanceCache.current[wallet.id];
                     return cachedBalance ? { ...wallet, balance: cachedBalance.balance } : wallet;
@@ -185,7 +205,7 @@ function Wallet({ isActive, userData }) {
                 loadingTimerRef.current = null;
             }, 300);
         }
-    }, [userData, wallets, isInitialLoad, isRefreshing]);
+    }, [userData, wallets, testnetWallets, currentNetwork, isInitialLoad, isRefreshing]);
 
     useEffect(() => {
         if (userData && !hasInitialized.current) {
@@ -197,12 +217,14 @@ function Wallet({ isActive, userData }) {
     useEffect(() => {
         if (!userData) return;
         
-        const interval = setInterval(() => {
-            updateBalances(false, false);
-        }, 30000);
-        
-        return () => clearInterval(interval);
-    }, [userData, updateBalances]);
+        if (currentNetwork === 'mainnet') {
+            const interval = setInterval(() => {
+                updateBalances(false, false);
+            }, 30000);
+            
+            return () => clearInterval(interval);
+        }
+    }, [userData, updateBalances, currentNetwork]);
 
     const handleTokenClick = useCallback((wallet) => {
         if (wallet && wallet.symbol) {
@@ -210,7 +232,8 @@ function Wallet({ isActive, userData }) {
                 state: { 
                     ...wallet,
                     blockchain: wallet.blockchain,
-                    userData: userData
+                    userData: userData,
+                    isTestnet: wallet.isTestnet || false
                 }
             });
         }
@@ -223,14 +246,16 @@ function Wallet({ isActive, userData }) {
             navigate('/select-token', { 
                 state: { 
                     mode: 'receive',
-                    userData: userData 
+                    userData: userData,
+                    network: currentNetwork
                 } 
             });
         } else if (action === 'send') {
             navigate('/select-token', { 
                 state: { 
                     mode: 'send',
-                    userData: userData 
+                    userData: userData,
+                    network: currentNetwork
                 } 
             });
         } else if (action === 'stake') {
@@ -238,7 +263,7 @@ function Wallet({ isActive, userData }) {
         } else if (action === 'swap') {
             navigate('/swap', { state: { userData } });
         }
-    }, [navigate, userData]);
+    }, [navigate, userData, currentNetwork]);
 
     const handleBackupClick = () => {
         setShowPinForBackup(true);
@@ -258,6 +283,21 @@ function Wallet({ isActive, userData }) {
         updateBalances(true, true);
     };
 
+    const handleNetworkChange = (network) => {
+        setCurrentNetwork(network);
+        localStorage.setItem('current_network', network);
+        setShowSkeleton(true);
+        
+        hasInitialized.current = false;
+        
+        setTimeout(() => {
+            updateBalances(true, true);
+        }, 300);
+    };
+
+    const currentWallets = currentNetwork === 'mainnet' ? wallets : testnetWallets;
+    const displayTotalBalance = currentNetwork === 'mainnet' ? totalBalance : '$0.00';
+
     if (showPinForBackup) {
         return (
             <PinCodeScreen
@@ -271,7 +311,11 @@ function Wallet({ isActive, userData }) {
 
     return (
         <div className="wallet-page-wallet">
-            <Header userData={userData} />
+            <Header 
+                userData={userData} 
+                onNetworkChange={handleNetworkChange}
+                currentNetwork={currentNetwork}
+            />
 
             <div 
                 className="page-content" 
@@ -299,7 +343,7 @@ function Wallet({ isActive, userData }) {
                         {showSkeleton ? (
                             <div className="skeleton-loader skeleton-total-balance"></div>
                         ) : (
-                            <p className="total-balance-amount">{totalBalance}</p>
+                            <p className="total-balance-amount">{displayTotalBalance}</p>
                         )}
                     </div>
                 </div>
@@ -378,8 +422,8 @@ function Wallet({ isActive, userData }) {
                                 </div>
                             </div>
                         ))
-                    ) : wallets.length > 0 ? (
-                        wallets.map((wallet) => (
+                    ) : currentWallets.length > 0 ? (
+                        currentWallets.map((wallet) => (
                             <div 
                                 key={wallet.id} 
                                 className="token-block"
@@ -391,6 +435,7 @@ function Wallet({ isActive, userData }) {
                     ) : (
                         <div className="no-wallets-message">
                             <p>No wallets found</p>
+                            <p className="refresh-hint">Pull down to refresh</p>
                         </div>
                     )}
                 </div>
