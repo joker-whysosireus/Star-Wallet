@@ -52,6 +52,16 @@ const Header = ({ userData, onNetworkChange, currentNetwork = 'mainnet' }) => {
                         <select 
                             value={currentNetwork}
                             onChange={handleNetworkChange}
+                            style={{
+                                background: 'transparent',
+                                color: '#FFD700',
+                                border: '1px solid rgba(255, 215, 0, 0.3)',
+                                borderRadius: '4px',
+                                padding: '4px 8px',
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                outline: 'none'
+                            }}
                         >
                             <option value="mainnet">MAINNET</option>
                             <option value="testnet">TESTNET</option>
