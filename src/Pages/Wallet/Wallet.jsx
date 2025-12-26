@@ -12,25 +12,12 @@ import {
 import './Wallet.css';
 
 function Wallet({ isActive, userData }) {
-    const [wallets, setWallets] = useState(() => {
-        const cached = localStorage.getItem('cached_wallets');
-        return cached ? JSON.parse(cached) : [];
-    });
-    
-    const [testnetWallets, setTestnetWallets] = useState(() => {
-        const cached = localStorage.getItem('cached_testnet_wallets');
-        return cached ? JSON.parse(cached) : [];
-    });
-    
-    const [totalBalance, setTotalBalance] = useState(() => {
-        const cachedBalance = localStorage.getItem('cached_total_balance');
-        return cachedBalance || '$0.00';
-    });
-    
+    const [wallets, setWallets] = useState([]);
+    const [testnetWallets, setTestnetWallets] = useState([]);
+    const [totalBalance, setTotalBalance] = useState('$0.00');
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [showSkeleton, setShowSkeleton] = useState(false);
+    const [showSkeleton, setShowSkeleton] = useState(true); // Начинаем с true для скелетонов
     const [showPinForBackup, setShowPinForBackup] = useState(false);
-    const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [contentMargin, setContentMargin] = useState(0);
     const [currentNetwork, setCurrentNetwork] = useState(() => {
         return localStorage.getItem('current_network') || 'mainnet';
@@ -47,6 +34,60 @@ function Wallet({ isActive, userData }) {
     const MIN_REFRESH_INTERVAL = 10000;
     const loadingTimerRef = useRef(null);
     const isUpdatingRef = useRef(false);
+
+    // Инициализация кошельков при монтировании
+    const initializeWallets = useCallback(async () => {
+        if (!userData) return;
+
+        try {
+            setShowSkeleton(true); // Показываем скелетоны при инициализации
+            
+            // Загружаем кошельки
+            let walletsData = [];
+            if (currentNetwork === 'mainnet') {
+                walletsData = await getAllTokens(userData, false);
+                setWallets(walletsData);
+                localStorage.setItem('cached_wallets', JSON.stringify(walletsData));
+                
+                // Обновляем балансы для mainnet
+                if (walletsData.length > 0) {
+                    const updatedWallets = await getBalances(walletsData, userData);
+                    const total = await calculateTotalBalance(updatedWallets);
+                    setTotalBalance(`$${total}`);
+                    localStorage.setItem('cached_total_balance', `$${total}`);
+                }
+            } else {
+                // Для testnet пытаемся загрузить из API
+                try {
+                    const response = await fetch('https://star-wallet-backend.netlify.app/.netlify/functions/get-testnet-wallets', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ telegram_user_id: userData.telegram_user_id })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success && data.wallets) {
+                            setTestnetWallets(data.wallets);
+                            localStorage.setItem('cached_testnet_wallets', JSON.stringify(data.wallets));
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading testnet wallets:', error);
+                    // Если ошибка, показываем пустой список
+                    setTestnetWallets([]);
+                }
+            }
+            
+        } catch (error) {
+            console.error('Error initializing wallets:', error);
+        } finally {
+            // Задержка для отображения скелетонов
+            setTimeout(() => {
+                setShowSkeleton(false);
+            }, 500);
+        }
+    }, [userData, currentNetwork]);
 
     useEffect(() => {
         const isTelegramWebApp = () => {
@@ -76,6 +117,29 @@ function Wallet({ isActive, userData }) {
             }
         };
     }, []);
+
+    // Инициализируем при изменении userData или сети
+    useEffect(() => {
+        if (userData && !hasInitialized.current) {
+            hasInitialized.current = true;
+            initializeWallets();
+        }
+    }, [userData, currentNetwork, initializeWallets]);
+
+    // Обновляем при фокусе страницы
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && userData && currentNetwork === 'mainnet') {
+                updateBalances();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [userData, currentNetwork]);
 
     const setupPullToRefresh = () => {
         const totalBalanceEl = totalBalanceRef.current;
@@ -118,113 +182,44 @@ function Wallet({ isActive, userData }) {
         touchStartY.current = 0;
     };
 
-    const updateBalances = useCallback(async (forceUpdate = false, showSkeletonLoading = false) => {
-        if (!userData || isUpdatingRef.current) return;
+    const updateBalances = useCallback(async () => {
+        if (!userData || isUpdatingRef.current || currentNetwork === 'testnet') return;
 
         try {
             const now = Date.now();
-            if (!forceUpdate && now - lastRefreshTime.current < MIN_REFRESH_INTERVAL) {
-                setIsRefreshing(false);
-                setContentMargin(0);
+            if (now - lastRefreshTime.current < MIN_REFRESH_INTERVAL) {
                 return;
             }
 
             isUpdatingRef.current = true;
-            
-            if ((showSkeletonLoading && isRefreshing) || isInitialLoad) {
-                setShowSkeleton(true);
-            }
-            
             lastRefreshTime.current = now;
             
             console.log('Updating wallet balances...');
             
-            let allTokens = [];
-            if ((currentNetwork === 'mainnet' && wallets.length === 0) || forceUpdate) {
-                allTokens = await getAllTokens(userData, false);
-                if (!Array.isArray(allTokens) || allTokens.length === 0) {
-                    setWallets([]);
-                    localStorage.setItem('cached_wallets', JSON.stringify([]));
-                    setShowSkeleton(false);
-                    setIsRefreshing(false);
-                    setContentMargin(0);
-                    setIsInitialLoad(false);
-                    isUpdatingRef.current = false;
-                    return;
-                }
-            } else if (currentNetwork === 'testnet' && testnetWallets.length === 0) {
-                allTokens = await getAllTokens(userData, true);
-                allTokens = allTokens.filter(wallet => wallet.isTestnet);
-            } else {
-                allTokens = currentNetwork === 'mainnet' ? wallets : testnetWallets;
-            }
-
-            if (currentNetwork === 'testnet') {
-                setTestnetWallets(allTokens);
-                localStorage.setItem('cached_testnet_wallets', JSON.stringify(allTokens));
-                
-                setTotalBalance('$0.00');
-                localStorage.setItem('cached_total_balance', '$0.00');
-            } else {
-                const updatedWallets = await getBalances(allTokens, userData);
-                
-                updatedWallets.forEach(wallet => {
-                    balanceCache.current[wallet.id] = {
-                        balance: wallet.balance,
-                        timestamp: Date.now()
-                    };
-                });
-                
-                setWallets(updatedWallets);
-                localStorage.setItem('cached_wallets', JSON.stringify(updatedWallets));
-                
-                const total = await calculateTotalBalance(updatedWallets);
-                setTotalBalance(`$${total}`);
-                localStorage.setItem('cached_total_balance', `$${total}`);
-            }
+            const updatedWallets = await getBalances(wallets, userData);
+            
+            updatedWallets.forEach(wallet => {
+                balanceCache.current[wallet.id] = {
+                    balance: wallet.balance,
+                    timestamp: Date.now()
+                };
+            });
+            
+            setWallets(updatedWallets);
+            localStorage.setItem('cached_wallets', JSON.stringify(updatedWallets));
+            
+            const total = await calculateTotalBalance(updatedWallets);
+            setTotalBalance(`$${total}`);
+            localStorage.setItem('cached_total_balance', `$${total}`);
             
             console.log('Balances updated successfully');
             
         } catch (error) {
             console.error('Error updating balances:', error);
-            
-            if (currentNetwork === 'mainnet' && Object.keys(balanceCache.current).length > 0) {
-                const cachedWallets = wallets.map(wallet => {
-                    const cachedBalance = balanceCache.current[wallet.id];
-                    return cachedBalance ? { ...wallet, balance: cachedBalance.balance } : wallet;
-                });
-                setWallets(cachedWallets);
-            }
         } finally {
-            loadingTimerRef.current = setTimeout(() => {
-                setIsRefreshing(false);
-                setShowSkeleton(false);
-                setContentMargin(0);
-                setIsInitialLoad(false);
-                isUpdatingRef.current = false;
-                loadingTimerRef.current = null;
-            }, 300);
+            isUpdatingRef.current = false;
         }
-    }, [userData, wallets, testnetWallets, currentNetwork, isInitialLoad, isRefreshing]);
-
-    useEffect(() => {
-        if (userData && !hasInitialized.current) {
-            hasInitialized.current = true;
-            updateBalances(true, true);
-        }
-    }, [userData, updateBalances]);
-
-    useEffect(() => {
-        if (!userData) return;
-        
-        if (currentNetwork === 'mainnet') {
-            const interval = setInterval(() => {
-                updateBalances(false, false);
-            }, 30000);
-            
-            return () => clearInterval(interval);
-        }
-    }, [userData, updateBalances, currentNetwork]);
+    }, [userData, wallets, currentNetwork]);
 
     const handleTokenClick = useCallback((wallet) => {
         if (wallet && wallet.symbol) {
@@ -280,7 +275,12 @@ function Wallet({ isActive, userData }) {
     };
 
     const handleRefresh = () => {
-        updateBalances(true, true);
+        setShowSkeleton(true);
+        initializeWallets();
+        setTimeout(() => {
+            setIsRefreshing(false);
+            setContentMargin(0);
+        }, 1000);
     };
 
     const handleNetworkChange = (network) => {
@@ -288,10 +288,12 @@ function Wallet({ isActive, userData }) {
         localStorage.setItem('current_network', network);
         setShowSkeleton(true);
         
+        // Сбрасываем флаг инициализации для загрузки новых кошельков
         hasInitialized.current = false;
         
+        // Даем время на анимацию смены сети
         setTimeout(() => {
-            updateBalances(true, true);
+            initializeWallets();
         }, 300);
     };
 
@@ -339,7 +341,7 @@ function Wallet({ isActive, userData }) {
                         </div>
                     )}
                     <div className="balance-display">
-                        <p className="total-balance-label">Total Balance</p>
+                        <p className="total-balance-label">TOTAL BALANCE</p>
                         {showSkeleton ? (
                             <div className="skeleton-loader skeleton-total-balance"></div>
                         ) : (
@@ -399,7 +401,7 @@ function Wallet({ isActive, userData }) {
                 </div>
 
                 <div className="assets-container">
-                    {showSkeleton && (isInitialLoad || isRefreshing) ? (
+                    {showSkeleton || isRefreshing ? (
                         Array.from({ length: 13 }).map((_, index) => (
                             <div 
                                 key={`skeleton-${index}`} 
