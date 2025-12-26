@@ -72,106 +72,6 @@ const MAINNET_CONFIG = {
     }
 };
 
-// === ТОКЕНЫ ДЛЯ ОТПРАВКИ (с обновленными иконками) ===
-const TRANSACTION_TOKENS = {
-    TON: { 
-        symbol: 'TON', 
-        name: 'Toncoin', 
-        blockchain: 'TON', 
-        decimals: 9, 
-        isNative: true, 
-        // Обновленная иконка TON с прозрачным фоном
-        logo: 'https://cryptologos.cc/logos/toncoin-ton-logo.png' 
-    },
-    ETH: { 
-        symbol: 'ETH', 
-        name: 'Ethereum', 
-        blockchain: 'Ethereum', 
-        decimals: 18, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png' 
-    },
-    SOL: { 
-        symbol: 'SOL', 
-        name: 'Solana', 
-        blockchain: 'Solana', 
-        decimals: 9, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/solana-sol-logo.png' 
-    },
-    BNB: { 
-        symbol: 'BNB', 
-        name: 'BNB', 
-        blockchain: 'BSC', 
-        decimals: 18, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' 
-    },
-    TRX: { 
-        symbol: 'TRX', 
-        name: 'TRON', 
-        blockchain: 'Tron', 
-        decimals: 6, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/tron-trx-logo.png' 
-    },
-    BTC: { 
-        symbol: 'BTC', 
-        name: 'Bitcoin', 
-        blockchain: 'Bitcoin', 
-        decimals: 8, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png' 
-    },
-    NEAR: { 
-        symbol: 'NEAR', 
-        name: 'NEAR Protocol', 
-        blockchain: 'NEAR', 
-        decimals: 24, 
-        isNative: true, 
-        // Обновленная иконка NEAR с прозрачным фоном
-        logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' 
-    },
-    XRP: { 
-        symbol: 'XRP', 
-        name: 'Ripple', 
-        blockchain: 'XRP', 
-        decimals: 6, 
-        isNative: true, 
-        // Обновленная иконка XRP с прозрачным фоном
-        logo: 'https://cryptologos.cc/logos/ripple-xrp-logo.svg' 
-    },
-    LTC: { 
-        symbol: 'LTC', 
-        name: 'Litecoin', 
-        blockchain: 'LTC', 
-        decimals: 8, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' 
-    },
-    DOGE: { 
-        symbol: 'DOGE', 
-        name: 'Dogecoin', 
-        blockchain: 'DOGE', 
-        decimals: 8, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/dogecoin-doge-logo.png' 
-    },
-    USDT: { 
-        symbol: 'USDT', 
-        name: 'Tether', 
-        decimals: 6, 
-        // Обновленная иконка USDT с прозрачным фоном
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
-    },
-    USDC: { 
-        symbol: 'USDC', 
-        name: 'USD Coin', 
-        decimals: 6, 
-        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
-    }
-};
-
 // === УТИЛИТЫ ДЛЯ ПОЛУЧЕНИЯ КОШЕЛЬКОВ ИЗ SEED-ФРАЗЫ ===
 const getTonWalletFromSeed = async (seedPhrase) => {
     try {
@@ -796,6 +696,5 @@ export default {
     sendDoge,
     validateAddress,
     estimateTransactionFee,
-    checkAddressExists,
-    TRANSACTION_TOKENS
+    checkAddressExists
 };
