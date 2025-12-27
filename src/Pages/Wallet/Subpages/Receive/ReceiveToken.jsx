@@ -12,7 +12,7 @@ import './ReceiveToken.css';
 const ReceiveToken = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { wallet, userData } = location.state || {};
+    const { wallet, userData, network = 'mainnet' } = location.state || {};
     
     const [token, setToken] = useState(wallet);
     const [usdValue, setUsdValue] = useState('0.00');
@@ -65,7 +65,7 @@ const ReceiveToken = () => {
             
             <div className="page-content receive-page">
                 <div className="receive-header">
-                    <h2>Your {token.symbol} Address</h2>
+                    <h2>Your {token.symbol} Address ({network})</h2>
                     <p>Receive {token.symbol} to this address</p>
                 </div>
                 
@@ -78,7 +78,6 @@ const ReceiveToken = () => {
                         <>
                             <div className="qr-container">
                                 <div className="qr-wrapper">
-                                    {/* QR-код кодирует адрес кошелька */}
                                     <QRCode 
                                         value={token.address} 
                                         size={180}
@@ -89,7 +88,7 @@ const ReceiveToken = () => {
                             </div>
                             
                             <p className="receive-info">
-                                Use this address to receive {token.symbol} to your {token.blockchain} wallet
+                                Use this address to receive {token.symbol} to your {token.blockchain} wallet ({network})
                             </p>
                         </>
                     ) : (

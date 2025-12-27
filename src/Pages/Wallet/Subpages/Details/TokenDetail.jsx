@@ -19,6 +19,7 @@ const TokenDetail = () => {
     const [usdValue, setUsdValue] = useState('0.00');
     const [showSkeleton, setShowSkeleton] = useState(false);
     const userData = location.state?.userData || location.state?.userData;
+    const network = location.state?.network || 'mainnet';
     
     useEffect(() => {
         const walletData = location.state?.wallet || location.state;
@@ -33,7 +34,8 @@ const TokenDetail = () => {
                     ...token,
                     address: 'TQCc68Mp5dZ2Lm9XrJARoqo2D4Xtye5gFkR',
                     balance: '25.43',
-                    isActive: true
+                    isActive: true,
+                    network: network
                 };
                 setWallet(mockWallet);
                 setUsdValue((25.43 * 6.24).toFixed(2));
@@ -70,9 +72,6 @@ const TokenDetail = () => {
 
     const getLogoUrl = () => {
         if (!wallet) return '';
-        if (wallet.symbol === 'TON') {
-            return 'https://ton.org/download/ton_symbol.svg';
-        }
         return wallet.logo;
     };
 
@@ -202,7 +201,8 @@ const TokenDetail = () => {
                         onClick={() => navigate('/receive', { 
                             state: { 
                                 wallet,
-                                userData: userData 
+                                userData: userData,
+                                network: network
                             } 
                         })}
                         disabled={showSkeleton}
@@ -241,7 +241,8 @@ const TokenDetail = () => {
                         onClick={() => navigate('/send', { 
                             state: { 
                                 wallet,
-                                userData: userData 
+                                userData: userData,
+                                network: network
                             } 
                         })}
                         disabled={showSkeleton}
@@ -280,7 +281,8 @@ const TokenDetail = () => {
                         onClick={() => navigate('/swap', { 
                             state: { 
                                 fromToken: wallet,
-                                userData: userData 
+                                userData: userData,
+                                network: network
                             } 
                         })}
                         disabled={showSkeleton}

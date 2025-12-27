@@ -28,8 +28,9 @@ const Header = ({ userData, onNetworkChange, currentNetwork = 'mainnet' }) => {
     };
 
     const handleNetworkChange = (e) => {
+        const selectedNetwork = e.target.value;
         if (onNetworkChange) {
-            onNetworkChange(e.target.value);
+            onNetworkChange(selectedNetwork);
         }
     };
 

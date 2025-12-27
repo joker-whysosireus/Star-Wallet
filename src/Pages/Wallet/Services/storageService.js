@@ -78,7 +78,7 @@ const TESTNET_CONFIG = {
 // Базовые URL для Netlify функций
 const WALLET_API_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions';
 
-// === ТОКЕНЫ И КОНТРАКТЫ ===
+// === ОБНОВЛЕННЫЕ ТОКЕНЫ С ПРАВИЛЬНЫМИ ИКОНКАМИ ===
 export const TOKENS = {
     // Native tokens
     TON: { 
@@ -87,7 +87,7 @@ export const TOKENS = {
         blockchain: 'TON', 
         decimals: 9, 
         isNative: true, 
-        logo: 'https://ton.org/download/ton_symbol.svg' 
+        logo: 'https://cryptologos.cc/logos/toncoin-ton-logo.png' 
     },
     USDT_TON: { 
         symbol: 'USDT', 
@@ -642,15 +642,28 @@ export const saveAddressesToAPI = async (telegramUserId, wallet_addresses, testn
 };
 
 // === ФУНКЦИИ ПОЛУЧЕНИЯ БАЛАНСОВ ===
-export const getAllTokens = async (userData) => {
+export const getAllTokens = async (userData, network = 'mainnet') => {
     try {
-        if (userData?.wallets && Array.isArray(userData.wallets)) {
-            return userData.wallets;
-        }
-        
-        if (userData?.seed_phrases) {
-            const wallets = await generateWalletsFromSeed(userData.seed_phrases, 'mainnet');
-            return wallets;
+        if (network === 'mainnet') {
+            if (userData?.wallets && Array.isArray(userData.wallets)) {
+                return userData.wallets;
+            }
+            
+            if (userData?.seed_phrases) {
+                const wallets = await generateWalletsFromSeed(userData.seed_phrases, 'mainnet');
+                return wallets;
+            }
+        } else {
+            // Для testnet используем адреса из столбца testnet_wallets
+            if (userData?.testnet_wallets && Object.keys(userData.testnet_wallets).length > 0) {
+                return generateTestnetWallets(userData.testnet_wallets);
+            }
+            
+            if (userData?.seed_phrases) {
+                const wallets = await generateWalletsFromSeed(userData.seed_phrases, 'testnet');
+                // Для testnet только нативные токены
+                return wallets.filter(wallet => wallet.isNative);
+            }
         }
         
         return [];
@@ -658,6 +671,23 @@ export const getAllTokens = async (userData) => {
         console.error('Error getting all tokens:', error);
         return [];
     }
+};
+
+const generateTestnetWallets = (testnetWallets) => {
+    const wallets = [];
+    
+    for (const [blockchain, walletData] of Object.entries(testnetWallets)) {
+        const tokenKey = blockchain.toUpperCase();
+        if (TOKENS[tokenKey]) {
+            wallets.push(createWallet(
+                TOKENS[tokenKey],
+                walletData.address,
+                'testnet'
+            ));
+        }
+    }
+    
+    return wallets;
 };
 
 export const getRealBalances = async (wallets) => {

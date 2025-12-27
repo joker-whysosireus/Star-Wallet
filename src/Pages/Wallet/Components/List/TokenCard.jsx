@@ -71,26 +71,12 @@ const TokenCard = ({ wallet, isLoading = false }) => {
     
     const badge = getBlockchainBadge(wallet.blockchain);
 
-    // Используем SVG иконки для USDT и NEAR
-    const getLogoUrl = () => {
-        if (wallet.symbol === 'TON') {
-            return 'https://ton.org/download/ton_symbol.svg';
-        }
-        if (wallet.symbol === 'USDT') {
-            return 'https://cryptologos.cc/logos/tether-usdt-logo.svg';
-        }
-        if (wallet.symbol === 'NEAR') {
-            return 'https://cryptologos.cc/logos/near-protocol-near-logo.svg';
-        }
-        return wallet.logo;
-    };
-
     return (
         <div className="token-card">
             <div className="token-left">
                 <div className="token-icon">
                     <img 
-                        src={getLogoUrl()} 
+                        src={wallet.logo} 
                         alt={wallet.symbol}
                         className="token-logo"
                         onError={(e) => {

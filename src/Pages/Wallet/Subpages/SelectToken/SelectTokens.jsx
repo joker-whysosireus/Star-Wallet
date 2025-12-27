@@ -12,7 +12,7 @@ import './SelectToken.css';
 const SelectToken = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { mode, userData } = location.state || {};
+    const { mode, userData, network = 'mainnet' } = location.state || {};
     
     const [wallets, setWallets] = useState([]);
     const [filteredWallets, setFilteredWallets] = useState([]);
@@ -27,14 +27,14 @@ const SelectToken = () => {
         }
         
         loadTokens();
-    }, [userData]);
+    }, [userData, network]);
     
     const loadTokens = async () => {
         setShowSkeleton(true);
         setIsLoading(true);
         
         try {
-            const allTokens = await getAllTokens(userData);
+            const allTokens = await getAllTokens(userData, network);
             if (!Array.isArray(allTokens) || allTokens.length === 0) {
                 setWallets([]);
                 setFilteredWallets([]);
@@ -59,14 +59,16 @@ const SelectToken = () => {
             navigate('/send', { 
                 state: { 
                     wallet: wallet,
-                    userData: userData 
+                    userData: userData,
+                    network: network
                 } 
             });
         } else if (mode === 'receive') {
             navigate('/receive', { 
                 state: { 
                     wallet: wallet,
-                    userData: userData 
+                    userData: userData,
+                    network: network
                 } 
             });
         }
@@ -89,8 +91,8 @@ const SelectToken = () => {
     };
     
     const getTitle = () => {
-        if (mode === 'send') return 'Select Token to Send';
-        if (mode === 'receive') return 'Select Token to Receive';
+        if (mode === 'send') return `Select Token to Send (${network})`;
+        if (mode === 'receive') return `Select Token to Receive (${network})`;
         return 'Select Token';
     };
     

@@ -22,6 +22,7 @@ function Wallet({ isActive, userData }) {
         return cachedBalance || '$0.00';
     });
     
+    const [currentNetwork, setCurrentNetwork] = useState('mainnet');
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [showSkeleton, setShowSkeleton] = useState(false);
     const [showPinForBackup, setShowPinForBackup] = useState(false);
@@ -109,7 +110,7 @@ function Wallet({ isActive, userData }) {
         touchStartY.current = 0;
     };
 
-    const updateBalances = useCallback(async (forceUpdate = false, showSkeletonLoading = false) => {
+    const updateBalances = useCallback(async (forceUpdate = false, showSkeletonLoading = false, network = currentNetwork) => {
         if (!userData || isUpdatingRef.current) return;
 
         try {
@@ -128,11 +129,11 @@ function Wallet({ isActive, userData }) {
             
             lastRefreshTime.current = now;
             
-            console.log('Updating wallet balances...');
+            console.log(`Updating ${network} wallet balances...`);
             
             let allTokens = [];
-            if (wallets.length === 0 || forceUpdate) {
-                allTokens = await getAllTokens(userData);
+            if (wallets.length === 0 || forceUpdate || wallets[0]?.network !== network) {
+                allTokens = await getAllTokens(userData, network);
                 if (!Array.isArray(allTokens) || allTokens.length === 0) {
                     setWallets([]);
                     localStorage.setItem('cached_wallets', JSON.stringify([]));
@@ -163,7 +164,7 @@ function Wallet({ isActive, userData }) {
             setTotalBalance(`$${total}`);
             localStorage.setItem('cached_total_balance', `$${total}`);
             
-            console.log('Balances updated successfully');
+            console.log(`${network} balances updated successfully`);
             
         } catch (error) {
             console.error('Error updating balances:', error);
@@ -185,12 +186,12 @@ function Wallet({ isActive, userData }) {
                 loadingTimerRef.current = null;
             }, 300);
         }
-    }, [userData, wallets, isInitialLoad, isRefreshing]);
+    }, [userData, wallets, isInitialLoad, isRefreshing, currentNetwork]);
 
     useEffect(() => {
         if (userData && !hasInitialized.current) {
             hasInitialized.current = true;
-            updateBalances(true, true);
+            updateBalances(true, true, 'mainnet');
         }
     }, [userData, updateBalances]);
 
@@ -198,11 +199,11 @@ function Wallet({ isActive, userData }) {
         if (!userData) return;
         
         const interval = setInterval(() => {
-            updateBalances(false, false);
+            updateBalances(false, false, currentNetwork);
         }, 30000);
         
         return () => clearInterval(interval);
-    }, [userData, updateBalances]);
+    }, [userData, currentNetwork, updateBalances]);
 
     const handleTokenClick = useCallback((wallet) => {
         if (wallet && wallet.symbol) {
@@ -210,11 +211,12 @@ function Wallet({ isActive, userData }) {
                 state: { 
                     ...wallet,
                     blockchain: wallet.blockchain,
-                    userData: userData
+                    userData: userData,
+                    network: currentNetwork
                 }
             });
         }
-    }, [navigate, userData]);
+    }, [navigate, userData, currentNetwork]);
 
     const handleActionClick = useCallback((action) => {
         if (!userData) return;
@@ -223,22 +225,24 @@ function Wallet({ isActive, userData }) {
             navigate('/select-token', { 
                 state: { 
                     mode: 'receive',
-                    userData: userData 
+                    userData: userData,
+                    network: currentNetwork
                 } 
             });
         } else if (action === 'send') {
             navigate('/select-token', { 
                 state: { 
                     mode: 'send',
-                    userData: userData 
+                    userData: userData,
+                    network: currentNetwork
                 } 
             });
         } else if (action === 'stake') {
-            navigate('/stake', { state: { userData } });
+            navigate('/stake', { state: { userData, network: currentNetwork } });
         } else if (action === 'swap') {
-            navigate('/swap', { state: { userData } });
+            navigate('/swap', { state: { userData, network: currentNetwork } });
         }
-    }, [navigate, userData]);
+    }, [navigate, userData, currentNetwork]);
 
     const handleBackupClick = () => {
         setShowPinForBackup(true);
@@ -255,7 +259,15 @@ function Wallet({ isActive, userData }) {
     };
 
     const handleRefresh = () => {
-        updateBalances(true, true);
+        updateBalances(true, true, currentNetwork);
+    };
+
+    const handleNetworkChange = (newNetwork) => {
+        setCurrentNetwork(newNetwork);
+        setWallets([]);
+        localStorage.removeItem('cached_wallets');
+        localStorage.removeItem('cached_total_balance');
+        updateBalances(true, true, newNetwork);
     };
 
     if (showPinForBackup) {
@@ -271,7 +283,11 @@ function Wallet({ isActive, userData }) {
 
     return (
         <div className="wallet-page-wallet">
-            <Header userData={userData} />
+            <Header 
+                userData={userData} 
+                onNetworkChange={handleNetworkChange}
+                currentNetwork={currentNetwork}
+            />
 
             <div 
                 className="page-content" 
@@ -390,7 +406,7 @@ function Wallet({ isActive, userData }) {
                         ))
                     ) : (
                         <div className="no-wallets-message">
-                            <p>No wallets found</p>
+                            <p>{currentNetwork === 'mainnet' ? 'Mainnet' : 'Testnet'} wallets loading...</p>
                         </div>
                     )}
                 </div>

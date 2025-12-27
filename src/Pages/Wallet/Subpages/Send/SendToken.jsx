@@ -15,7 +15,7 @@ import './SendToken.css';
 const SendToken = () => {
     const location = useLocation();
     const navigate = useNavigate();
-    const { wallet, userData } = location.state || {};
+    const { wallet, userData, network = 'mainnet' } = location.state || {};
     
     const [token, setToken] = useState(wallet);
     const [amount, setAmount] = useState('');
@@ -41,7 +41,6 @@ const SendToken = () => {
         setToken(wallet);
         loadBalances();
         
-        // Проверяем доступность камеры при монтировании
         checkCameraAvailability();
     }, []);
     
@@ -162,7 +161,8 @@ const SendToken = () => {
                 contractAddress: token.contractAddress,
                 memo: comment,
                 privateKey: privateKey,
-                seedPhrase: userData.seed_phrases
+                seedPhrase: userData.seed_phrases,
+                network: network // Добавляем параметр сети
             });
 
             if (result.success) {
@@ -202,17 +202,14 @@ const SendToken = () => {
     const handleScanQR = (scannedData) => {
         console.log('Scanned data received:', scannedData);
         
-        // Проверяем, что данные не пустые
         if (!scannedData || typeof scannedData !== 'string') {
             console.error('Invalid QR code data');
             return;
         }
         
-        // Устанавливаем отсканированный адрес
         setToAddress(scannedData);
         setShowQRScanner(false);
         
-        // Автоматически запускаем валидацию адреса
         if (scannedData && token) {
             setTimeout(() => {
                 validateAddressAsync();
@@ -287,7 +284,7 @@ const SendToken = () => {
             
             <div className="page-content send-page">
                 <div className="send-header">
-                    <h2>Send {token.symbol}</h2>
+                    <h2>Send {token.symbol} ({network})</h2>
                     <p>Choose recipient</p>
                 </div>
                 
