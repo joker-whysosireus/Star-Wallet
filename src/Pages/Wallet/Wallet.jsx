@@ -12,6 +12,11 @@ import {
 import './Wallet.css';
 
 function Wallet({ isActive, userData }) {
+    const [currentNetwork, setCurrentNetwork] = useState(() => {
+        const savedNetwork = localStorage.getItem('selected_network');
+        return savedNetwork || 'mainnet';
+    });
+    
     const [wallets, setWallets] = useState(() => {
         const cached = localStorage.getItem('cached_wallets');
         return cached ? JSON.parse(cached) : [];
@@ -22,7 +27,6 @@ function Wallet({ isActive, userData }) {
         return cachedBalance || '$0.00';
     });
     
-    const [currentNetwork, setCurrentNetwork] = useState('mainnet');
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [showSkeleton, setShowSkeleton] = useState(false);
     const [showPinForBackup, setShowPinForBackup] = useState(false);
@@ -191,9 +195,9 @@ function Wallet({ isActive, userData }) {
     useEffect(() => {
         if (userData && !hasInitialized.current) {
             hasInitialized.current = true;
-            updateBalances(true, true, 'mainnet');
+            updateBalances(true, true, currentNetwork);
         }
-    }, [userData, updateBalances]);
+    }, [userData, updateBalances, currentNetwork]);
 
     useEffect(() => {
         if (!userData) return;
@@ -263,6 +267,7 @@ function Wallet({ isActive, userData }) {
     };
 
     const handleNetworkChange = (newNetwork) => {
+        localStorage.setItem('selected_network', newNetwork);
         setCurrentNetwork(newNetwork);
         setWallets([]);
         localStorage.removeItem('cached_wallets');
@@ -299,15 +304,8 @@ function Wallet({ isActive, userData }) {
                     ref={totalBalanceRef}
                 >
                     {isRefreshing && (
-                        <div className="bars-spinner">
-                            <div className="bars-spinner-bar"></div>
-                            <div className="bars-spinner-bar"></div>
-                            <div className="bars-spinner-bar"></div>
-                            <div className="bars-spinner-bar"></div>
-                            <div className="bars-spinner-bar"></div>
-                            <div className="bars-spinner-bar"></div>
-                            <div className="bars-spinner-bar"></div>
-                            <div className="bars-spinner-bar"></div>
+                        <div className="circular-spinner">
+                            <div className="spinner"></div>
                         </div>
                     )}
                     <div className="balance-display">

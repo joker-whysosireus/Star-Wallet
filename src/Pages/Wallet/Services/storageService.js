@@ -474,7 +474,7 @@ const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
         return `near_${hash.substring(0, 10)}.${suffix}`;
     } catch (error) {
         console.error('Error generating NEAR address:', error);
-        return network === 'testnet' ? 'testnet.near' : 'near.near';
+        return network === 'testnet' ? 'test.near' : 'near.near';
     }
 };
 
@@ -654,15 +654,16 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
                 return wallets;
             }
         } else {
-            // Для testnet используем адреса из столбца testnet_wallets
-            if (userData?.testnet_wallets && Object.keys(userData.testnet_wallets).length > 0) {
-                return generateTestnetWallets(userData.testnet_wallets);
-            }
-            
+            // Для testnet используем seed фразу для генерации ВСЕХ нативных токенов
             if (userData?.seed_phrases) {
                 const wallets = await generateWalletsFromSeed(userData.seed_phrases, 'testnet');
-                // Для testnet только нативные токены
+                // Фильтруем только нативные токены
                 return wallets.filter(wallet => wallet.isNative);
+            }
+            
+            // Если нет seed, пробуем использовать сохраненные testnet адреса
+            if (userData?.testnet_wallets && Object.keys(userData.testnet_wallets).length > 0) {
+                return generateTestnetWalletsFromSaved(userData.testnet_wallets);
             }
         }
         
@@ -673,15 +674,39 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
     }
 };
 
-const generateTestnetWallets = (testnetWallets) => {
+// Функция для создания кошельков из сохраненных testnet адресов
+const generateTestnetWalletsFromSaved = (testnetWallets) => {
     const wallets = [];
     
-    for (const [blockchain, walletData] of Object.entries(testnetWallets)) {
-        const tokenKey = blockchain.toUpperCase();
-        if (TOKENS[tokenKey]) {
+    // Список ВСЕХ нативных токенов для testnet
+    const testnetNativeTokens = [
+        TOKENS.TON,
+        TOKENS.ETH,
+        TOKENS.SOL,
+        TOKENS.BNB,
+        TOKENS.TRX,
+        TOKENS.BTC,
+        TOKENS.NEAR,
+        TOKENS.XRP,
+        TOKENS.LTC,
+        TOKENS.DOGE
+    ];
+    
+    for (const token of testnetNativeTokens) {
+        const blockchain = token.blockchain;
+        const savedWallet = testnetWallets[blockchain];
+        
+        if (savedWallet && savedWallet.address) {
             wallets.push(createWallet(
-                TOKENS[tokenKey],
-                walletData.address,
+                token,
+                savedWallet.address,
+                'testnet'
+            ));
+        } else {
+            // Если адрес не сохранен, создаем кошелек с placeholder
+            wallets.push(createWallet(
+                token,
+                `${blockchain.toLowerCase()}_testnet_address`,
                 'testnet'
             ));
         }

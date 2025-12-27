@@ -35,16 +35,19 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    min-height: 90px;
 }
 
 .total-balance-label {
     color: #FFD700;
     font-size: 14px;
-    margin-bottom: 0;
-    opacity: 1; /* Исправлено: было 0.8 */
+    margin-bottom: 8px;
+    opacity: 1;
     letter-spacing: 1px;
     text-transform: uppercase;
     order: 1;
+    display: block;
+    visibility: visible;
 }
 
 .total-balance-amount {
@@ -60,6 +63,35 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    min-height: 70px;
+}
+
+.circular-spinner {
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 30px;
+    height: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+}
+
+.circular-spinner .spinner {
+    width: 25px;
+    height: 25px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #FFD700;
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .wallet-action-buttons {
@@ -364,6 +396,7 @@
     justify-content: center;
     align-items: center;
     z-index: 10;
+    display: none;
 }
 
 .bars-spinner-bar {
