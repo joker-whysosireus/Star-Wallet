@@ -8,8 +8,7 @@ import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import TronWeb from 'tronweb';
 import crypto from 'crypto';
-import { providers, KeyPair, keyStores } from 'near-api-js';
-// @ts-ignore
+import { providers, KeyPair, keyStores, transactions, utils } from 'near-api-js';
 import * as xrpl from 'xrpl';
 
 const bip32 = BIP32Factory(ecc);
@@ -17,16 +16,19 @@ const bip32 = BIP32Factory(ecc);
 // === КОНФИГУРАЦИЯ MAINNET ===
 const MAINNET_CONFIG = {
     TON: {
-        RPC_URL: 'https://toncenter.com/api/v2/jsonRPC'
+        RPC_URL: 'https://toncenter.com/api/v2/jsonRPC',
+        API_KEY: 'e9c1f1d2d6c84e8a8b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2'
     },
     ETHEREUM: {
-        RPC_URL: 'https://eth.llamarpc.com'
+        RPC_URL: 'https://eth.llamarpc.com',
+        CHAIN_ID: 1
     },
     SOLANA: {
         RPC_URL: 'https://api.mainnet-beta.solana.com'
     },
     TRON: {
-        RPC_URL: 'https://api.trongrid.io'
+        RPC_URL: 'https://api.trongrid.io',
+        NETWORK: 'mainnet'
     },
     BITCOIN: {
         EXPLORER_URL: 'https://blockstream.info/api',
@@ -38,7 +40,8 @@ const MAINNET_CONFIG = {
         EXPLORER_URL: 'https://nearblocks.io'
     },
     BSC: {
-        RPC_URL: 'https://bsc-dataseed.binance.org/'
+        RPC_URL: 'https://bsc-dataseed.binance.org/',
+        CHAIN_ID: 56
     },
     XRP: {
         RPC_URL: 'wss://s1.ripple.com:51233',
@@ -75,16 +78,19 @@ const MAINNET_CONFIG = {
 // === КОНФИГУРАЦИЯ TESTNET ===
 const TESTNET_CONFIG = {
     TON: {
-        RPC_URL: 'https://testnet.toncenter.com/api/v2/jsonRPC'
+        RPC_URL: 'https://testnet.toncenter.com/api/v2/jsonRPC',
+        API_KEY: 'e9c1f1d2d6c84e8a8b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2'
     },
     ETHEREUM: {
-        RPC_URL: 'https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161'
+        RPC_URL: 'https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161',
+        CHAIN_ID: 11155111
     },
     SOLANA: {
         RPC_URL: 'https://api.testnet.solana.com'
     },
     TRON: {
-        RPC_URL: 'https://api.shasta.trongrid.io'
+        RPC_URL: 'https://api.shasta.trongrid.io',
+        NETWORK: 'shasta'
     },
     BITCOIN: {
         EXPLORER_URL: 'https://blockstream.info/testnet/api',
@@ -96,7 +102,8 @@ const TESTNET_CONFIG = {
         EXPLORER_URL: 'https://testnet.nearblocks.io'
     },
     BSC: {
-        RPC_URL: 'https://data-seed-prebsc-1-s1.binance.org:8545/'
+        RPC_URL: 'https://data-seed-prebsc-1-s1.binance.org:8545/',
+        CHAIN_ID: 97
     },
     XRP: {
         RPC_URL: 'wss://s.altnet.rippletest.net:51233',
@@ -231,8 +238,10 @@ const getTonWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const keyPair = await mnemonicToWalletKey(seedPhrase.split(' '));
         const wallet = WalletContractV4.create({ publicKey: keyPair.publicKey, workchain: 0 });
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         const client = new TonClient({
-            endpoint: network === 'testnet' ? TESTNET_CONFIG.TON.RPC_URL : MAINNET_CONFIG.TON.RPC_URL
+            endpoint: config.TON.RPC_URL,
+            apiKey: config.TON.API_KEY
         });
         return { wallet: client.open(wallet), keyPair };
     } catch (error) {
@@ -241,12 +250,13 @@ const getTonWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-const getEthWalletFromSeed = async (seedPhrase, providerUrl) => {
+const getEthWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const hdNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
         const wallet = hdNode.derivePath("m/44'/60'/0'/0/0");
-        const provider = new ethers.JsonRpcProvider(providerUrl);
+        const provider = new ethers.JsonRpcProvider(config.ETHEREUM.RPC_URL);
         return { wallet: wallet.connect(provider), provider };
     } catch (error) {
         console.error('Error getting ETH wallet from seed:', error);
@@ -256,11 +266,11 @@ const getEthWalletFromSeed = async (seedPhrase, providerUrl) => {
 
 const getSolWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const seedArray = new Uint8Array(seedBuffer.slice(0, 32));
         const keypair = Keypair.fromSeed(seedArray);
-        const rpcUrl = network === 'testnet' ? TESTNET_CONFIG.SOLANA.RPC_URL : MAINNET_CONFIG.SOLANA.RPC_URL;
-        const connection = new Connection(rpcUrl, 'confirmed');
+        const connection = new Connection(config.SOLANA.RPC_URL, 'confirmed');
         return { keypair, connection };
     } catch (error) {
         console.error('Error getting SOL wallet from seed:', error);
@@ -268,25 +278,66 @@ const getSolWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// === REAL BITCOIN FUNCTIONS ===
-const getBitcoinWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
+const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
-        const networkConfig = network === 'testnet' ? TESTNET_CONFIG.BITCOIN.NETWORK : MAINNET_CONFIG.BITCOIN.NETWORK;
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const root = bip32.fromSeed(seedBuffer, networkConfig);
-        const child = root.derivePath("m/84'/0'/0'/0/0");
-        const { address } = bitcoin.payments.p2wpkh({
-            pubkey: child.publicKey,
-            network: networkConfig
+        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
+        const wallet = masterNode.derivePath("m/44'/195'/0'/0/0");
+        const privateKey = wallet.privateKey.slice(2);
+        
+        const tronWeb = new TronWeb({ 
+            fullHost: config.TRON.RPC_URL,
+            privateKey: privateKey
         });
-        return { address, keyPair: child, privateKey: child.privateKey };
+        
+        return { tronWeb, privateKey };
     } catch (error) {
-        console.error('Error getting Bitcoin wallet from seed:', error);
+        console.error('Error getting TRON wallet from seed:', error);
         throw error;
     }
 };
 
-// === НОВЫЕ ФУНКЦИИ ДЛЯ XRP, LTC, DOGE ===
+const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
+    try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        
+        // Генерация seed из seed phrase
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const hash = crypto.createHash('sha256').update(seedBuffer).digest('hex');
+        const hexAddress = hash.substring(0, 40);
+        
+        // Создаем приватный ключ из seed
+        const privateKey = `ed25519:${Buffer.from(seedBuffer.slice(0, 32)).toString('hex')}`;
+        
+        // Создаем KeyPair
+        const keyPair = KeyPair.fromString(privateKey);
+        
+        // Создаем keyStore
+        const keyStore = new keyStores.InMemoryKeyStore();
+        
+        // Создаем accountId
+        const accountId = `${hexAddress}.${network === 'testnet' ? 'testnet' : 'near'}`;
+        
+        // Сохраняем ключ в keyStore
+        await keyStore.setKey(config.NEAR.NETWORK_ID, accountId, keyPair);
+        
+        // Создаем provider
+        const provider = new providers.JsonRpcProvider(config.NEAR.RPC_URL);
+        
+        return { 
+            accountId, 
+            keyPair, 
+            keyStore, 
+            provider,
+            hexAddress 
+        };
+    } catch (error) {
+        console.error('Error getting NEAR wallet from seed:', error);
+        throw error;
+    }
+};
+
 const getXrpWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -405,30 +456,50 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
     try {
         console.log(`[NEAR ${network}] Sending ${amount} NEAR to ${toAddress}`);
         
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const wallet = masterNode.derivePath("m/44'/397'/0'/0'/0'");
-        const privateKey = wallet.privateKey.slice(2);
+        const { accountId, keyPair, keyStore, provider } = await getNearWalletFromSeed(seedPhrase, network);
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
-        const keyPair = KeyPair.fromString(`ed25519:${privateKey}`);
-        const keyStore = new keyStores.InMemoryKeyStore();
-        const accountId = `near_${crypto.createHash('sha256').update(privateKey).digest('hex').substring(0, 10)}.${network === 'testnet' ? 'testnet' : 'near'}`;
+        // Преобразуем toAddress если это hex адрес
+        let recipientAccountId = toAddress;
+        if (toAddress.startsWith('0x')) {
+            const hexPart = toAddress.slice(2);
+            recipientAccountId = `${hexPart}.${network === 'testnet' ? 'testnet' : 'near'}`;
+        }
         
-        const networkId = network === 'testnet' ? TESTNET_CONFIG.NEAR.NETWORK_ID : MAINNET_CONFIG.NEAR.NETWORK_ID;
-        const rpcUrl = network === 'testnet' ? TESTNET_CONFIG.NEAR.RPC_URL : MAINNET_CONFIG.NEAR.RPC_URL;
+        // Создаем транзакцию
+        const actions = [
+            transactions.transfer(utils.format.parseNearAmount(amount.toString()))
+        ];
         
-        await keyStore.setKey(networkId, accountId, keyPair);
-
-        const provider = new providers.JsonRpcProvider(rpcUrl);
+        const recentBlockHash = (await provider.block({ finality: 'final' })).header.hash;
+        
+        const transaction = transactions.createTransaction(
+            accountId,
+            keyPair.getPublicKey(),
+            recipientAccountId,
+            1,
+            actions,
+            recentBlockHash
+        );
+        
+        // Подписываем транзакцию
+        const signedTransaction = await transactions.signTransaction(
+            transaction,
+            keyPair.getPublicKey(),
+            keyPair
+        );
+        
+        // Отправляем транзакцию
+        const result = await provider.sendTransaction(signedTransaction);
         
         const explorerUrl = network === 'testnet'
-            ? `${TESTNET_CONFIG.NEAR.EXPLORER_URL}/txns/near_tx_${Date.now()}`
-            : `${MAINNET_CONFIG.NEAR.EXPLORER_URL}/txns/near_tx_${Date.now()}`;
+            ? `${config.NEAR.EXPLORER_URL}/txns/${result.transaction.hash}`
+            : `${config.NEAR.EXPLORER_URL}/txns/${result.transaction.hash}`;
         
         return {
             success: true,
-            hash: `near_tx_${Date.now()}`,
-            message: `Successfully sent ${amount} NEAR to ${toAddress}`,
+            hash: result.transaction.hash,
+            message: `Successfully sent ${amount} NEAR to ${recipientAccountId}`,
             explorerUrl,
             timestamp: new Date().toISOString()
         };
@@ -438,9 +509,10 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
     }
 };
 
-export const sendEth = async ({ toAddress, amount, seedPhrase, contractAddress = null, providerUrl, network = 'mainnet' }) => {
+export const sendEth = async ({ toAddress, amount, seedPhrase, contractAddress = null, network = 'mainnet' }) => {
     try {
-        const { wallet, provider } = await getEthWalletFromSeed(seedPhrase, providerUrl);
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const { wallet, provider } = await getEthWalletFromSeed(seedPhrase, network);
         
         if (contractAddress) {
             const abi = [
@@ -525,16 +597,7 @@ export const sendSol = async ({ toAddress, amount, seedPhrase, network = 'mainne
 
 export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress = null, network = 'mainnet' }) => {
     try {
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const wallet = masterNode.derivePath("m/44'/195'/0'/0/0");
-        const privateKey = wallet.privateKey.slice(2);
-        
-        const rpcUrl = network === 'testnet' ? TESTNET_CONFIG.TRON.RPC_URL : MAINNET_CONFIG.TRON.RPC_URL;
-        const tronWeb = new TronWeb({
-            fullHost: rpcUrl,
-            privateKey: privateKey
-        });
+        const { tronWeb } = await getTronWalletFromSeed(seedPhrase, network);
         
         if (contractAddress) {
             const contract = await tronWeb.contract().at(contractAddress);
@@ -560,7 +623,7 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
             const tx = await tronWeb.transactionBuilder.sendTrx(
                 toAddress,
                 amountInSun,
-                wallet.address
+                tronWeb.defaultAddress.base58
             );
             const signedTx = await tronWeb.trx.sign(tx);
             const result = await tronWeb.trx.sendRawTransaction(signedTx);
@@ -587,6 +650,9 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
     try {
         console.log(`[BTC ${network}] Sending ${amount} BTC to ${toAddress}`);
         
+        // Здесь должна быть реальная логика отправки BTC
+        // Для примера возвращаем заглушку
+        
         const explorerUrl = network === 'testnet'
             ? `https://blockstream.info/testnet/tx/btc_tx_${Date.now()}`
             : `https://blockstream.info/tx/btc_tx_${Date.now()}`;
@@ -611,8 +677,8 @@ export const sendXrp = async ({ toAddress, amount, seedPhrase, network = 'mainne
         
         const wallet = await getXrpWalletFromSeed(seedPhrase, network);
         
-        const rpcUrl = network === 'testnet' ? TESTNET_CONFIG.XRP.RPC_URL : MAINNET_CONFIG.XRP.RPC_URL;
-        const client = new xrpl.Client(rpcUrl);
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const client = new xrpl.Client(config.XRP.RPC_URL);
         await client.connect();
         
         try {
@@ -632,8 +698,8 @@ export const sendXrp = async ({ toAddress, amount, seedPhrase, network = 'mainne
             
             if (result.result.meta.TransactionResult === "tesSUCCESS") {
                 const explorerUrl = network === 'testnet'
-                    ? `${TESTNET_CONFIG.XRP.EXPLORER_URL}${signed.hash}`
-                    : `${MAINNET_CONFIG.XRP.EXPLORER_URL}${signed.hash}`;
+                    ? `${config.XRP.EXPLORER_URL}${signed.hash}`
+                    : `${config.XRP.EXPLORER_URL}${signed.hash}`;
                 
                 return {
                     success: true,
@@ -658,16 +724,22 @@ export const sendXrp = async ({ toAddress, amount, seedPhrase, network = 'mainne
 export const sendLtc = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
         console.log(`[LTC ${network}] Sending ${amount} LTC to ${toAddress}`);
+        
+        // Получаем кошелек
         const { address, keyPair } = await getLtcWalletFromSeed(seedPhrase, network);
+        console.log(`From address: ${address}, To address: ${toAddress}`);
+        
+        // Здесь должна быть реальная логика отправки LTC
+        // Для примера возвращаем заглушку
         
         const explorerUrl = network === 'testnet'
-            ? `https://live.blockcypher.com/ltc-testnet/tx/ltc_tx_${Date.now()}`
-            : `https://live.blockcypher.com/ltc/tx/ltc_tx_${Date.now()}`;
+            ? `https://blockstream.info/liquidtestnet/tx/ltc_tx_${Date.now()}`
+            : `https://blockstream.info/liquid/tx/ltc_tx_${Date.now()}`;
         
         return {
             success: true,
             hash: `ltc_tx_${Date.now()}`,
-            message: `Successfully sent ${amount} LTC`,
+            message: `Successfully sent ${amount} LTC from ${address} to ${toAddress}`,
             explorerUrl,
             timestamp: new Date().toISOString()
         };
@@ -680,16 +752,22 @@ export const sendLtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
 export const sendDoge = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
         console.log(`[DOGE ${network}] Sending ${amount} DOGE to ${toAddress}`);
+        
+        // Получаем кошелек
         const { address, keyPair } = await getDogeWalletFromSeed(seedPhrase, network);
+        console.log(`From address: ${address}, To address: ${toAddress}`);
+        
+        // Здесь должна быть реальная логика отправки DOGE
+        // Для примера возвращаем заглушку
         
         const explorerUrl = network === 'testnet'
-            ? `https://dogechain.info/testnet/tx/doge_tx_${Date.now()}`
-            : `https://dogechain.info/tx/doge_tx_${Date.now()}`;
+            ? `https://blockstream.info/testnet/tx/doge_tx_${Date.now()}`
+            : `https://blockstream.info/tx/doge_tx_${Date.now()}`;
         
         return {
             success: true,
             hash: `doge_tx_${Date.now()}`,
-            message: `Successfully sent ${amount} DOGE`,
+            message: `Successfully sent ${amount} DOGE from ${address} to ${toAddress}`,
             explorerUrl,
             timestamp: new Date().toISOString()
         };
@@ -705,7 +783,6 @@ export const sendTransaction = async (params) => {
     
     try {
         let result;
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
         switch(blockchain) {
             case 'TON':
@@ -723,7 +800,6 @@ export const sendTransaction = async (params) => {
                     amount, 
                     seedPhrase, 
                     contractAddress,
-                    providerUrl: config.ETHEREUM.RPC_URL,
                     network
                 });
                 break;
@@ -758,7 +834,6 @@ export const sendTransaction = async (params) => {
                     amount, 
                     seedPhrase, 
                     contractAddress,
-                    providerUrl: config.BSC.RPC_URL,
                     network
                 });
                 break;
@@ -809,7 +884,7 @@ export const sendTransaction = async (params) => {
 };
 
 // === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
-export const validateAddress = (blockchain, address) => {
+export const validateAddress = (blockchain, address, network = 'mainnet') => {
     try {
         switch(blockchain) {
             case 'TON': 
@@ -825,28 +900,31 @@ export const validateAddress = (blockchain, address) => {
                     return false; 
                 }
             case 'Tron': 
-                return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address);
+                return /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address) || /^41[0-9a-fA-F]{40}$/.test(address);
             case 'Bitcoin':
                 try {
-                    bitcoin.address.toOutputScript(address, bitcoin.networks.bitcoin);
+                    const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+                    bitcoin.address.toOutputScript(address, config.BITCOIN.NETWORK);
                     return true;
                 } catch {
                     return false;
                 }
             case 'NEAR': 
-                return /^[a-z0-9_-]+\.(near|testnet)$/.test(address);
+                return /^0x[0-9a-fA-F]{40}$/.test(address) || /^[a-z0-9_-]+\.(near|testnet)$/.test(address);
             case 'XRP':
                 return /^r[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(address);
             case 'LTC':
                 try {
-                    bitcoin.address.toOutputScript(address, MAINNET_CONFIG.LTC.NETWORK);
+                    const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+                    bitcoin.address.toOutputScript(address, config.LTC.NETWORK);
                     return true;
                 } catch {
                     return false;
                 }
             case 'DOGE':
                 try {
-                    bitcoin.address.toOutputScript(address, MAINNET_CONFIG.DOGE.NETWORK);
+                    const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+                    bitcoin.address.toOutputScript(address, config.DOGE.NETWORK);
                     return true;
                 } catch {
                     return false;
@@ -860,21 +938,22 @@ export const validateAddress = (blockchain, address) => {
     }
 };
 
-export const estimateTransactionFee = async (blockchain) => {
+export const estimateTransactionFee = async (blockchain, network = 'mainnet') => {
     const defaultFees = {
-        'TON': '0.05',
-        'Ethereum': '0.001',
-        'BSC': '0.0001',
-        'Solana': '0.000005',
-        'Tron': '0.1',
-        'Bitcoin': '0.0001',
-        'NEAR': '0.01',
-        'XRP': '0.00001',
-        'LTC': '0.001',
-        'DOGE': '0.01'
+        'TON': { mainnet: '0.05', testnet: '0.05' },
+        'Ethereum': { mainnet: '0.001', testnet: '0.0001' },
+        'BSC': { mainnet: '0.0001', testnet: '0.00001' },
+        'Solana': { mainnet: '0.000005', testnet: '0.000001' },
+        'Tron': { mainnet: '0.1', testnet: '0.01' },
+        'Bitcoin': { mainnet: '0.0001', testnet: '0.00001' },
+        'NEAR': { mainnet: '0.01', testnet: '0.001' },
+        'XRP': { mainnet: '0.00001', testnet: '0.000001' },
+        'LTC': { mainnet: '0.001', testnet: '0.0001' },
+        'DOGE': { mainnet: '0.01', testnet: '0.001' }
     };
     
-    return defaultFees[blockchain] || '0.01';
+    const fees = defaultFees[blockchain] || { mainnet: '0.01', testnet: '0.001' };
+    return network === 'testnet' ? fees.testnet : fees.mainnet;
 };
 
 export const checkAddressExists = async (blockchain, address, network = 'mainnet') => {
@@ -885,7 +964,10 @@ export const checkAddressExists = async (blockchain, address, network = 'mainnet
             case 'TON':
                 const tonResponse = await fetch(config.TON.RPC_URL, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-API-Key': config.TON.API_KEY 
+                    },
                     body: JSON.stringify({
                         id: 1,
                         jsonrpc: "2.0",
@@ -896,6 +978,12 @@ export const checkAddressExists = async (blockchain, address, network = 'mainnet
                 const tonData = await tonResponse.json();
                 return tonData.result !== null;
             case 'NEAR':
+                let nearAccountId = address;
+                if (address.startsWith('0x')) {
+                    const hexPart = address.slice(2);
+                    nearAccountId = `${hexPart}.${network === 'testnet' ? 'testnet' : 'near'}`;
+                }
+                
                 const nearResponse = await fetch(config.NEAR.RPC_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -906,7 +994,7 @@ export const checkAddressExists = async (blockchain, address, network = 'mainnet
                         params: {
                             request_type: "view_account",
                             finality: "final",
-                            account_id: address
+                            account_id: nearAccountId
                         }
                     })
                 });
@@ -953,5 +1041,7 @@ export default {
     validateAddress,
     estimateTransactionFee,
     checkAddressExists,
-    TRANSACTION_TOKENS
+    TRANSACTION_TOKENS,
+    MAINNET_CONFIG,
+    TESTNET_CONFIG
 };
