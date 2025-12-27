@@ -1,15 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { FaUser, FaCog } from 'react-icons/fa';
 import SettingsModal from './Components/SettingsModal';
 import './Header.css';
 
 const Header = ({ userData, onNetworkChange, currentNetwork = 'mainnet' }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [localNetwork, setLocalNetwork] = useState(currentNetwork);
-
-    useEffect(() => {
-        setLocalNetwork(currentNetwork);
-    }, [currentNetwork]);
 
     const openModal = () => {
         setIsModalOpen(true);
@@ -34,7 +29,6 @@ const Header = ({ userData, onNetworkChange, currentNetwork = 'mainnet' }) => {
 
     const handleNetworkChange = (e) => {
         const selectedNetwork = e.target.value;
-        setLocalNetwork(selectedNetwork);
         if (onNetworkChange) {
             onNetworkChange(selectedNetwork);
         }
@@ -57,7 +51,7 @@ const Header = ({ userData, onNetworkChange, currentNetwork = 'mainnet' }) => {
                     
                     <div className="header-right">
                         <select 
-                            value={localNetwork}
+                            value={currentNetwork}
                             onChange={handleNetworkChange}
                             style={{
                                 background: 'transparent',
@@ -85,6 +79,7 @@ const Header = ({ userData, onNetworkChange, currentNetwork = 'mainnet' }) => {
                 </div>
             </header>
 
+            {/* Импортированное модальное окно */}
             <SettingsModal 
                 userData={userData}
                 isOpen={isModalOpen}

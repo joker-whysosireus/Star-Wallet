@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { getTokenPrices } from '../../Services/storageService';
 import './TokenCard.css';
 
-const TokenCard = ({ wallet, isLoading = false }) => {
+const TokenCard = ({ wallet, isLoading = false, network = 'mainnet' }) => {
     const [usdBalance, setUsdBalance] = useState('$0.00');
+    const [tokenPrice, setTokenPrice] = useState('$0.00');
     
     useEffect(() => {
         if (!isLoading && wallet) {
             calculateUsdBalance();
+            getTokenPrice();
         }
     }, [wallet, isLoading]);
 
@@ -33,6 +35,24 @@ const TokenCard = ({ wallet, isLoading = false }) => {
         }
     };
     
+    const getTokenPrice = async () => {
+        try {
+            const prices = await getTokenPrices();
+            const price = prices[wallet.symbol] || 1.00;
+            
+            if (price >= 1) {
+                setTokenPrice(`$${price.toFixed(2)}`);
+            } else if (price > 0.01) {
+                setTokenPrice(`$${price.toFixed(4)}`);
+            } else {
+                setTokenPrice(`$${price.toFixed(6)}`);
+            }
+        } catch (error) {
+            console.error('Error getting token price:', error);
+            setTokenPrice('$0.00');
+        }
+    };
+    
     if (isLoading || !wallet) {
         return (
             <div className="token-card">
@@ -41,6 +61,7 @@ const TokenCard = ({ wallet, isLoading = false }) => {
                     <div className="token-names">
                         <div className="token-name skeleton-loader" style={{ width: '80px', height: '14px', marginBottom: '6px' }}></div>
                         <div className="token-symbol skeleton-loader" style={{ width: '60px', height: '18px' }}></div>
+                        <div className="token-price skeleton-loader" style={{ width: '50px', height: '12px', marginTop: '2px' }}></div>
                     </div>
                 </div>
                 <div className="token-right">
@@ -92,6 +113,7 @@ const TokenCard = ({ wallet, isLoading = false }) => {
                 <div className="token-names">
                     <div className="token-name">{wallet.name}</div>
                     <div className="token-symbol">{wallet.symbol}</div>
+                    <div className="token-price">{tokenPrice}</div>
                 </div>
             </div>
             <div className="token-right">

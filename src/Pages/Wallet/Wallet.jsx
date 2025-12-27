@@ -310,11 +310,13 @@ function Wallet({ isActive, userData }) {
                     )}
                     <div className="balance-display">
                         <p className="total-balance-label">Total Balance</p>
-                        {showSkeleton ? (
-                            <div className="skeleton-loader skeleton-total-balance"></div>
-                        ) : (
-                            <p className="total-balance-amount">{totalBalance}</p>
-                        )}
+                        <div className="balance-amount-container">
+                            {showSkeleton ? (
+                                <div className="skeleton-loader skeleton-total-balance"></div>
+                            ) : (
+                                <p className="total-balance-amount">{totalBalance}</p>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -382,6 +384,7 @@ function Wallet({ isActive, userData }) {
                                         <div className="token-names">
                                             <div className="skeleton-loader" style={{ height: '14px', width: '80px', marginBottom: '6px' }}></div>
                                             <div className="skeleton-loader" style={{ height: '18px', width: '60px' }}></div>
+                                            <div className="skeleton-loader" style={{ height: '12px', width: '50px', marginTop: '2px' }}></div>
                                         </div>
                                     </div>
                                     <div className="token-right">
@@ -399,7 +402,7 @@ function Wallet({ isActive, userData }) {
                                 className="token-block"
                                 onClick={() => handleTokenClick(wallet)}
                             >
-                                <TokenCard wallet={wallet} />
+                                <TokenCard wallet={wallet} network={currentNetwork} />
                             </div>
                         ))
                     ) : (

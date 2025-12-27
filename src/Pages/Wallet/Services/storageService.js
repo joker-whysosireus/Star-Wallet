@@ -278,6 +278,206 @@ export const TOKENS = {
     }
 };
 
+// === ТОКЕНЫ ДЛЯ TESTNET ===
+export const TESTNET_TOKENS = {
+    // Native tokens for testnet
+    TON: { 
+        symbol: 'TON', 
+        name: 'Toncoin', 
+        blockchain: 'TON', 
+        decimals: 9, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/toncoin-ton-logo.png' 
+    },
+    USDT_TON: { 
+        symbol: 'USDT', 
+        name: 'Tether (Testnet)', 
+        blockchain: 'TON', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs_testnet', 
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
+    },
+    USDC_TON: { 
+        symbol: 'USDC', 
+        name: 'USD Coin (Testnet)', 
+        blockchain: 'TON', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: 'EQB-MPwrd1G6WKNkLz_VnV6WqBDd142KMQv-g1O-8QUA3727_testnet', 
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
+    },
+    
+    ETH: { 
+        symbol: 'ETH', 
+        name: 'Ethereum', 
+        blockchain: 'Ethereum', 
+        decimals: 18, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/ethereum-eth-logo.png' 
+    },
+    USDT_ETH: { 
+        symbol: 'USDT', 
+        name: 'Tether (Testnet)', 
+        blockchain: 'Ethereum', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: '0x3B00Ef435fA4FcFF5C209a37d1f3dcff37c705aD', 
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
+    },
+    USDC_ETH: { 
+        symbol: 'USDC', 
+        name: 'USD Coin (Testnet)', 
+        blockchain: 'Ethereum', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: '0x07865c6E87B9F70255377e024ace6630C1Eaa37F', 
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
+    },
+    
+    SOL: { 
+        symbol: 'SOL', 
+        name: 'Solana', 
+        blockchain: 'Solana', 
+        decimals: 9, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/solana-sol-logo.png' 
+    },
+    USDT_SOL: { 
+        symbol: 'USDT', 
+        name: 'Tether (Testnet)', 
+        blockchain: 'Solana', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB_testnet', 
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
+    },
+    USDC_SOL: { 
+        symbol: 'USDC', 
+        name: 'USD Coin (Testnet)', 
+        blockchain: 'Solana', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v_testnet', 
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
+    },
+    
+    BNB: { 
+        symbol: 'BNB', 
+        name: 'BNB', 
+        blockchain: 'BSC', 
+        decimals: 18, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' 
+    },
+    USDT_BSC: { 
+        symbol: 'USDT', 
+        name: 'Tether (Testnet)', 
+        blockchain: 'BSC', 
+        decimals: 18, 
+        isNative: false, 
+        contractAddress: '0x337610d27c682E347C9cD60BD4b3b107C9d34dDd', 
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
+    },
+    USDC_BSC: { 
+        symbol: 'USDC', 
+        name: 'USD Coin (Testnet)', 
+        blockchain: 'BSC', 
+        decimals: 18, 
+        isNative: false, 
+        contractAddress: '0x64544969ed7EBf5f083679233325356EbE738930', 
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
+    },
+    
+    TRX: { 
+        symbol: 'TRX', 
+        name: 'TRON', 
+        blockchain: 'Tron', 
+        decimals: 6, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/tron-trx-logo.png' 
+    },
+    USDT_TRX: { 
+        symbol: 'USDT', 
+        name: 'Tether (Testnet)', 
+        blockchain: 'Tron', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: 'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj_testnet', 
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
+    },
+    USDC_TRX: { 
+        symbol: 'USDC', 
+        name: 'USD Coin (Testnet)', 
+        blockchain: 'Tron', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf_testnet', 
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
+    },
+    
+    BTC: { 
+        symbol: 'BTC', 
+        name: 'Bitcoin', 
+        blockchain: 'Bitcoin', 
+        decimals: 8, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png' 
+    },
+    
+    NEAR: { 
+        symbol: 'NEAR', 
+        name: 'NEAR Protocol', 
+        blockchain: 'NEAR', 
+        decimals: 24, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' 
+    },
+    USDT_NEAR: { 
+        symbol: 'USDT', 
+        name: 'Tether (Testnet)', 
+        blockchain: 'NEAR', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: 'usdt.testnet', 
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
+    },
+    USDC_NEAR: { 
+        symbol: 'USDC', 
+        name: 'USD Coin (Testnet)', 
+        blockchain: 'NEAR', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: 'usdc.testnet', 
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
+    },
+    
+    XRP: { 
+        symbol: 'XRP', 
+        name: 'Ripple', 
+        blockchain: 'XRP', 
+        decimals: 6, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/ripple-xrp-logo.svg' 
+    },
+    LTC: { 
+        symbol: 'LTC', 
+        name: 'Litecoin', 
+        blockchain: 'LTC', 
+        decimals: 8, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' 
+    },
+    DOGE: { 
+        symbol: 'DOGE', 
+        name: 'Dogecoin', 
+        blockchain: 'DOGE', 
+        decimals: 8, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/dogecoin-doge-logo.png' 
+    }
+};
+
 // === ОСНОВНЫЕ ФУНКЦИИ ГЕНЕРАЦИИ КОШЕЛЬКОВ ===
 export const generateNewSeedPhrase = () => {
     try {
@@ -654,11 +854,9 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
                 return wallets;
             }
         } else {
-            // Для testnet используем seed фразу для генерации ВСЕХ нативных токенов
+            // Для testnet генерируем все токены
             if (userData?.seed_phrases) {
-                const wallets = await generateWalletsFromSeed(userData.seed_phrases, 'testnet');
-                // Фильтруем только нативные токены
-                return wallets.filter(wallet => wallet.isNative);
+                return await generateTestnetWallets(userData.seed_phrases);
             }
             
             // Если нет seed, пробуем использовать сохраненные testnet адреса
@@ -674,25 +872,124 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
     }
 };
 
+// Функция генерации testnet кошельков
+const generateTestnetWallets = async (seedPhrase) => {
+    try {
+        // Генерируем адреса для всех блокчейнов
+        const addresses = await generateAllTestnetAddresses(seedPhrase);
+        const wallets = [];
+        
+        // Нативные токены для всех блокчейнов
+        const nativeTokens = [
+            TESTNET_TOKENS.TON,
+            TESTNET_TOKENS.ETH,
+            TESTNET_TOKENS.SOL,
+            TESTNET_TOKENS.BNB,
+            TESTNET_TOKENS.TRX,
+            TESTNET_TOKENS.BTC,
+            TESTNET_TOKENS.NEAR,
+            TESTNET_TOKENS.XRP,
+            TESTNET_TOKENS.LTC,
+            TESTNET_TOKENS.DOGE
+        ];
+        
+        // Добавляем нативные токены
+        for (const token of nativeTokens) {
+            if (addresses[token.blockchain]) {
+                wallets.push(createWallet(
+                    token,
+                    addresses[token.blockchain],
+                    'testnet'
+                ));
+            }
+        }
+        
+        // Добавляем USDT для всех блокчейнов, которые поддерживают токены
+        const usdtTokens = [
+            TESTNET_TOKENS.USDT_TON,
+            TESTNET_TOKENS.USDT_ETH,
+            TESTNET_TOKENS.USDT_SOL,
+            TESTNET_TOKENS.USDT_BSC,
+            TESTNET_TOKENS.USDT_TRX,
+            TESTNET_TOKENS.USDT_NEAR
+        ];
+        
+        for (const token of usdtTokens) {
+            if (addresses[token.blockchain]) {
+                wallets.push(createWallet(
+                    token,
+                    addresses[token.blockchain],
+                    'testnet'
+                ));
+            }
+        }
+        
+        // Добавляем USDC для всех блокчейнов, которые поддерживают токены
+        const usdcTokens = [
+            TESTNET_TOKENS.USDC_TON,
+            TESTNET_TOKENS.USDC_ETH,
+            TESTNET_TOKENS.USDC_SOL,
+            TESTNET_TOKENS.USDC_BSC,
+            TESTNET_TOKENS.USDC_TRX,
+            TESTNET_TOKENS.USDC_NEAR
+        ];
+        
+        for (const token of usdcTokens) {
+            if (addresses[token.blockchain]) {
+                wallets.push(createWallet(
+                    token,
+                    addresses[token.blockchain],
+                    'testnet'
+                ));
+            }
+        }
+        
+        return wallets;
+    } catch (error) {
+        console.error('Error generating testnet wallets:', error);
+        return [];
+    }
+};
+
+// Генерация всех адресов для testnet
+const generateAllTestnetAddresses = async (seedPhrase) => {
+    const addresses = {};
+    
+    const addressGenerators = [
+        { key: 'TON', func: () => generateTonAddress(seedPhrase, 'testnet') },
+        { key: 'Ethereum', func: () => generateEthereumAddress(seedPhrase, 'testnet') },
+        { key: 'Solana', func: () => generateSolanaAddress(seedPhrase, 'testnet') },
+        { key: 'BSC', func: () => generateBSCAddress(seedPhrase, 'testnet') },
+        { key: 'Tron', func: () => generateTronAddress(seedPhrase, 'testnet') },
+        { key: 'Bitcoin', func: () => generateBitcoinAddress(seedPhrase, 'testnet') },
+        { key: 'NEAR', func: () => generateNearAddress(seedPhrase, 'testnet') },
+        { key: 'XRP', func: () => generateXrpAddress(seedPhrase, 'testnet') },
+        { key: 'LTC', func: () => generateLtcAddress(seedPhrase, 'testnet') },
+        { key: 'DOGE', func: () => generateDogeAddress(seedPhrase, 'testnet') }
+    ];
+    
+    // Генерируем адреса параллельно
+    const results = await Promise.allSettled(
+        addressGenerators.map(generator => generator.func())
+    );
+    
+    results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value) {
+            addresses[addressGenerators[index].key] = result.value;
+        }
+    });
+    
+    return addresses;
+};
+
 // Функция для создания кошельков из сохраненных testnet адресов
 const generateTestnetWalletsFromSaved = (testnetWallets) => {
     const wallets = [];
     
-    // Список ВСЕХ нативных токенов для testnet
-    const testnetNativeTokens = [
-        TOKENS.TON,
-        TOKENS.ETH,
-        TOKENS.SOL,
-        TOKENS.BNB,
-        TOKENS.TRX,
-        TOKENS.BTC,
-        TOKENS.NEAR,
-        TOKENS.XRP,
-        TOKENS.LTC,
-        TOKENS.DOGE
-    ];
+    // Все возможные токены для testnet
+    const allTestnetTokens = Object.values(TESTNET_TOKENS);
     
-    for (const token of testnetNativeTokens) {
+    for (const token of allTestnetTokens) {
         const blockchain = token.blockchain;
         const savedWallet = testnetWallets[blockchain];
         
@@ -700,13 +997,6 @@ const generateTestnetWalletsFromSaved = (testnetWallets) => {
             wallets.push(createWallet(
                 token,
                 savedWallet.address,
-                'testnet'
-            ));
-        } else {
-            // Если адрес не сохранен, создаем кошелек с placeholder
-            wallets.push(createWallet(
-                token,
-                `${blockchain.toLowerCase()}_testnet_address`,
                 'testnet'
             ));
         }
@@ -1074,5 +1364,6 @@ export default {
     saveAddressesToAPI,
     sendTransaction,
     estimateTransactionFee,
-    TOKENS
+    TOKENS,
+    TESTNET_TOKENS
 };
