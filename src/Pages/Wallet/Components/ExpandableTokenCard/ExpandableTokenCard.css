@@ -1,0 +1,124 @@
+.expandable-token-container {
+    position: relative;
+    width: 100%;
+    transition: all 0.3s ease;
+}
+
+.main-token-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    width: 100%;
+}
+
+.expand-button {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%) rotate(0deg);
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #FFD700;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    z-index: 2;
+    padding: 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.expand-button:hover {
+    background: rgba(255, 215, 0, 0.2);
+    transform: translateY(-50%) scale(1.1);
+}
+
+.expand-button.expanded {
+    transform: translateY(-50%) rotate(180deg);
+    background: rgba(255, 215, 0, 0.3);
+}
+
+.related-tokens-container {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    padding-left: 52px; /* Отступ для выравнивания с иконкой токена */
+    margin-left: 0;
+    border-left: 2px solid rgba(255, 215, 0, 0.1);
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 0 0 10px 10px;
+    margin-top: -4px;
+}
+
+.related-tokens-container.visible {
+    max-height: 500px;
+    opacity: 1;
+    transform: translateY(0);
+    margin-top: 0;
+    margin-bottom: 8px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    animation: slideDown 0.4s ease-out;
+}
+
+.related-token-item {
+    animation: fadeInUp 0.3s ease-out;
+    animation-fill-mode: both;
+    margin-bottom: 4px;
+}
+
+.related-token-item:last-child {
+    margin-bottom: 0;
+}
+
+.related-token-item:nth-child(1) {
+    animation-delay: 0.05s;
+}
+
+.related-token-item:nth-child(2) {
+    animation-delay: 0.1s;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        max-height: 500px;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeOutDown {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+}

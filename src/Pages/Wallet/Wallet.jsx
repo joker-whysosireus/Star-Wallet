@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Header from "../../assets/Header/Header";
 import Menu from '../../assets/Menus/Menu/Menu';
 import TokenCard from './Components/List/TokenCard';
+import ExpandableTokenCard from './Components/ExpandableTokenCard/ExpandableTokenCard';
 import PinCodeScreen from '../../assets/PIN/PinCodeScreen';
 import { 
     getAllTokens,
@@ -413,15 +414,42 @@ function Wallet({ isActive, userData }) {
                             </div>
                         ))
                     ) : wallets.length > 0 ? (
-                        wallets.map((wallet) => (
-                            <div 
-                                key={wallet.id} 
-                                className="token-block"
-                                onClick={() => handleTokenClick(wallet)}
-                            >
-                                <TokenCard wallet={wallet} network={currentNetwork} />
-                            </div>
-                        ))
+                        wallets.map((wallet) => {
+                            // Определяем связанные токены USDT/USDC для Solana, Ethereum, Tron, TON
+                            let relatedTokens = [];
+                            
+                            if ((wallet.blockchain === 'Solana' && wallet.symbol === 'SOL') ||
+                                (wallet.blockchain === 'Ethereum' && wallet.symbol === 'ETH') ||
+                                (wallet.blockchain === 'Tron' && wallet.symbol === 'TRX') ||
+                                (wallet.blockchain === 'TON' && wallet.symbol === 'TON')) {
+                                
+                                // Ищем USDT и USDC для этого блокчейна
+                                relatedTokens = wallets.filter(token => 
+                                    token.blockchain === wallet.blockchain && 
+                                    (token.symbol === 'USDT' || token.symbol === 'USDC')
+                                );
+                            }
+                            
+                            return (
+                                <div 
+                                    key={wallet.id} 
+                                    className="token-block"
+                                >
+                                    {relatedTokens.length > 0 ? (
+                                        <ExpandableTokenCard 
+                                            wallet={wallet}
+                                            network={currentNetwork}
+                                            relatedTokens={relatedTokens}
+                                            onTokenClick={handleTokenClick}
+                                        />
+                                    ) : (
+                                        <div onClick={() => handleTokenClick(wallet)}>
+                                            <TokenCard wallet={wallet} network={currentNetwork} />
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })
                     ) : (
                         <div className="no-wallets-message">
                             <p>{currentNetwork === 'mainnet' ? 'Mainnet' : 'Testnet'} wallets loading...</p>
