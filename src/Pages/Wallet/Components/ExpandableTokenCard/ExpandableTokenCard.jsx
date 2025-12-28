@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import TokenCard from './TokenCard';
+import TokenCard from '../List/TokenCard';
 import './ExpandableTokenCard.css';
 
 const ExpandableTokenCard = ({ wallet, network, relatedTokens = [], onTokenClick }) => {
