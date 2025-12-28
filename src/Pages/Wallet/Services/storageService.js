@@ -1,5 +1,5 @@
 import { mnemonicToWalletKey } from '@ton/crypto';
-import { WalletContractV4, TonClient } from '@ton/ton';
+import { WalletContractV4, TonClient, Address } from '@ton/ton';
 import { Keypair, Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { ethers } from 'ethers';
 import * as bitcoin from 'bitcoinjs-lib';
@@ -8,10 +8,9 @@ import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import TronWeb from 'tronweb';
 import crypto from 'crypto';
-import { providers, utils } from 'near-api-js';
+import { providers } from 'near-api-js';
 import * as xrpl from 'xrpl';
 import { Buffer } from 'buffer';
-import * as ed25519 from 'ed25519-hd-key';
 import * as tweetnacl from 'tweetnacl';
 import base58 from 'bs58';
 
@@ -141,7 +140,11 @@ const TESTNET_CONFIG = {
 // Базовые URL для Netlify функций
 const WALLET_API_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions';
 
-// === ОБНОВЛЕННЫЕ ТОКЕНЫ С ПРАВИЛЬНЫМИ ИКОНКАМИ ===
+// Константы для Solana
+const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+
+// === ТОКЕНЫ ===
 export const TOKENS = {
     TON: { 
         symbol: 'TON', 
@@ -752,65 +755,60 @@ const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         
         // Дервируем ключ по пути NEAR (44'/397'/0'/0'/0')
-        const derivationPath = "m/44'/397'/0'/0'/0'";
-        const seedHex = seedBuffer.slice(0, 32);
+        // Берем первые 32 байта seed как seed для Ed25519
+        const seed = seedBuffer.slice(0, 32);
         
         // Генерируем ключевую пару Ed25519
-        const keyPair = tweetnacl.sign.keyPair.fromSeed(seedHex);
+        const keyPair = tweetnacl.sign.keyPair.fromSeed(new Uint8Array(seed));
         
-        // Берем публичный ключ (32 байта)
-        const publicKey = keyPair.publicKey;
+        // Берем публичный ключ (32 байта) и конвертируем в hex (64 символа)
+        const publicKeyHex = Buffer.from(keyPair.publicKey).toString('hex');
         
-        // Конвертируем в hex строку (64 символа) - это и есть неявный аккаунт
-        const nearAddress = Buffer.from(publicKey).toString('hex');
-        
-        return nearAddress;
+        // Это и есть неявный аккаунт NEAR
+        return publicKeyHex.toLowerCase();
     } catch (error) {
         console.error('Error generating NEAR address:', error);
         // Fallback: генерируем случайный 64-символьный hex
-        const randomBytes = crypto.randomBytes(32);
-        return randomBytes.toString('hex');
+        return crypto.randomBytes(32).toString('hex').toLowerCase();
     }
 };
 
 // Правильная генерация XRP адреса
 const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
     try {
+        // Получаем seed и создаем корневой узел BIP32
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const wallet = masterNode.derivePath("m/44'/144'/0'/0/0");
-        const privateKeyHex = wallet.privateKey.slice(2);
+        const root = bip32.fromSeed(seedBuffer);
         
-        // Создаем приватный ключ
-        const privateKey = Buffer.from(privateKeyHex, 'hex');
+        // Дервируем по пути для XRP: m/44'/144'/0'/0/0
+        const child = root.derivePath("m/44'/144'/0'/0/0");
         
-        // Генерируем публичный ключ secp256k1
-        const publicKey = ecc.pointFromScalar(privateKey, true);
+        // Получаем публичный ключ в сжатом формате (33 байта)
+        const publicKey = child.publicKey;
         
-        // SHA-256 хеш
+        // SHA-256 от публичного ключа
         const sha256Hash = crypto.createHash('sha256').update(publicKey).digest();
         
-        // RIPEMD-160 хеш
-        const ripemd160 = crypto.createHash('ripemd160').update(sha256Hash).digest();
+        // RIPEMD-160 от результата SHA-256
+        const ripemd160Hash = crypto.createHash('ripemd160').update(sha256Hash).digest();
         
-        // Добавляем префикс 0x00
-        const addressWithPrefix = Buffer.concat([Buffer.from([0x00]), ripemd160]);
+        // Добавляем префикс сети XRP (0x00 для Mainnet, 0x00 для Testnet)
+        const networkPrefix = Buffer.from([0x00]);
+        const payload = Buffer.concat([networkPrefix, ripemd160Hash]);
         
-        // Вычисляем контрольную сумму (двойной SHA-256)
-        const hash1 = crypto.createHash('sha256').update(addressWithPrefix).digest();
+        // Вычисляем двойной SHA-256 для контрольной суммы (первые 4 байта)
+        const hash1 = crypto.createHash('sha256').update(payload).digest();
         const hash2 = crypto.createHash('sha256').update(hash1).digest();
         const checksum = hash2.slice(0, 4);
         
-        // Объединяем адрес и контрольную сумму
-        const addressWithChecksum = Buffer.concat([addressWithPrefix, checksum]);
-        
-        // Кодируем в Base58
-        const address = base58.encode(addressWithChecksum);
+        // Объединяем payload и контрольную сумму, кодируем в Base58
+        const addressBytes = Buffer.concat([payload, checksum]);
+        const address = base58.encode(addressBytes);
         
         return address;
     } catch (error) {
         console.error('Error generating XRP address:', error);
-        return 'rG1QQv2nh2gr7RCZ1P8YYcBUKCCN633jCn';
+        return network === 'testnet' ? 'rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe' : 'rG1QQv2nh2gr7RCZ1P8YYcBUKCCN633jCn';
     }
 };
 
@@ -994,7 +992,7 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
     }
 };
 
-// Функция для создания кошельков из сохраненных testnet адресов
+// Функция для создания кошельков из сохраненных testnet адресах
 const generateTestnetWalletsFromSaved = (testnetWallets) => {
     const wallets = [];
     
@@ -1093,7 +1091,7 @@ export const getRealBalances = async (wallets) => {
     }
 };
 
-// РЕАЛЬНЫЕ ФУНКЦИИ ПОЛУЧЕНИЯ БАЛАНСОВ НАТИВНЫХ ТОКЕНОВ
+// РЕАЛЬНЫЕ ФУНКЦИИ ПОЛУЧЕНИЯ БАЛАНСОВ
 const getTonBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1102,10 +1100,43 @@ const getTonBalance = async (address, network = 'mainnet') => {
             apiKey: config.TON.API_KEY
         });
         
-        const balance = await client.getBalance(address);
+        const balance = await client.getBalance(Address.parse(address));
         return (Number(balance) / 1e9).toFixed(6);
     } catch (error) {
         console.error('TON balance error:', error);
+        return '0';
+    }
+};
+
+const getJettonBalance = async (address, jettonAddress, network = 'mainnet') => {
+    try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const client = new TonClient({
+            endpoint: config.TON.RPC_URL,
+            apiKey: config.TON.API_KEY
+        });
+        
+        // Получаем адрес кошелька токена
+        const jettonWalletAddress = await client.runMethod(
+            Address.parse(jettonAddress),
+            'get_wallet_address',
+            [{ type: 'slice', value: Address.parse(address).toRawString() }]
+        );
+        
+        const jettonWalletAddr = jettonWalletAddress.stack.readAddress();
+        if (!jettonWalletAddr) return '0';
+        
+        // Получаем данные кошелька токена
+        const walletData = await client.runMethod(
+            jettonWalletAddr,
+            'get_wallet_data',
+            []
+        );
+        
+        const balance = walletData.stack.readBigNumber();
+        return (balance / 1_000_000).toString(); // USDT на TON имеет 6 decimals
+    } catch (error) {
+        console.error('Jetton balance error:', error);
         return '0';
     }
 };
@@ -1131,7 +1162,7 @@ const getERC20Balance = async (address, contractAddress, network = 'mainnet') =>
         const balance = await contract.balanceOf(address);
         
         // Определяем decimals
-        let decimals = 6; // По умолчанию для USDT/USDC
+        let decimals = 6;
         try {
             const decimalsAbi = ['function decimals() view returns (uint8)'];
             const decimalsContract = new ethers.Contract(contractAddress, decimalsAbi, provider);
@@ -1169,17 +1200,27 @@ const getSPLBalance = async (address, tokenAddress, network = 'mainnet') => {
         const ownerPublicKey = new PublicKey(address);
         const tokenPublicKey = new PublicKey(tokenAddress);
         
-        // Получаем аккаунт токена
-        const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
-            ownerPublicKey,
-            { mint: tokenPublicKey }
+        // Находим Associated Token Account (ATA)
+        const associatedTokenAddress = await PublicKey.findProgramAddress(
+            [
+                ownerPublicKey.toBuffer(),
+                TOKEN_PROGRAM_ID.toBuffer(),
+                tokenPublicKey.toBuffer(),
+            ],
+            ASSOCIATED_TOKEN_PROGRAM_ID
         );
         
-        if (tokenAccounts.value.length > 0) {
-            const tokenAccount = tokenAccounts.value[0];
-            const amount = tokenAccount.account.data.parsed.info.tokenAmount.uiAmount;
-            return amount ? amount.toString() : '0';
+        // Получаем баланс этого счета
+        try {
+            const tokenAccount = await connection.getTokenAccountBalance(associatedTokenAddress[0]);
+            if (tokenAccount.value) {
+                return tokenAccount.value.uiAmountString || '0';
+            }
+        } catch (e) {
+            // Если ATA не существует, баланс 0
+            return '0';
         }
+        
         return '0';
     } catch (error) {
         console.error('SPL balance error:', error);
@@ -1205,7 +1246,7 @@ const getTRC20Balance = async (address, contractAddress, network = 'mainnet') =>
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         const tronWeb = new TronWeb({ fullHost: config.TRON.RPC_URL });
         
-        // Создаем контракт
+        // Создаем экземпляр контракта
         const contract = await tronWeb.contract().at(contractAddress);
         
         // Вызываем метод balanceOf
@@ -1248,13 +1289,13 @@ const getBitcoinBalance = async (address, network = 'mainnet') => {
 const getNearBalance = async (accountId, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const provider = new providers.JsonRpcProvider(config.NEAR.RPC_URL);
+        const provider = new providers.JsonRpcProvider({ url: config.NEAR.RPC_URL });
         
         // Для hex-адресов NEAR (неявный аккаунт)
         let nearAccountId = accountId;
         if (accountId.length === 64 && /^[0-9a-fA-F]+$/.test(accountId)) {
             // Это hex адрес, конвертируем в аккаунт
-            nearAccountId = accountId + (network === 'testnet' ? '.testnet' : '.near');
+            nearAccountId = `${accountId}.${network === 'testnet' ? 'testnet' : 'near'}`;
         }
         
         try {
@@ -1278,21 +1319,21 @@ const getNearBalance = async (accountId, network = 'mainnet') => {
 const getNEP141Balance = async (accountId, contractAddress, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const provider = new providers.JsonRpcProvider(config.NEAR.RPC_URL);
+        const provider = new providers.JsonRpcProvider({ url: config.NEAR.RPC_URL });
         
         // Для hex-адресов NEAR (неявный аккаунт)
         let nearAccountId = accountId;
         if (accountId.length === 64 && /^[0-9a-fA-F]+$/.test(accountId)) {
-            nearAccountId = accountId + (network === 'testnet' ? '.testnet' : '.near');
+            nearAccountId = `${accountId}.${network === 'testnet' ? 'testnet' : 'near'}`;
         }
         
         // Вызываем метод ft_balance_of контракта NEP-141
         const result = await provider.query({
             request_type: "call_function",
-            finality: "final",
             account_id: contractAddress,
             method_name: "ft_balance_of",
-            args_base64: Buffer.from(JSON.stringify({ account_id: nearAccountId })).toString('base64')
+            args_base64: btoa(JSON.stringify({ account_id: nearAccountId })),
+            finality: "final"
         });
         
         if (result.result && result.result.length > 0) {
@@ -1305,10 +1346,10 @@ const getNEP141Balance = async (accountId, contractAddress, network = 'mainnet')
             try {
                 const decimalsResult = await provider.query({
                     request_type: "call_function",
-                    finality: "final",
                     account_id: contractAddress,
                     method_name: "ft_metadata",
-                    args_base64: Buffer.from(JSON.stringify({})).toString('base64')
+                    args_base64: btoa(JSON.stringify({})),
+                    finality: "final"
                 });
                 
                 if (decimalsResult.result && decimalsResult.result.length > 0) {
@@ -1350,7 +1391,7 @@ const getBEP20Balance = async (address, contractAddress, network = 'mainnet') =>
         const balance = await contract.balanceOf(address);
         
         // Определяем decimals
-        let decimals = 18; // По умолчанию для BEP20
+        let decimals = 18;
         try {
             const decimalsAbi = ['function decimals() view returns (uint8)'];
             const decimalsContract = new ethers.Contract(contractAddress, decimalsAbi, provider);
@@ -1412,7 +1453,7 @@ const getLtcBalance = async (address, network = 'mainnet') => {
 const getDogeBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        // Используем Blockstream API для DOGE (через Bitcoin API)
+        // Используем Blockstream API для DOGE
         const response = await fetch(`${config.DOGE.EXPLORER_URL}/address/${address}`);
         if (!response.ok) throw new Error('Network response was not ok');
         const data = await response.json();
@@ -1427,45 +1468,9 @@ const getDogeBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// Функция для получения баланса Jetton (TON токенов)
-const getJettonBalance = async (address, jettonAddress, network = 'mainnet') => {
-    try {
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const client = new TonClient({
-            endpoint: config.TON.RPC_URL,
-            apiKey: config.TON.API_KEY
-        });
-        
-        // Получаем адрес кошелька токена
-        const result = await client.runMethod(jettonAddress, 'get_wallet_address', [
-            { type: 'slice', value: address }
-        ]);
-        
-        const walletAddress = result.stack[0].cell?.toString();
-        
-        if (!walletAddress || walletAddress === 'null') {
-            return '0';
-        }
-        
-        // Получаем данные кошелька токена
-        const walletData = await client.runMethod(walletAddress, 'get_wallet_data', []);
-        
-        if (walletData.stack.length >= 1) {
-            const balance = walletData.stack[0].toNumber();
-            return (balance / 1e6).toString(); // USDT на TON имеет 6 decimals
-        }
-        
-        return '0';
-    } catch (error) {
-        console.error('Jetton balance error:', error);
-        return '0';
-    }
-};
-
-// === ФУНКЦИИ ДЛЯ ОБНОВЛЕНИЯ ЦЕН ===
+// === ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ ===
 export const getTokenPrices = async () => {
     try {
-        // Используем CoinGecko API для получения реальных цен
         const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ethereum,solana,binancecoin,tron,bitcoin,near-protocol,ripple,litecoin,dogecoin,tether,usd-coin&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true');
         
         if (response.ok) {
@@ -1483,11 +1488,10 @@ export const getTokenPrices = async () => {
                 'DOGE': data.dogecoin?.usd || 0.15,
                 'USDT': data.tether?.usd || 1.00,
                 'USDC': data['usd-coin']?.usd || 1.00,
-                lastUpdated: data.last_updated_at || Date.now()
+                lastUpdated: Date.now()
             };
         }
         
-        // Fallback кэшированные цены
         return {
             'TON': 6.24,
             'ETH': 3500.00,
@@ -1523,68 +1527,18 @@ export const getTokenPrices = async () => {
     }
 };
 
-// Функция для периодического обновления цен
-let priceUpdateInterval = null;
-let currentPrices = {};
-
-export const startPriceUpdates = (callback, interval = 60000) => {
-    // Останавливаем предыдущий интервал, если он существует
-    if (priceUpdateInterval) {
-        clearInterval(priceUpdateInterval);
-    }
-    
-    // Немедленно получаем цены
-    getTokenPrices().then(prices => {
-        currentPrices = prices;
-        if (callback) callback(prices);
-    });
-    
-    // Устанавливаем интервал для обновления
-    priceUpdateInterval = setInterval(async () => {
-        try {
-            const prices = await getTokenPrices();
-            currentPrices = prices;
-            if (callback) callback(prices);
-        } catch (error) {
-            console.error('Error updating prices:', error);
-        }
-    }, interval);
-    
-    return () => {
-        if (priceUpdateInterval) {
-            clearInterval(priceUpdateInterval);
-            priceUpdateInterval = null;
-        }
-    };
-};
-
-export const stopPriceUpdates = () => {
-    if (priceUpdateInterval) {
-        clearInterval(priceUpdateInterval);
-        priceUpdateInterval = null;
-    }
-};
-
-export const getCurrentPrices = () => currentPrices;
-
 export const calculateTotalBalance = async (wallets) => {
     try {
         if (!Array.isArray(wallets) || wallets.length === 0) return '0.00';
         
-        // Получаем реальные балансы
         const updatedWallets = await getRealBalances(wallets);
-        
-        // Получаем актуальные цены
         const prices = await getTokenPrices();
         
         let totalUSD = 0;
         for (const wallet of updatedWallets) {
             const price = prices[wallet.symbol] || 0;
             const balance = parseFloat(wallet.balance || 0);
-            
-            if (!isNaN(balance) && !isNaN(price)) {
-                totalUSD += balance * price;
-            }
+            totalUSD += balance * price;
         }
         
         return totalUSD.toFixed(2);
@@ -1617,7 +1571,6 @@ export const validateAddress = async (blockchain, address) => {
                     return true;
                 } catch { return false; }
             case 'NEAR':
-                // Принимаем как hex адрес (64 символа) так и именованный аккаунт
                 const nearRegex = /^[0-9a-fA-F]{64}$|^[a-z0-9_-]+\.(near|testnet)$/;
                 return nearRegex.test(address);
             case 'XRP':
@@ -1646,7 +1599,6 @@ export const clearAllData = () => {
     try {
         localStorage.removeItem('cached_wallets');
         localStorage.removeItem('cached_total_balance');
-        localStorage.removeItem('token_prices');
         console.log('Cached wallet data cleared from localStorage');
         return true;
     } catch (error) {
@@ -1659,7 +1611,6 @@ export const setupAppCloseListener = () => {
     window.addEventListener('beforeunload', () => {
         console.log('App closing, clearing cached data');
         clearAllData();
-        stopPriceUpdates();
     });
 
     if (window.Telegram?.WebApp) {
@@ -1667,7 +1618,6 @@ export const setupAppCloseListener = () => {
         webApp.onEvent('viewportChanged', (event) => {
             if (event.isStateStable && !webApp.isExpanded) {
                 clearAllData();
-                stopPriceUpdates();
             }
         });
     }
@@ -1745,6 +1695,47 @@ export const getTokenPricesFromRPC = async () => {
         };
     }
 };
+
+// Система обновления цен
+let priceUpdateInterval = null;
+let currentPrices = {};
+
+export const startPriceUpdates = (callback, interval = 60000) => {
+    if (priceUpdateInterval) {
+        clearInterval(priceUpdateInterval);
+    }
+    
+    getTokenPrices().then(prices => {
+        currentPrices = prices;
+        if (callback) callback(prices);
+    });
+    
+    priceUpdateInterval = setInterval(async () => {
+        try {
+            const prices = await getTokenPrices();
+            currentPrices = prices;
+            if (callback) callback(prices);
+        } catch (error) {
+            console.error('Error updating prices:', error);
+        }
+    }, interval);
+    
+    return () => {
+        if (priceUpdateInterval) {
+            clearInterval(priceUpdateInterval);
+            priceUpdateInterval = null;
+        }
+    };
+};
+
+export const stopPriceUpdates = () => {
+    if (priceUpdateInterval) {
+        clearInterval(priceUpdateInterval);
+        priceUpdateInterval = null;
+    }
+};
+
+export const getCurrentPrices = () => currentPrices;
 
 // Инициализация цен при импорте
 getTokenPrices().then(prices => {
