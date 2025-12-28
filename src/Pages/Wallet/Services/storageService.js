@@ -11,9 +11,11 @@ import crypto from 'crypto';
 import { providers } from 'near-api-js';
 import * as xrpl from 'xrpl';
 import { Buffer } from 'buffer';
-import * as tweetnacl from 'tweetnacl';
 import base58 from 'bs58';
-import { KeyPair, utils } from 'near-api-js';
+
+// ИСПРАВЛЕННЫЙ ИМПОРТ ДЛЯ NEAR согласно новой документации
+import { KeyPair } from '@near-js/crypto';
+import { keyToImplicitAddress } from '@near-js/utils';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -145,8 +147,9 @@ const WALLET_API_URL = 'https://star-wallet-backend.netlify.app/.netlify/functio
 const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 
-// === ТОКЕНЫ ===
+// === ТОКЕНЫ С ПРАВИЛЬНЫМ НАБОРОМ (USDT/USDC для TON, ETH, SOL, TRON, BNB, NEAR) ===
 export const TOKENS = {
+    // TON блокчейн
     TON: { 
         symbol: 'TON', 
         name: 'Toncoin', 
@@ -174,6 +177,7 @@ export const TOKENS = {
         logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
     
+    // Ethereum блокчейн
     ETH: { 
         symbol: 'ETH', 
         name: 'Ethereum', 
@@ -201,6 +205,7 @@ export const TOKENS = {
         logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
     
+    // Solana блокчейн
     SOL: { 
         symbol: 'SOL', 
         name: 'Solana', 
@@ -228,33 +233,7 @@ export const TOKENS = {
         logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
     
-    BNB: { 
-        symbol: 'BNB', 
-        name: 'BNB', 
-        blockchain: 'BSC', 
-        decimals: 18, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' 
-    },
-    USDT_BSC: { 
-        symbol: 'USDT', 
-        name: 'Tether', 
-        blockchain: 'BSC', 
-        decimals: 18, 
-        isNative: false, 
-        contractAddress: '0x55d398326f99059ff775485246999027b3197955', 
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
-    },
-    USDC_BSC: { 
-        symbol: 'USDC', 
-        name: 'USD Coin', 
-        blockchain: 'BSC', 
-        decimals: 18, 
-        isNative: false, 
-        contractAddress: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', 
-        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
-    },
-    
+    // Tron блокчейн
     TRX: { 
         symbol: 'TRX', 
         name: 'TRON', 
@@ -282,6 +261,7 @@ export const TOKENS = {
         logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
     
+    // Bitcoin блокчейн
     BTC: { 
         symbol: 'BTC', 
         name: 'Bitcoin', 
@@ -291,6 +271,45 @@ export const TOKENS = {
         logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png' 
     },
     
+    // BSC блокчейн
+    BNB: { 
+        symbol: 'BNB', 
+        name: 'BNB', 
+        blockchain: 'BSC', 
+        decimals: 18, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' 
+    },
+    USDT_BSC: { 
+        symbol: 'USDT', 
+        name: 'Tether', 
+        blockchain: 'BSC', 
+        decimals: 18, 
+        isNative: false, 
+        contractAddress: '0x55d398326f99059ff775485246999027b3197955', 
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
+    },
+    USDC_BSC: { 
+        symbol: 'USDC', 
+        name: 'USD Coin', 
+        blockchain: 'BSC', 
+        decimals: 18, 
+        isNative: false, 
+        contractAddress: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', 
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
+    },
+    
+    // Dogecoin блокчейн
+    DOGE: { 
+        symbol: 'DOGE', 
+        name: 'Dogecoin', 
+        blockchain: 'DOGE', 
+        decimals: 8, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/dogecoin-doge-logo.png' 
+    },
+    
+    // NEAR блокчейн
     NEAR: { 
         symbol: 'NEAR', 
         name: 'NEAR Protocol', 
@@ -299,7 +318,26 @@ export const TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' 
     },
+    USDT_NEAR: { 
+        symbol: 'USDT', 
+        name: 'Tether', 
+        blockchain: 'NEAR', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: 'usdt.tether-token.near', 
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
+    },
+    USDC_NEAR: { 
+        symbol: 'USDC', 
+        name: 'USD Coin', 
+        blockchain: 'NEAR', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: 'usdc.near', 
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
+    },
     
+    // XRP блокчейн
     XRP: { 
         symbol: 'XRP', 
         name: 'Ripple', 
@@ -308,6 +346,8 @@ export const TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/ripple-xrp-logo.svg' 
     },
+    
+    // Litecoin блокчейн
     LTC: { 
         symbol: 'LTC', 
         name: 'Litecoin', 
@@ -315,14 +355,6 @@ export const TOKENS = {
         decimals: 8, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' 
-    },
-    DOGE: { 
-        symbol: 'DOGE', 
-        name: 'Dogecoin', 
-        blockchain: 'DOGE', 
-        decimals: 8, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/dogecoin-doge-logo.png' 
     }
 };
 
@@ -408,33 +440,6 @@ export const TESTNET_TOKENS = {
         logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
     
-    BNB: { 
-        symbol: 'BNB', 
-        name: 'BNB', 
-        blockchain: 'BSC', 
-        decimals: 18, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' 
-    },
-    USDT_BSC: { 
-        symbol: 'USDT', 
-        name: 'Tether', 
-        blockchain: 'BSC', 
-        decimals: 18, 
-        isNative: false, 
-        contractAddress: '0x337610d27c682E347C9cD60BD4b3b107C9d34dDd', 
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
-    },
-    USDC_BSC: { 
-        symbol: 'USDC', 
-        name: 'USD Coin', 
-        blockchain: 'BSC', 
-        decimals: 18, 
-        isNative: false, 
-        contractAddress: '0x64544969ed7EBf5f083679233325356EbE738930', 
-        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
-    },
-    
     TRX: { 
         symbol: 'TRX', 
         name: 'TRON', 
@@ -471,6 +476,42 @@ export const TESTNET_TOKENS = {
         logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png' 
     },
     
+    BNB: { 
+        symbol: 'BNB', 
+        name: 'BNB', 
+        blockchain: 'BSC', 
+        decimals: 18, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' 
+    },
+    USDT_BSC: { 
+        symbol: 'USDT', 
+        name: 'Tether', 
+        blockchain: 'BSC', 
+        decimals: 18, 
+        isNative: false, 
+        contractAddress: '0x337610d27c682E347C9cD60BD4b3b107C9d34dDd', 
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
+    },
+    USDC_BSC: { 
+        symbol: 'USDC', 
+        name: 'USD Coin', 
+        blockchain: 'BSC', 
+        decimals: 18, 
+        isNative: false, 
+        contractAddress: '0x64544969ed7EBf5f083679233325356EbE738930', 
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
+    },
+    
+    DOGE: { 
+        symbol: 'DOGE', 
+        name: 'Dogecoin', 
+        blockchain: 'DOGE', 
+        decimals: 8, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/dogecoin-doge-logo.png' 
+    },
+    
     NEAR: { 
         symbol: 'NEAR', 
         name: 'NEAR Protocol', 
@@ -478,6 +519,24 @@ export const TESTNET_TOKENS = {
         decimals: 24, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' 
+    },
+    USDT_NEAR: { 
+        symbol: 'USDT', 
+        name: 'Tether', 
+        blockchain: 'NEAR', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: 'usdt.fakes.testnet', 
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
+    },
+    USDC_NEAR: { 
+        symbol: 'USDC', 
+        name: 'USD Coin', 
+        blockchain: 'NEAR', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: 'usdc.fakes.testnet', 
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
     
     XRP: { 
@@ -488,6 +547,7 @@ export const TESTNET_TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/ripple-xrp-logo.svg' 
     },
+    
     LTC: { 
         symbol: 'LTC', 
         name: 'Litecoin', 
@@ -495,14 +555,6 @@ export const TESTNET_TOKENS = {
         decimals: 8, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' 
-    },
-    DOGE: { 
-        symbol: 'DOGE', 
-        name: 'Dogecoin', 
-        blockchain: 'DOGE', 
-        decimals: 8, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/dogecoin-doge-logo.png' 
     }
 };
 
@@ -516,66 +568,69 @@ export const generateNewSeedPhrase = () => {
     }
 };
 
-// Функция генерации кошельков
+// ФУНКЦИЯ ГЕНЕРАЦИИ КОШЕЛЬКОВ С ЗАДАННЫМ ПОРЯДКОМ ТОКЕНОВ
 export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         if (!seedPhrase) throw new Error('Seed phrase is required');
 
-        const [tonAddress, solanaAddress, ethAddress, bscAddress, tronAddress, bitcoinAddress, nearAddress, xrpAddress, ltcAddress, dogeAddress] = await Promise.all([
+        const [tonAddress, ethAddress, solAddress, tronAddress, bitcoinAddress, bscAddress, dogeAddress, nearAddress, xrpAddress, ltcAddress] = await Promise.all([
             generateTonAddress(seedPhrase, network),
-            generateSolanaAddress(seedPhrase, network),
             generateEthereumAddress(seedPhrase, network),
-            generateBSCAddress(seedPhrase, network),
+            generateSolanaAddress(seedPhrase, network),
             generateTronAddress(seedPhrase, network),
             generateBitcoinAddress(seedPhrase, network),
+            generateBSCAddress(seedPhrase, network),
+            generateDogeAddress(seedPhrase, network),
             generateNearAddress(seedPhrase, network),
             generateXrpAddress(seedPhrase, network),
-            generateLtcAddress(seedPhrase, network),
-            generateDogeAddress(seedPhrase, network)
+            generateLtcAddress(seedPhrase, network)
         ]);
 
         const walletArray = [];
-        
-        // Выбираем правильные токены в зависимости от сети
         const tokens = network === 'mainnet' ? TOKENS : TESTNET_TOKENS;
         
-        // TON блокчейн
+        // ЗАДАННЫЙ ПОРЯДОК ТОКЕНОВ:
+        // 1. TON блокчейн
         walletArray.push(createWallet(tokens.TON, tonAddress, network));
         walletArray.push(createWallet(tokens.USDT_TON, tonAddress, network));
         walletArray.push(createWallet(tokens.USDC_TON, tonAddress, network));
         
-        // Ethereum блокчейн
+        // 2. Ethereum блокчейн
         walletArray.push(createWallet(tokens.ETH, ethAddress, network));
         walletArray.push(createWallet(tokens.USDT_ETH, ethAddress, network));
         walletArray.push(createWallet(tokens.USDC_ETH, ethAddress, network));
         
-        // Solana блокчейн
-        walletArray.push(createWallet(tokens.SOL, solanaAddress, network));
-        walletArray.push(createWallet(tokens.USDT_SOL, solanaAddress, network));
-        walletArray.push(createWallet(tokens.USDC_SOL, solanaAddress, network));
+        // 3. Solana блокчейн
+        walletArray.push(createWallet(tokens.SOL, solAddress, network));
+        walletArray.push(createWallet(tokens.USDT_SOL, solAddress, network));
+        walletArray.push(createWallet(tokens.USDC_SOL, solAddress, network));
         
-        // BSC блокчейн - ТОЛЬКО BNB, USDT/USDC удалены
-        walletArray.push(createWallet(tokens.BNB, bscAddress, network));
-        
-        // Tron блокчейн
+        // 4. Tron блокчейн
         walletArray.push(createWallet(tokens.TRX, tronAddress, network));
         walletArray.push(createWallet(tokens.USDT_TRX, tronAddress, network));
         walletArray.push(createWallet(tokens.USDC_TRX, tronAddress, network));
         
-        // Bitcoin блокчейн
+        // 5. Bitcoin блокчейн
         walletArray.push(createWallet(tokens.BTC, bitcoinAddress, network));
         
-        // NEAR блокчейн - ТОЛЬКО NEAR, USDT/USDC удалены
-        walletArray.push(createWallet(tokens.NEAR, nearAddress, network));
+        // 6. BSC блокчейн
+        walletArray.push(createWallet(tokens.BNB, bscAddress, network));
+        walletArray.push(createWallet(tokens.USDT_BSC, bscAddress, network));
+        walletArray.push(createWallet(tokens.USDC_BSC, bscAddress, network));
         
-        // XRP блокчейн
+        // 7. Dogecoin блокчейн
+        walletArray.push(createWallet(tokens.DOGE, dogeAddress, network));
+        
+        // 8. NEAR блокчейн
+        walletArray.push(createWallet(tokens.NEAR, nearAddress, network));
+        walletArray.push(createWallet(tokens.USDT_NEAR, nearAddress, network));
+        walletArray.push(createWallet(tokens.USDC_NEAR, nearAddress, network));
+        
+        // 9. XRP блокчейн
         walletArray.push(createWallet(tokens.XRP, xrpAddress, network));
         
-        // LTC блокчейн
+        // 10. Litecoin блокчейн
         walletArray.push(createWallet(tokens.LTC, ltcAddress, network));
-        
-        // DOGE блокчейн
-        walletArray.push(createWallet(tokens.DOGE, dogeAddress, network));
         
         return walletArray;
     } catch (error) {
@@ -616,20 +671,7 @@ const generateTonAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// 2. Solana адрес
-const generateSolanaAddress = async (seedPhrase, network = 'mainnet') => {
-    try {
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const seedArray = new Uint8Array(seedBuffer.subarray(0, 32));
-        const keypair = Keypair.fromSeed(seedArray);
-        return keypair.publicKey.toBase58();
-    } catch (error) {
-        console.error('Error generating Solana address:', error);
-        return network === 'testnet' ? 'So11111111111111111111111111111111111111112_testnet' : 'So11111111111111111111111111111111111111112';
-    }
-};
-
-// 3. Ethereum адрес
+// 2. Ethereum адрес
 const generateEthereumAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -642,10 +684,20 @@ const generateEthereumAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// 4. BSC адрес (такой же как Ethereum)
-const generateBSCAddress = generateEthereumAddress;
+// 3. Solana адрес
+const generateSolanaAddress = async (seedPhrase, network = 'mainnet') => {
+    try {
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const seedArray = new Uint8Array(seedBuffer.subarray(0, 32));
+        const keypair = Keypair.fromSeed(seedArray);
+        return keypair.publicKey.toBase58();
+    } catch (error) {
+        console.error('Error generating Solana address:', error);
+        return network === 'testnet' ? 'So11111111111111111111111111111111111111112_testnet' : 'So11111111111111111111111111111111111111112';
+    }
+};
 
-// 5. Правильная генерация TRON адреса (начинается с T)
+// 4. Tron адрес
 const generateTronAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -687,7 +739,7 @@ const generateTronAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// 6. Bitcoin адрес
+// 5. Bitcoin адрес
 const generateBitcoinAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         const networkConfig = network === 'testnet' ? TESTNET_CONFIG.BITCOIN.NETWORK : MAINNET_CONFIG.BITCOIN.NETWORK;
@@ -705,35 +757,67 @@ const generateBitcoinAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// 7. ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ NEAR АДРЕСА по документации
+// 6. BSC адрес (такой же как Ethereum)
+const generateBSCAddress = generateEthereumAddress;
+
+// 7. Dogecoin адрес
+const generateDogeAddress = async (seedPhrase, network = 'mainnet') => {
+    try {
+        const networkConfig = network === 'testnet' ? TESTNET_CONFIG.DOGE.NETWORK : MAINNET_CONFIG.DOGE.NETWORK;
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const root = bip32.fromSeed(seedBuffer, networkConfig);
+        const child = root.derivePath("m/44'/3'/0'/0/0");
+        const { address } = bitcoin.payments.p2pkh({ 
+            pubkey: child.publicKey, 
+            network: networkConfig 
+        });
+        return address;
+    } catch (error) {
+        console.error('Error generating DOGE address:', error);
+        return network === 'testnet' ? 'nX6q6q6q6q6q6q6q6q6q6q6q6q6q6q6q6q' : 'D8eX6q6q6q6q6q6q6q6q6q6q6q6q6q6q6q';
+    }
+};
+
+// 8. ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ NEAR АДРЕСА (по новой документации)
 const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
     try {
-        // 1. Генерируем Ed25519 ключевую пару из seed phrase
+        // Согласно документации: https://docs.near.org/tools/near-api
+        // Используем новый модульный API @near-js/crypto и @near-js/utils
+        
+        // 1. Генерируем детерминированный seed из мнемонической фразы
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         
-        // Используем детерминированный процесс для генерации ключей
+        // 2. Используем HMAC-SHA512 для получения мастер-ключа Ed25519
         const hmac = crypto.createHmac('sha512', 'ed25519 seed');
         hmac.update(seedBuffer);
         const I = hmac.digest();
         
-        // Берем левую половину как seed для Ed25519
-        const ed25519Seed = I.slice(0, 32);
+        // 3. Берем первые 32 байта как приватный ключ для Ed25519
+        const privateKeyBytes = I.slice(0, 32);
         
-        // Создаем ключевую пару Ed25519 используя tweetnacl
-        const keyPair = tweetnacl.sign.keyPair.fromSeed(new Uint8Array(ed25519Seed));
+        // 4. Создаем ключевую пару NEAR из приватного ключа
+        // Формат: "ed25519:hex_private_key"
+        const privateKeyHex = privateKeyBytes.toString('hex');
+        const keyPair = KeyPair.fromString(`ed25519:${privateKeyHex}`);
         
-        // 2. Преобразуем публичный ключ в hex строку (64 символа)
-        const publicKeyHex = Buffer.from(keyPair.publicKey).toString('hex').toLowerCase();
+        // 5. Получаем публичный ключ в строковом формате
+        const publicKey = keyPair.getPublicKey().toString();
         
-        // 3. Создаем неявный аккаунт NEAR (64 символа hex)
-        // NEAR implicit account это просто hex публичного ключа
-        const implicitAccountId = publicKeyHex;
+        // 6. Конвертируем публичный ключ в имплицитный адрес (64 hex символа)
+        const implicitAccountId = keyToImplicitAddress(publicKey);
         
-        // Проверяем что адрес имеет правильный формат
+        console.log("NEAR Address Generation:", {
+            publicKey,
+            implicitAccountId,
+            length: implicitAccountId.length,
+            format: /^[0-9a-f]{64}$/.test(implicitAccountId) ? "Valid 64-char hex" : "Invalid"
+        });
+        
+        // Проверяем формат (должен быть 64 hex символа)
         if (implicitAccountId.length === 64 && /^[0-9a-f]{64}$/.test(implicitAccountId)) {
             return implicitAccountId;
         } else {
-            throw new Error('Invalid NEAR address generated');
+            throw new Error(`Invalid NEAR address generated: ${implicitAccountId}`);
         }
     } catch (error) {
         console.error('Error generating NEAR address:', error);
@@ -742,12 +826,13 @@ const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
         const hash = crypto.createHash('sha256')
             .update(seedBuffer)
             .digest('hex')
-            .toLowerCase();
+            .toLowerCase()
+            .substring(0, 64); // Гарантируем 64 символа
         return hash;
     }
 };
 
-// 8. XRP адрес
+// 9. XRP адрес
 const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -784,7 +869,7 @@ const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// 9. Litecoin адрес
+// 10. Litecoin адрес
 const generateLtcAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         const networkConfig = network === 'testnet' ? TESTNET_CONFIG.LTC.NETWORK : MAINNET_CONFIG.LTC.NETWORK;
@@ -799,24 +884,6 @@ const generateLtcAddress = async (seedPhrase, network = 'mainnet') => {
     } catch (error) {
         console.error('Error generating LTC address:', error);
         return network === 'testnet' ? 'tltc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh' : 'Lg2UrtoWrQr6r1f4W2eY8W6z6q6q6q6q6q';
-    }
-};
-
-// 10. Dogecoin адрес
-const generateDogeAddress = async (seedPhrase, network = 'mainnet') => {
-    try {
-        const networkConfig = network === 'testnet' ? TESTNET_CONFIG.DOGE.NETWORK : MAINNET_CONFIG.DOGE.NETWORK;
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const root = bip32.fromSeed(seedBuffer, networkConfig);
-        const child = root.derivePath("m/44'/3'/0'/0/0");
-        const { address } = bitcoin.payments.p2pkh({ 
-            pubkey: child.publicKey, 
-            network: networkConfig 
-        });
-        return address;
-    } catch (error) {
-        console.error('Error generating DOGE address:', error);
-        return network === 'testnet' ? 'nX6q6q6q6q6q6q6q6q6q6q6q6q6q6q6q6q' : 'D8eX6q6q6q6q6q6q6q6q6q6q6q6q6q6q6q';
     }
 };
 
@@ -1267,10 +1334,9 @@ const getNearBalance = async (accountId, network = 'mainnet') => {
         const provider = new providers.JsonRpcProvider({ url: config.NEAR.RPC_URL });
         
         try {
-            // Если это hex адрес (64 символа), это уже неявный аккаунт
+            // Это имплицитный аккаунт NEAR (64 hex символа)
             let nearAccountId = accountId;
             if (/^[0-9a-f]{64}$/.test(accountId)) {
-                // Это неявный аккаунт NEAR (64 hex символа)
                 nearAccountId = accountId;
             }
             
@@ -1290,7 +1356,56 @@ const getNearBalance = async (accountId, network = 'mainnet') => {
     }
 };
 
-// 11. NEAR NEP-141 баланс (USDT, USDC) - удалено, так как токены USDT/USDC у NEAR удалены
+// 11. NEAR NEP-141 баланс (USDT, USDC)
+const getNEP141Balance = async (accountId, contractAddress, network = 'mainnet') => {
+    try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const provider = new providers.JsonRpcProvider({ url: config.NEAR.RPC_URL });
+        
+        let nearAccountId = accountId;
+        if (/^[0-9a-f]{64}$/.test(accountId)) {
+            nearAccountId = accountId;
+        }
+        
+        const result = await provider.query({
+            request_type: "call_function",
+            account_id: contractAddress,
+            method_name: "ft_balance_of",
+            args_base64: Buffer.from(JSON.stringify({ account_id: nearAccountId })).toString('base64'),
+            finality: "final"
+        });
+        
+        if (result.result && result.result.length > 0) {
+            const balanceStr = Buffer.from(result.result).toString();
+            const balance = JSON.parse(balanceStr);
+            
+            let decimals = 6;
+            try {
+                const decimalsResult = await provider.query({
+                    request_type: "call_function",
+                    account_id: contractAddress,
+                    method_name: "ft_metadata",
+                    args_base64: Buffer.from(JSON.stringify({})).toString('base64'),
+                    finality: "final"
+                });
+                
+                if (decimalsResult.result && decimalsResult.result.length > 0) {
+                    const metadataStr = Buffer.from(decimalsResult.result).toString();
+                    const metadata = JSON.parse(metadataStr);
+                    decimals = metadata.decimals || 6;
+                }
+            } catch (e) {
+                console.warn('Could not get decimals, using default 6');
+            }
+            
+            return (parseInt(balance) / Math.pow(10, decimals)).toString();
+        }
+        return '0';
+    } catch (error) {
+        console.error('NEP141 balance error:', error);
+        return '0';
+    }
+};
 
 // 12. BSC баланс
 const getBNBBalance = async (address, network = 'mainnet') => {
@@ -1305,7 +1420,30 @@ const getBNBBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 13. BSC BEP-20 баланс (USDT, USDC) - удалено, так как токены USDT/USDC у BSC удалены
+// 13. BSC BEP-20 баланс (USDT, USDC)
+const getBEP20Balance = async (address, contractAddress, network = 'mainnet') => {
+    try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const provider = new ethers.JsonRpcProvider(config.BSC.RPC_URL);
+        const abi = ['function balanceOf(address) view returns (uint256)'];
+        const contract = new ethers.Contract(contractAddress, abi, provider);
+        const balance = await contract.balanceOf(address);
+        
+        let decimals = 18;
+        try {
+            const decimalsAbi = ['function decimals() view returns (uint8)'];
+            const decimalsContract = new ethers.Contract(contractAddress, decimalsAbi, provider);
+            decimals = await decimalsContract.decimals();
+        } catch (e) {
+            console.warn('Could not get decimals, using default 18');
+        }
+        
+        return ethers.formatUnits(balance, decimals);
+    } catch (error) {
+        console.error('BEP20 balance error:', error);
+        return '0';
+    }
+};
 
 // 14. XRP баланс
 const getXrpBalance = async (address, network = 'mainnet') => {

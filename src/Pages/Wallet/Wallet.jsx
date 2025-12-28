@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import Header from "../../assets/Header/Header";
 import Menu from '../../assets/Menus/Menu/Menu';
 import TokenCard from './Components/List/TokenCard';
-import ExpandableTokenCard from './Components/ExpandableTokenCard/ExpandableTokenCard';
 import PinCodeScreen from '../../assets/PIN/PinCodeScreen';
 import { 
     getAllTokens,
@@ -45,35 +44,6 @@ function Wallet({ isActive, userData }) {
     const MIN_REFRESH_INTERVAL = 10000;
     const loadingTimerRef = useRef(null);
     const isUpdatingRef = useRef(false);
-
-    // Функция для фильтрации токенов - USDT/USDC не показываются как отдельные
-    const filterDisplayTokens = useCallback((allTokens) => {
-        // Фильтруем токены: не показываем USDT/USDC как отдельные, если они входят в expandable блок
-        const filtered = allTokens.filter(token => {
-            // Для Solana, Ethereum, Tron, TON не показываем USDT/USDC как отдельные
-            if (['Solana', 'Ethereum', 'Tron', 'TON'].includes(token.blockchain)) {
-                // Показываем только нативные токены и USDT/USDC только внутри expandable
-                return token.isNative || !['USDT', 'USDC'].includes(token.symbol);
-            }
-            // Для остальных блокчейнов показываем все
-            return true;
-        });
-        
-        return filtered;
-    }, []);
-
-    // Функция для получения связанных токенов (USDT/USDC) для главного токена
-    const getRelatedTokens = useCallback((mainToken, allTokens) => {
-        if (!['Solana', 'Ethereum', 'Tron', 'TON'].includes(mainToken.blockchain)) {
-            return [];
-        }
-        
-        // Ищем USDT и USDC для этого блокчейна
-        return allTokens.filter(token => 
-            token.blockchain === mainToken.blockchain && 
-            ['USDT', 'USDC'].includes(token.symbol)
-        );
-    }, []);
 
     useEffect(() => {
         const isTelegramWebApp = () => {
@@ -333,9 +303,6 @@ function Wallet({ isActive, userData }) {
         );
     }
 
-    // Фильтруем токены для отображения
-    const displayTokens = filterDisplayTokens(wallets);
-
     return (
         <div className="wallet-page-wallet">
             <Header 
@@ -445,37 +412,16 @@ function Wallet({ isActive, userData }) {
                                 </div>
                             </div>
                         ))
-                    ) : displayTokens.length > 0 ? (
-                        displayTokens.map((wallet) => {
-                            // Определяем связанные токены USDT/USDC только для нативных токенов
-                            let relatedTokens = [];
-                            
-                            if (['Solana', 'Ethereum', 'Tron', 'TON'].includes(wallet.blockchain) && 
-                                ['SOL', 'ETH', 'TRX', 'TON'].includes(wallet.symbol)) {
-                                
-                                relatedTokens = getRelatedTokens(wallet, wallets);
-                            }
-                            
-                            return (
-                                <div 
-                                    key={wallet.id} 
-                                    className="token-block"
-                                >
-                                    {relatedTokens.length > 0 ? (
-                                        <ExpandableTokenCard 
-                                            wallet={wallet}
-                                            network={currentNetwork}
-                                            relatedTokens={relatedTokens}
-                                            onTokenClick={handleTokenClick}
-                                        />
-                                    ) : (
-                                        <div onClick={() => handleTokenClick(wallet)}>
-                                            <TokenCard wallet={wallet} network={currentNetwork} />
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })
+                    ) : wallets.length > 0 ? (
+                        wallets.map((wallet) => (
+                            <div 
+                                key={wallet.id} 
+                                className="token-block"
+                                onClick={() => handleTokenClick(wallet)}
+                            >
+                                <TokenCard wallet={wallet} network={currentNetwork} />
+                            </div>
+                        ))
                     ) : (
                         <div className="no-wallets-message">
                             <p>{currentNetwork === 'mainnet' ? 'Mainnet' : 'Testnet'} wallets loading...</p>

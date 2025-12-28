@@ -13,6 +13,8 @@
     "@cardano-sdk/crypto": "^0.4.4",
     "@emurgo/cardano-serialization-lib-browser": "^15.0.3",
     "@emurgo/cardano-serialization-lib-nodejs": "^15.0.3",
+    "@near-js/crypto": "^2.5.1",
+    "@near-js/utils": "^2.5.1",
     "@rollup/plugin-inject": "^5.0.5",
     "@scure/bip32": "^2.0.1",
     "@scure/bip39": "^2.0.1",
