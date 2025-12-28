@@ -6,8 +6,10 @@ const ExpandableTokenCard = ({ wallet, network, relatedTokens = [], onTokenClick
     const [isExpanded, setIsExpanded] = useState(false);
     
     // Проверяем, нужно ли показывать кнопку раскрытия
+    // Только для нативных токенов Solana, Ethereum, Tron, TON
     const shouldShowExpand = ['Solana', 'Ethereum', 'Tron', 'TON'].includes(wallet.blockchain) && 
-                           ['SOL', 'ETH', 'TRX', 'TON'].includes(wallet.symbol);
+                           ['SOL', 'ETH', 'TRX', 'TON'].includes(wallet.symbol) &&
+                           relatedTokens.length > 0;
     
     const handleExpandClick = (e) => {
         e.stopPropagation();
@@ -26,7 +28,7 @@ const ExpandableTokenCard = ({ wallet, network, relatedTokens = [], onTokenClick
                 <div onClick={handleTokenClick} style={{ flex: 1 }}>
                     <TokenCard wallet={wallet} network={network} />
                 </div>
-                {shouldShowExpand && relatedTokens.length > 0 && (
+                {shouldShowExpand && (
                     <button 
                         className={`expand-button ${isExpanded ? 'expanded' : ''}`}
                         onClick={handleExpandClick}
@@ -37,7 +39,7 @@ const ExpandableTokenCard = ({ wallet, network, relatedTokens = [], onTokenClick
                 )}
             </div>
             
-            {isExpanded && relatedTokens.length > 0 && (
+            {isExpanded && shouldShowExpand && relatedTokens.length > 0 && (
                 <div className={`related-tokens-container ${isExpanded ? 'visible' : ''}`}>
                     {relatedTokens.map(token => (
                         <div key={token.id} className="related-token-item" onClick={() => onTokenClick && onTokenClick(token)}>

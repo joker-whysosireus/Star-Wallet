@@ -46,6 +46,35 @@ function Wallet({ isActive, userData }) {
     const loadingTimerRef = useRef(null);
     const isUpdatingRef = useRef(false);
 
+    // Функция для фильтрации токенов - USDT/USDC не показываются как отдельные
+    const filterDisplayTokens = useCallback((allTokens) => {
+        // Фильтруем токены: не показываем USDT/USDC как отдельные, если они входят в expandable блок
+        const filtered = allTokens.filter(token => {
+            // Для Solana, Ethereum, Tron, TON не показываем USDT/USDC как отдельные
+            if (['Solana', 'Ethereum', 'Tron', 'TON'].includes(token.blockchain)) {
+                // Показываем только нативные токены и USDT/USDC только внутри expandable
+                return token.isNative || !['USDT', 'USDC'].includes(token.symbol);
+            }
+            // Для остальных блокчейнов показываем все
+            return true;
+        });
+        
+        return filtered;
+    }, []);
+
+    // Функция для получения связанных токенов (USDT/USDC) для главного токена
+    const getRelatedTokens = useCallback((mainToken, allTokens) => {
+        if (!['Solana', 'Ethereum', 'Tron', 'TON'].includes(mainToken.blockchain)) {
+            return [];
+        }
+        
+        // Ищем USDT и USDC для этого блокчейна
+        return allTokens.filter(token => 
+            token.blockchain === mainToken.blockchain && 
+            ['USDT', 'USDC'].includes(token.symbol)
+        );
+    }, []);
+
     useEffect(() => {
         const isTelegramWebApp = () => {
             try {
@@ -304,6 +333,9 @@ function Wallet({ isActive, userData }) {
         );
     }
 
+    // Фильтруем токены для отображения
+    const displayTokens = filterDisplayTokens(wallets);
+
     return (
         <div className="wallet-page-wallet">
             <Header 
@@ -413,21 +445,15 @@ function Wallet({ isActive, userData }) {
                                 </div>
                             </div>
                         ))
-                    ) : wallets.length > 0 ? (
-                        wallets.map((wallet) => {
-                            // Определяем связанные токены USDT/USDC для Solana, Ethereum, Tron, TON
+                    ) : displayTokens.length > 0 ? (
+                        displayTokens.map((wallet) => {
+                            // Определяем связанные токены USDT/USDC только для нативных токенов
                             let relatedTokens = [];
                             
-                            if ((wallet.blockchain === 'Solana' && wallet.symbol === 'SOL') ||
-                                (wallet.blockchain === 'Ethereum' && wallet.symbol === 'ETH') ||
-                                (wallet.blockchain === 'Tron' && wallet.symbol === 'TRX') ||
-                                (wallet.blockchain === 'TON' && wallet.symbol === 'TON')) {
+                            if (['Solana', 'Ethereum', 'Tron', 'TON'].includes(wallet.blockchain) && 
+                                ['SOL', 'ETH', 'TRX', 'TON'].includes(wallet.symbol)) {
                                 
-                                // Ищем USDT и USDC для этого блокчейна
-                                relatedTokens = wallets.filter(token => 
-                                    token.blockchain === wallet.blockchain && 
-                                    (token.symbol === 'USDT' || token.symbol === 'USDC')
-                                );
+                                relatedTokens = getRelatedTokens(wallet, wallets);
                             }
                             
                             return (

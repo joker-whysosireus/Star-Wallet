@@ -5,6 +5,7 @@
     padding: 14px;
     width: 100%;
     box-sizing: border-box;
+    position: relative;
 }
 
 .token-left {
@@ -78,9 +79,11 @@
     align-items: flex-end;
     flex-shrink: 0;
     min-width: 0;
-    max-width: 140px;
+    max-width: 100px; /* Уменьшено с 140px */
     text-align: right;
     overflow: hidden;
+    margin-left: auto;
+    padding-right: 30px; /* Добавлено для кнопки раскрытия */
 }
 
 .token-balance {
@@ -90,7 +93,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 120px;
+    max-width: 90px; /* Уменьшено с 120px */
 }
 
 .token-usd-balance {
@@ -99,7 +102,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 120px;
+    max-width: 90px; /* Уменьшено с 120px */
 }
 
 .token-price {

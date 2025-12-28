@@ -13,6 +13,7 @@ import * as xrpl from 'xrpl';
 import { Buffer } from 'buffer';
 import * as tweetnacl from 'tweetnacl';
 import base58 from 'bs58';
+import { KeyPair, utils } from 'near-api-js';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -298,24 +299,6 @@ export const TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' 
     },
-    USDT_NEAR: { 
-        symbol: 'USDT', 
-        name: 'Tether', 
-        blockchain: 'NEAR', 
-        decimals: 6, 
-        isNative: false, 
-        contractAddress: 'usdt.tether-token.near', 
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
-    },
-    USDC_NEAR: { 
-        symbol: 'USDC', 
-        name: 'USD Coin', 
-        blockchain: 'NEAR', 
-        decimals: 6, 
-        isNative: false, 
-        contractAddress: 'usdc.near', 
-        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
-    },
     
     XRP: { 
         symbol: 'XRP', 
@@ -496,24 +479,6 @@ export const TESTNET_TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' 
     },
-    USDT_NEAR: { 
-        symbol: 'USDT', 
-        name: 'Tether', 
-        blockchain: 'NEAR', 
-        decimals: 6, 
-        isNative: false, 
-        contractAddress: 'usdt.fakes.testnet', 
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
-    },
-    USDC_NEAR: { 
-        symbol: 'USDC', 
-        name: 'USD Coin', 
-        blockchain: 'NEAR', 
-        decimals: 6, 
-        isNative: false, 
-        contractAddress: 'usdc.fakes.testnet', 
-        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
-    },
     
     XRP: { 
         symbol: 'XRP', 
@@ -589,10 +554,8 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
         walletArray.push(createWallet(tokens.USDT_SOL, solanaAddress, network));
         walletArray.push(createWallet(tokens.USDC_SOL, solanaAddress, network));
         
-        // BSC блокчейн
+        // BSC блокчейн - ТОЛЬКО BNB, USDT/USDC удалены
         walletArray.push(createWallet(tokens.BNB, bscAddress, network));
-        walletArray.push(createWallet(tokens.USDT_BSC, bscAddress, network));
-        walletArray.push(createWallet(tokens.USDC_BSC, bscAddress, network));
         
         // Tron блокчейн
         walletArray.push(createWallet(tokens.TRX, tronAddress, network));
@@ -602,10 +565,8 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
         // Bitcoin блокчейн
         walletArray.push(createWallet(tokens.BTC, bitcoinAddress, network));
         
-        // NEAR блокчейн
+        // NEAR блокчейн - ТОЛЬКО NEAR, USDT/USDC удалены
         walletArray.push(createWallet(tokens.NEAR, nearAddress, network));
-        walletArray.push(createWallet(tokens.USDT_NEAR, nearAddress, network));
-        walletArray.push(createWallet(tokens.USDC_NEAR, nearAddress, network));
         
         // XRP блокчейн
         walletArray.push(createWallet(tokens.XRP, xrpAddress, network));
@@ -744,112 +705,78 @@ const generateBitcoinAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// 7. ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ NEAR АДРЕСА (возвращаем оригинальную логику, но исправленную)
+// 7. ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ NEAR АДРЕСА по документации
 const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
     try {
-        // Генерация seed из seed phrase
+        // 1. Генерируем Ed25519 ключевую пару из seed phrase
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         
-        // Используем стандартный BIP32 процесс для NEAR
-        // NEAR использует Ed25519 кривую
-        // Создаем HMAC-SHA512 от seed
+        // Используем детерминированный процесс для генерации ключей
         const hmac = crypto.createHmac('sha512', 'ed25519 seed');
         hmac.update(seedBuffer);
         const I = hmac.digest();
         
-        // Левая половина (32 байта) - это seed для Ed25519
-        const left = I.slice(0, 32);
+        // Берем левую половину как seed для Ed25519
+        const ed25519Seed = I.slice(0, 32);
         
-        // Используем tweetnacl для генерации ключевой пары Ed25519
-        const keyPair = tweetnacl.sign.keyPair.fromSeed(new Uint8Array(left));
+        // Создаем ключевую пару Ed25519 используя tweetnacl
+        const keyPair = tweetnacl.sign.keyPair.fromSeed(new Uint8Array(ed25519Seed));
         
-        // Получаем публичный ключ (32 байта)
-        const publicKey = Buffer.from(keyPair.publicKey);
+        // 2. Преобразуем публичный ключ в hex строку (64 символа)
+        const publicKeyHex = Buffer.from(keyPair.publicKey).toString('hex').toLowerCase();
         
-        // Преобразуем в hex строку (64 символа) - это и будет NEAR адрес
-        const nearAddress = '0x' + publicKey.toString('hex').toLowerCase();
+        // 3. Создаем неявный аккаунт NEAR (64 символа hex)
+        // NEAR implicit account это просто hex публичного ключа
+        const implicitAccountId = publicKeyHex;
         
-        // Проверяем формат
-        if (nearAddress.length === 66 && nearAddress.startsWith('0x') && /^0x[0-9a-f]{64}$/.test(nearAddress)) {
-            return nearAddress;
+        // Проверяем что адрес имеет правильный формат
+        if (implicitAccountId.length === 64 && /^[0-9a-f]{64}$/.test(implicitAccountId)) {
+            return implicitAccountId;
         } else {
-            // Fallback генерация
-            const fallbackHash = crypto.createHash('sha256')
-                .update(seedBuffer)
-                .digest('hex');
-            return '0x' + fallbackHash;
+            throw new Error('Invalid NEAR address generated');
         }
     } catch (error) {
         console.error('Error generating NEAR address:', error);
-        // Возвращаем детерминированный fallback адрес
+        // Fallback: детерминированная генерация из seed phrase
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const hash = crypto.createHash('sha256')
             .update(seedBuffer)
-            .digest('hex');
-        return '0x' + hash;
+            .digest('hex')
+            .toLowerCase();
+        return hash;
     }
 };
 
-// 8. ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ XRP АДРЕСА (детерминированная)
+// 8. XRP адрес
 const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
     try {
-        // 1. Генерация seed из seed phrase (детерминированная)
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        
-        // 2. Используем SHA256 для создания детерминированного seed
         const hash = crypto.createHash('sha256').update(seedBuffer).digest();
-        
-        // 3. Используем первые 16 байт для создания XRP seed
         const seedBytes = hash.slice(0, 16);
-        
-        // 4. Создаем кошелек XRP из seed
         const seedHex = seedBytes.toString('hex').toUpperCase();
-        
-        // 5. Используем детерминированный алгоритм для создания XRP адреса
-        // Создаем приватный ключ из seed
         const privateKey = crypto.createHash('sha256').update(seedBytes).digest();
-        
-        // Создаем публичный ключ используя кривую secp256k1
-        // Используем библиотеку ecc для генерации публичного ключа
-        const publicKey = ecc.pointFromScalar(privateKey, true); // true = сжатый формат
-        
-        // SHA-256 от публичного ключа
+        const publicKey = ecc.pointFromScalar(privateKey, true);
         const sha256Hash = crypto.createHash('sha256').update(publicKey).digest();
-        
-        // RIPEMD-160 от результата SHA-256
         const ripemd160 = crypto.createHash('ripemd160').update(sha256Hash).digest();
-        
-        // Добавляем префикс сети XRP (0x00 для mainnet)
         const networkPrefix = Buffer.from([network === 'testnet' ? 0x04 : 0x00]);
         const payload = Buffer.concat([networkPrefix, ripemd160]);
-        
-        // Вычисляем контрольную сумму (двойной SHA-256)
         const hash1 = crypto.createHash('sha256').update(payload).digest();
         const hash2 = crypto.createHash('sha256').update(hash1).digest();
         const checksum = hash2.slice(0, 4);
-        
-        // Объединяем payload и контрольную сумму
         const addressBytes = Buffer.concat([payload, checksum]);
-        
-        // Кодируем в Base58
         const address = base58.encode(addressBytes);
         
-        // Проверяем, что адрес начинается с 'r' для mainnet или 'rTest' для testnet
         if (network === 'testnet') {
-            // Для testnet XRP адреса обычно начинаются с 'r' как и mainnet, но иногда используют другие префиксы
-            // Оставим просто 'r' для совместимости
             return address.startsWith('r') ? address : 'r' + address.substring(1);
         } else {
             return address.startsWith('r') ? address : 'r' + address.substring(1);
         }
     } catch (error) {
         console.error('Error generating XRP address:', error);
-        // Возвращаем детерминированный fallback адрес
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const hash = crypto.createHash('sha256').update(seedBuffer).digest();
         const addressPart = hash.toString('hex').substring(0, 40);
         
-        // Используем фиксированный префикс для детерминированности
         if (network === 'testnet') {
             return 'rTest' + addressPart.substring(5, 29);
         }
@@ -1340,10 +1267,11 @@ const getNearBalance = async (accountId, network = 'mainnet') => {
         const provider = new providers.JsonRpcProvider({ url: config.NEAR.RPC_URL });
         
         try {
-            // Если это hex адрес (64 символа), преобразуем в аккаунт
+            // Если это hex адрес (64 символа), это уже неявный аккаунт
             let nearAccountId = accountId;
             if (/^[0-9a-f]{64}$/.test(accountId)) {
-                nearAccountId = `${accountId}.${network === 'testnet' ? 'testnet' : 'near'}`;
+                // Это неявный аккаунт NEAR (64 hex символа)
+                nearAccountId = accountId;
             }
             
             const account = await provider.query({
@@ -1362,56 +1290,7 @@ const getNearBalance = async (accountId, network = 'mainnet') => {
     }
 };
 
-// 11. NEAR NEP-141 баланс (USDT, USDC)
-const getNEP141Balance = async (accountId, contractAddress, network = 'mainnet') => {
-    try {
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const provider = new providers.JsonRpcProvider({ url: config.NEAR.RPC_URL });
-        
-        let nearAccountId = accountId;
-        if (/^[0-9a-f]{64}$/.test(accountId)) {
-            nearAccountId = `${accountId}.${network === 'testnet' ? 'testnet' : 'near'}`;
-        }
-        
-        const result = await provider.query({
-            request_type: "call_function",
-            account_id: contractAddress,
-            method_name: "ft_balance_of",
-            args_base64: Buffer.from(JSON.stringify({ account_id: nearAccountId })).toString('base64'),
-            finality: "final"
-        });
-        
-        if (result.result && result.result.length > 0) {
-            const balanceStr = Buffer.from(result.result).toString();
-            const balance = JSON.parse(balanceStr);
-            
-            let decimals = 6;
-            try {
-                const decimalsResult = await provider.query({
-                    request_type: "call_function",
-                    account_id: contractAddress,
-                    method_name: "ft_metadata",
-                    args_base64: Buffer.from(JSON.stringify({})).toString('base64'),
-                    finality: "final"
-                });
-                
-                if (decimalsResult.result && decimalsResult.result.length > 0) {
-                    const metadataStr = Buffer.from(decimalsResult.result).toString();
-                    const metadata = JSON.parse(metadataStr);
-                    decimals = metadata.decimals || 6;
-                }
-            } catch (e) {
-                console.warn('Could not get decimals, using default 6');
-            }
-            
-            return (parseInt(balance) / Math.pow(10, decimals)).toString();
-        }
-        return '0';
-    } catch (error) {
-        console.error('NEP141 balance error:', error);
-        return '0';
-    }
-};
+// 11. NEAR NEP-141 баланс (USDT, USDC) - удалено, так как токены USDT/USDC у NEAR удалены
 
 // 12. BSC баланс
 const getBNBBalance = async (address, network = 'mainnet') => {
@@ -1426,30 +1305,7 @@ const getBNBBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 13. BSC BEP-20 баланс (USDT, USDC)
-const getBEP20Balance = async (address, contractAddress, network = 'mainnet') => {
-    try {
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const provider = new ethers.JsonRpcProvider(config.BSC.RPC_URL);
-        const abi = ['function balanceOf(address) view returns (uint256)'];
-        const contract = new ethers.Contract(contractAddress, abi, provider);
-        const balance = await contract.balanceOf(address);
-        
-        let decimals = 18;
-        try {
-            const decimalsAbi = ['function decimals() view returns (uint8)'];
-            const decimalsContract = new ethers.Contract(contractAddress, decimalsAbi, provider);
-            decimals = await decimalsContract.decimals();
-        } catch (e) {
-            console.warn('Could not get decimals, using default 18');
-        }
-        
-        return ethers.formatUnits(balance, decimals);
-    } catch (error) {
-        console.error('BEP20 balance error:', error);
-        return '0';
-    }
-};
+// 13. BSC BEP-20 баланс (USDT, USDC) - удалено, так как токены USDT/USDC у BSC удалены
 
 // 14. XRP баланс
 const getXrpBalance = async (address, network = 'mainnet') => {
@@ -1621,7 +1477,7 @@ export const validateAddress = async (blockchain, address) => {
                     return true;
                 } catch { return false; }
             case 'NEAR':
-                const nearRegex = /^0x[0-9a-fA-F]{64}$/;
+                const nearRegex = /^[0-9a-f]{64}$/; // 64 hex символа для неявного аккаунта
                 return nearRegex.test(address);
             case 'XRP':
                 const xrpRegex = /^r[1-9A-HJ-NP-Za-km-z]{25,34}$/;
