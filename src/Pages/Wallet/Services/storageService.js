@@ -15,7 +15,6 @@ import base58 from 'bs58';
 
 // ИСПРАВЛЕННЫЙ ИМПОРТ ДЛЯ NEAR согласно новой документации
 import { KeyPair } from '@near-js/crypto';
-import { keyToImplicitAddress } from '@near-js/utils';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -147,7 +146,7 @@ const WALLET_API_URL = 'https://star-wallet-backend.netlify.app/.netlify/functio
 const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 
-// === ТОКЕНЫ С ПРАВИЛЬНЫМ НАБОРОМ (USDT/USDC для TON, ETH, SOL, TRON, BNB, NEAR) ===
+// === ТОКЕНЫ С ПРАВИЛЬНЫМ НАБОРОМ (без USDT/USDC для BTC, BNB, NEAR, DOGE, LTC, XRP) ===
 export const TOKENS = {
     // TON блокчейн
     TON: { 
@@ -271,7 +270,7 @@ export const TOKENS = {
         logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png' 
     },
     
-    // BSC блокчейн
+    // BSC блокчейн (ТОЛЬКО НАТИВНЫЙ BNB)
     BNB: { 
         symbol: 'BNB', 
         name: 'BNB', 
@@ -279,24 +278,6 @@ export const TOKENS = {
         decimals: 18, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' 
-    },
-    USDT_BSC: { 
-        symbol: 'USDT', 
-        name: 'Tether', 
-        blockchain: 'BSC', 
-        decimals: 18, 
-        isNative: false, 
-        contractAddress: '0x55d398326f99059ff775485246999027b3197955', 
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
-    },
-    USDC_BSC: { 
-        symbol: 'USDC', 
-        name: 'USD Coin', 
-        blockchain: 'BSC', 
-        decimals: 18, 
-        isNative: false, 
-        contractAddress: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', 
-        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
     
     // Dogecoin блокчейн
@@ -309,7 +290,7 @@ export const TOKENS = {
         logo: 'https://cryptologos.cc/logos/dogecoin-doge-logo.png' 
     },
     
-    // NEAR блокчейн
+    // NEAR блокчейн (ТОЛЬКО НАТИВНЫЙ NEAR)
     NEAR: { 
         symbol: 'NEAR', 
         name: 'NEAR Protocol', 
@@ -317,24 +298,6 @@ export const TOKENS = {
         decimals: 24, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' 
-    },
-    USDT_NEAR: { 
-        symbol: 'USDT', 
-        name: 'Tether', 
-        blockchain: 'NEAR', 
-        decimals: 6, 
-        isNative: false, 
-        contractAddress: 'usdt.tether-token.near', 
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
-    },
-    USDC_NEAR: { 
-        symbol: 'USDC', 
-        name: 'USD Coin', 
-        blockchain: 'NEAR', 
-        decimals: 6, 
-        isNative: false, 
-        contractAddress: 'usdc.near', 
-        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
     
     // XRP блокчейн
@@ -484,24 +447,6 @@ export const TESTNET_TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' 
     },
-    USDT_BSC: { 
-        symbol: 'USDT', 
-        name: 'Tether', 
-        blockchain: 'BSC', 
-        decimals: 18, 
-        isNative: false, 
-        contractAddress: '0x337610d27c682E347C9cD60BD4b3b107C9d34dDd', 
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
-    },
-    USDC_BSC: { 
-        symbol: 'USDC', 
-        name: 'USD Coin', 
-        blockchain: 'BSC', 
-        decimals: 18, 
-        isNative: false, 
-        contractAddress: '0x64544969ed7EBf5f083679233325356EbE738930', 
-        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
-    },
     
     DOGE: { 
         symbol: 'DOGE', 
@@ -519,24 +464,6 @@ export const TESTNET_TOKENS = {
         decimals: 24, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' 
-    },
-    USDT_NEAR: { 
-        symbol: 'USDT', 
-        name: 'Tether', 
-        blockchain: 'NEAR', 
-        decimals: 6, 
-        isNative: false, 
-        contractAddress: 'usdt.fakes.testnet', 
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
-    },
-    USDC_NEAR: { 
-        symbol: 'USDC', 
-        name: 'USD Coin', 
-        blockchain: 'NEAR', 
-        decimals: 6, 
-        isNative: false, 
-        contractAddress: 'usdc.fakes.testnet', 
-        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
     
     XRP: { 
@@ -613,18 +540,14 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
         // 5. Bitcoin блокчейн
         walletArray.push(createWallet(tokens.BTC, bitcoinAddress, network));
         
-        // 6. BSC блокчейн
+        // 6. BSC блокчейн (ТОЛЬКО НАТИВНЫЙ BNB)
         walletArray.push(createWallet(tokens.BNB, bscAddress, network));
-        walletArray.push(createWallet(tokens.USDT_BSC, bscAddress, network));
-        walletArray.push(createWallet(tokens.USDC_BSC, bscAddress, network));
         
         // 7. Dogecoin блокчейн
         walletArray.push(createWallet(tokens.DOGE, dogeAddress, network));
         
-        // 8. NEAR блокчейн
+        // 8. NEAR блокчейн (ТОЛЬКО НАТИВНЫЙ NEAR)
         walletArray.push(createWallet(tokens.NEAR, nearAddress, network));
-        walletArray.push(createWallet(tokens.USDT_NEAR, nearAddress, network));
-        walletArray.push(createWallet(tokens.USDC_NEAR, nearAddress, network));
         
         // 9. XRP блокчейн
         walletArray.push(createWallet(tokens.XRP, xrpAddress, network));
@@ -778,36 +701,34 @@ const generateDogeAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// 8. ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ NEAR АДРЕСА (по новой документации)
+// 8. ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ NEAR АДРЕСА (без keyToImplicitAddress)
 const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
     try {
-        // Согласно документации: https://docs.near.org/tools/near-api
-        // Используем новый модульный API @near-js/crypto и @near-js/utils
-        
-        // 1. Генерируем детерминированный seed из мнемонической фразы
+        // Генерируем детерминированный seed из мнемонической фразы
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         
-        // 2. Используем HMAC-SHA512 для получения мастер-ключа Ed25519
+        // Используем HMAC-SHA512 для получения мастер-ключа Ed25519
         const hmac = crypto.createHmac('sha512', 'ed25519 seed');
         hmac.update(seedBuffer);
         const I = hmac.digest();
         
-        // 3. Берем первые 32 байта как приватный ключ для Ed25519
+        // Берем первые 32 байта как приватный ключ для Ed25519
         const privateKeyBytes = I.slice(0, 32);
         
-        // 4. Создаем ключевую пару NEAR из приватного ключа
-        // Формат: "ed25519:hex_private_key"
+        // Создаем ключевую пару NEAR из приватного ключа
         const privateKeyHex = privateKeyBytes.toString('hex');
         const keyPair = KeyPair.fromString(`ed25519:${privateKeyHex}`);
         
-        // 5. Получаем публичный ключ в строковом формате
-        const publicKey = keyPair.getPublicKey().toString();
+        // Получаем публичный ключ
+        const publicKey = keyPair.getPublicKey();
         
-        // 6. Конвертируем публичный ключ в имплицитный адрес (64 hex символа)
-        const implicitAccountId = keyToImplicitAddress(publicKey);
+        // Конвертируем публичный ключ в имплицитный адрес (64 hex символа)
+        // Вместо keyToImplicitAddress используем прямую конвертацию
+        const publicKeyData = publicKey.data; // Uint8Array
+        const implicitAccountId = Buffer.from(publicKeyData).toString('hex');
         
         console.log("NEAR Address Generation:", {
-            publicKey,
+            publicKey: publicKey.toString(),
             implicitAccountId,
             length: implicitAccountId.length,
             format: /^[0-9a-f]{64}$/.test(implicitAccountId) ? "Valid 64-char hex" : "Invalid"
@@ -1092,14 +1013,10 @@ export const getRealBalances = async (wallets) => {
                             balance = await getBitcoinBalance(wallet.address, wallet.network);
                             break;
                         case 'NEAR':
-                            balance = wallet.isNative ?
-                                await getNearBalance(wallet.address, wallet.network) :
-                                await getNEP141Balance(wallet.address, wallet.contractAddress, wallet.network);
+                            balance = await getNearBalance(wallet.address, wallet.network);
                             break;
                         case 'BSC':
-                            balance = wallet.isNative ?
-                                await getBNBBalance(wallet.address, wallet.network) :
-                                await getBEP20Balance(wallet.address, wallet.contractAddress, wallet.network);
+                            balance = await getBNBBalance(wallet.address, wallet.network);
                             break;
                         case 'XRP':
                             balance = await getXrpBalance(wallet.address, wallet.network);
@@ -1356,58 +1273,7 @@ const getNearBalance = async (accountId, network = 'mainnet') => {
     }
 };
 
-// 11. NEAR NEP-141 баланс (USDT, USDC)
-const getNEP141Balance = async (accountId, contractAddress, network = 'mainnet') => {
-    try {
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const provider = new providers.JsonRpcProvider({ url: config.NEAR.RPC_URL });
-        
-        let nearAccountId = accountId;
-        if (/^[0-9a-f]{64}$/.test(accountId)) {
-            nearAccountId = accountId;
-        }
-        
-        const result = await provider.query({
-            request_type: "call_function",
-            account_id: contractAddress,
-            method_name: "ft_balance_of",
-            args_base64: Buffer.from(JSON.stringify({ account_id: nearAccountId })).toString('base64'),
-            finality: "final"
-        });
-        
-        if (result.result && result.result.length > 0) {
-            const balanceStr = Buffer.from(result.result).toString();
-            const balance = JSON.parse(balanceStr);
-            
-            let decimals = 6;
-            try {
-                const decimalsResult = await provider.query({
-                    request_type: "call_function",
-                    account_id: contractAddress,
-                    method_name: "ft_metadata",
-                    args_base64: Buffer.from(JSON.stringify({})).toString('base64'),
-                    finality: "final"
-                });
-                
-                if (decimalsResult.result && decimalsResult.result.length > 0) {
-                    const metadataStr = Buffer.from(decimalsResult.result).toString();
-                    const metadata = JSON.parse(metadataStr);
-                    decimals = metadata.decimals || 6;
-                }
-            } catch (e) {
-                console.warn('Could not get decimals, using default 6');
-            }
-            
-            return (parseInt(balance) / Math.pow(10, decimals)).toString();
-        }
-        return '0';
-    } catch (error) {
-        console.error('NEP141 balance error:', error);
-        return '0';
-    }
-};
-
-// 12. BSC баланс
+// 11. BSC баланс
 const getBNBBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1420,32 +1286,7 @@ const getBNBBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 13. BSC BEP-20 баланс (USDT, USDC)
-const getBEP20Balance = async (address, contractAddress, network = 'mainnet') => {
-    try {
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const provider = new ethers.JsonRpcProvider(config.BSC.RPC_URL);
-        const abi = ['function balanceOf(address) view returns (uint256)'];
-        const contract = new ethers.Contract(contractAddress, abi, provider);
-        const balance = await contract.balanceOf(address);
-        
-        let decimals = 18;
-        try {
-            const decimalsAbi = ['function decimals() view returns (uint8)'];
-            const decimalsContract = new ethers.Contract(contractAddress, decimalsAbi, provider);
-            decimals = await decimalsContract.decimals();
-        } catch (e) {
-            console.warn('Could not get decimals, using default 18');
-        }
-        
-        return ethers.formatUnits(balance, decimals);
-    } catch (error) {
-        console.error('BEP20 balance error:', error);
-        return '0';
-    }
-};
-
-// 14. XRP баланс
+// 12. XRP баланс
 const getXrpBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1476,7 +1317,7 @@ const getXrpBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 15. Litecoin баланс
+// 13. Litecoin баланс
 const getLtcBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1494,7 +1335,7 @@ const getLtcBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 16. Dogecoin баланс
+// 14. Dogecoin баланс
 const getDogeBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
