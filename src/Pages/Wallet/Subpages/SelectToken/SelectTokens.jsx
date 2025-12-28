@@ -133,7 +133,11 @@ const SelectToken = () => {
     
     return (
         <div className="page-container">
-            <Header userData={userData} />
+            <Header 
+                userData={userData} 
+                currentNetwork={network}
+                disableNetworkSwitch={false}
+            />
             
             <div className="page-content select-token-page">
                 <div className="select-token-header">

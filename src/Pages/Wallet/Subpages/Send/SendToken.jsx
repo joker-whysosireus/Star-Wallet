@@ -280,7 +280,11 @@ const SendToken = () => {
     
     return (
         <div className="wallet-page">
-            <Header userData={userData} />
+            <Header 
+                userData={userData} 
+                currentNetwork={network}
+                disableNetworkSwitch={true}
+            />
             
             <div className="page-content send-page">
                 <div className="send-header">

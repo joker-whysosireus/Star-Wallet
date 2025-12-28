@@ -7,7 +7,8 @@ import PinCodeScreen from '../../assets/PIN/PinCodeScreen';
 import { 
     getAllTokens,
     getBalances, 
-    calculateTotalBalance
+    calculateTotalBalance,
+    getTokenPrices
 } from './Services/storageService';
 import './Wallet.css';
 
@@ -133,7 +134,7 @@ function Wallet({ isActive, userData }) {
             
             lastRefreshTime.current = now;
             
-            console.log(`Updating ${network} wallet balances...`);
+            console.log(`Updating ${network} wallet balances with real data...`);
             
             let allTokens = [];
             if (wallets.length === 0 || forceUpdate || wallets[0]?.network !== network) {
@@ -152,7 +153,7 @@ function Wallet({ isActive, userData }) {
                 allTokens = wallets;
             }
 
-            const updatedWallets = await getBalances(allTokens, userData);
+            const updatedWallets = await getBalances(allTokens);
             
             updatedWallets.forEach(wallet => {
                 balanceCache.current[wallet.id] = {
@@ -168,7 +169,7 @@ function Wallet({ isActive, userData }) {
             setTotalBalance(`$${total}`);
             localStorage.setItem('cached_total_balance', `$${total}`);
             
-            console.log(`${network} balances updated successfully`);
+            console.log(`${network} balances updated successfully with real data`);
             
         } catch (error) {
             console.error('Error updating balances:', error);
@@ -207,6 +208,22 @@ function Wallet({ isActive, userData }) {
         }, 30000);
         
         return () => clearInterval(interval);
+    }, [userData, currentNetwork, updateBalances]);
+
+    // Добавьте этот useEffect для обновления цен каждую минуту
+    useEffect(() => {
+        if (!userData) return;
+        
+        const priceUpdateInterval = setInterval(async () => {
+            // Обновляем цены и пересчитываем балансы
+            const prices = await getTokenPrices();
+            console.log('Token prices updated:', prices);
+            
+            // Обновляем отображение балансов
+            updateBalances(false, false, currentNetwork);
+        }, 60000); // Каждую минуту
+        
+        return () => clearInterval(priceUpdateInterval);
     }, [userData, currentNetwork, updateBalances]);
 
     const handleTokenClick = useCallback((wallet) => {

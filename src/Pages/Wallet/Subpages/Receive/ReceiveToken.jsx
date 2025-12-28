@@ -61,7 +61,11 @@ const ReceiveToken = () => {
     
     return (
         <div className="wallet-page">
-            <Header userData={userData} />
+            <Header 
+                userData={userData} 
+                currentNetwork={network}
+                disableNetworkSwitch={true}
+            />
             
             <div className="page-content receive-page">
                 <div className="receive-header">

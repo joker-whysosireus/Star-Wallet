@@ -3,7 +3,7 @@ import { FaUser, FaCog } from 'react-icons/fa';
 import SettingsModal from './Components/SettingsModal';
 import './Header.css';
 
-const Header = ({ userData, onNetworkChange, currentNetwork = 'mainnet' }) => {
+const Header = ({ userData, onNetworkChange, currentNetwork = 'mainnet', disableNetworkSwitch = false }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
 
     const openModal = () => {
@@ -50,23 +50,26 @@ const Header = ({ userData, onNetworkChange, currentNetwork = 'mainnet' }) => {
                     </div>
                     
                     <div className="header-right">
-                        <select 
-                            value={currentNetwork}
-                            onChange={handleNetworkChange}
-                            style={{
-                                background: 'transparent',
-                                color: '#FFD700',
-                                border: '1px solid rgba(255, 215, 0, 0.3)',
-                                borderRadius: '4px',
-                                padding: '4px 8px',
-                                fontSize: '12px',
-                                fontWeight: '600',
-                                outline: 'none'
-                            }}
-                        >
-                            <option value="mainnet">MAINNET</option>
-                            <option value="testnet">TESTNET</option>
-                        </select>
+                        {!disableNetworkSwitch && (
+                            <select 
+                                value={currentNetwork}
+                                onChange={handleNetworkChange}
+                                style={{
+                                    background: 'transparent',
+                                    color: '#FFD700',
+                                    border: '1px solid rgba(255, 215, 0, 0.3)',
+                                    borderRadius: '4px',
+                                    padding: '4px 8px',
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    outline: 'none',
+                                    marginRight: '10px'
+                                }}
+                            >
+                                <option value="mainnet">MAINNET</option>
+                                <option value="testnet">TESTNET</option>
+                            </select>
+                        )}
                         
                         <button 
                             className="icon-button settings-button" 
@@ -79,7 +82,6 @@ const Header = ({ userData, onNetworkChange, currentNetwork = 'mainnet' }) => {
                 </div>
             </header>
 
-            {/* Импортированное модальное окно */}
             <SettingsModal 
                 userData={userData}
                 isOpen={isModalOpen}
@@ -87,6 +89,7 @@ const Header = ({ userData, onNetworkChange, currentNetwork = 'mainnet' }) => {
                 onLogout={handleLogout}
                 onPrivacy={handlePrivacy}
                 onFAQ={handleFAQ}
+                currentNetwork={currentNetwork}
             />
         </>
     );

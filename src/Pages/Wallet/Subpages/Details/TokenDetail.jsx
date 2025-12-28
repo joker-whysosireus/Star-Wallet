@@ -114,7 +114,11 @@ const TokenDetail = () => {
 
     return (
         <div className="page-container">
-            <Header userData={userData} />
+            <Header 
+                userData={userData} 
+                currentNetwork={network}
+                disableNetworkSwitch={true}
+            />
             
             <div className="page-content">
                 <div className="token-icon-container">
