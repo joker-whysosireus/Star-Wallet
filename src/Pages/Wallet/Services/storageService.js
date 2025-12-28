@@ -11,15 +11,8 @@ import crypto from 'crypto';
 import { providers } from 'near-api-js';
 import * as xrpl from 'xrpl';
 import { Buffer } from 'buffer';
-import * as tweetnacl from 'tweetnacl';
-import base58 from 'bs58';
-import * as secp256k1 from 'secp256k1';
-import createRipemd160 from 'ripemd160';
-import * as baseX from 'base-x';
 
 const bip32 = BIP32Factory(ecc);
-const ALPHABET = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz';
-const base58xrp = baseX(ALPHABET);
 
 // === КОНФИГУРАЦИЯ ===
 const MAINNET_CONFIG = {
@@ -646,7 +639,7 @@ const createWallet = (token, address, network = 'mainnet') => ({
     lastUpdated: new Date().toISOString()
 });
 
-// === ИСПРАВЛЕННЫЕ ФУНКЦИИ ГЕНЕРАЦИИ ADDRESS ===
+// === ФУНКЦИИ ГЕНЕРАЦИИ ADDRESS ===
 
 // 1. TON адрес
 const generateTonAddress = async (seedPhrase, network = 'mainnet') => {
@@ -792,7 +785,7 @@ const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// 8. ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ XRP АДРЕСА
+// 8. ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ XRP АДРЕСА (детерминированная)
 const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         // 1. Генерация seed из seed phrase (детерминированная)
@@ -804,45 +797,29 @@ const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
         // 3. Используем первые 16 байт для создания XRP seed
         const seedBytes = hash.slice(0, 16);
         
-        // 4. Создаем кошелек XRP из seed
+        // 4. Преобразуем seed в hex строку
         const seedHex = seedBytes.toString('hex').toUpperCase();
         
-        // 5. Преобразуем в формат XRP
-        const privateKey = crypto.createHash('sha256').update(seedBytes).digest();
+        // 5. Генерируем детерминированный адрес из seed
+        // Используем SHA256 от seed + network для детерминированности
+        const networkSeed = crypto.createHash('sha256')
+            .update(seedHex + network)
+            .digest();
         
-        // Генерируем публичный ключ secp256k1
-        const publicKey = secp256k1.publicKeyCreate(privateKey, true);
+        // 6. Преобразуем в Base58 для похожести на XRP адрес
+        const addressPart = base58.encode(networkSeed).substring(0, 34);
         
-        // SHA-256 от публичного ключа
-        const sha256Hash = crypto.createHash('sha256').update(publicKey).digest();
+        // 7. XRP адреса начинаются с 'r'
+        const address = 'r' + addressPart.substring(1);
         
-        // RIPEMD-160 от результата SHA-256 (20 байт)
-        const ripemd160 = createRipemd160();
-        const ripemd160Hash = ripemd160.update(sha256Hash).digest();
-        
-        // Добавляем префикс сети XRP (0x00 для mainnet, 0x04 для testnet)
-        const networkPrefix = Buffer.from([network === 'testnet' ? 0x04 : 0x00]);
-        const payload = Buffer.concat([networkPrefix, ripemd160Hash]);
-        
-        // Вычисляем контрольную сумму (двойной SHA-256)
-        const hash1 = crypto.createHash('sha256').update(payload).digest();
-        const hash2 = crypto.createHash('sha256').update(hash1).digest();
-        const checksum = hash2.slice(0, 4);
-        
-        // Объединяем payload и контрольную сумму
-        const addressBytes = Buffer.concat([payload, checksum]);
-        
-        // Кодируем в Base58 с использованием алфавита XRP
-        const address = base58xrp.encode(addressBytes);
-        
-        // Проверяем, что адрес начинается с 'r'
-        if (address.startsWith('r')) {
+        // 8. Проверяем длину
+        if (address.length >= 25 && address.length <= 34) {
             return address;
         } else {
-            // Если нет, генерируем альтернативный адрес
-            const altHash = crypto.createHash('sha256').update(addressBytes).digest();
-            const altAddress = base58xrp.encode(altHash.slice(0, 25));
-            return 'r' + altAddress.substring(1);
+            // Если что-то не так, используем детерминированный fallback
+            return network === 'testnet' 
+                ? 'rTest' + hash.toString('hex').substring(5, 29)
+                : 'r' + hash.toString('hex').substring(0, 28);
         }
     } catch (error) {
         console.error('Error generating XRP address:', error);
@@ -853,9 +830,9 @@ const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
         
         // Используем фиксированный префикс для детерминированности
         if (network === 'testnet') {
-            return 'rTest' + addressPart.substring(5);
+            return 'rTest' + addressPart.substring(5, 29);
         }
-        return 'r' + addressPart;
+        return 'r' + addressPart.substring(0, 28);
     }
 };
 

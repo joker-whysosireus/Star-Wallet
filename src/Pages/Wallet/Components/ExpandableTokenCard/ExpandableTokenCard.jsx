@@ -22,8 +22,10 @@ const ExpandableTokenCard = ({ wallet, network, relatedTokens = [], onTokenClick
     
     return (
         <div className="expandable-token-container">
-            <div className="main-token-wrapper" onClick={handleTokenClick}>
-                <TokenCard wallet={wallet} network={network} />
+            <div className="main-token-wrapper">
+                <div onClick={handleTokenClick} style={{ flex: 1 }}>
+                    <TokenCard wallet={wallet} network={network} />
+                </div>
                 {shouldShowExpand && relatedTokens.length > 0 && (
                     <button 
                         className={`expand-button ${isExpanded ? 'expanded' : ''}`}
@@ -38,7 +40,7 @@ const ExpandableTokenCard = ({ wallet, network, relatedTokens = [], onTokenClick
             {isExpanded && relatedTokens.length > 0 && (
                 <div className={`related-tokens-container ${isExpanded ? 'visible' : ''}`}>
                     {relatedTokens.map(token => (
-                        <div key={token.id} className="related-token-item">
+                        <div key={token.id} className="related-token-item" onClick={() => onTokenClick && onTokenClick(token)}>
                             <TokenCard 
                                 wallet={token} 
                                 network={network}
