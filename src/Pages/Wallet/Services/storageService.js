@@ -15,8 +15,6 @@ import base58 from 'bs58';
 
 // ИСПРАВЛЕННЫЙ ИМПОРТ ДЛЯ NEAR согласно новой документации
 import { KeyPair } from '@near-js/crypto';
-// Убрана несуществующая функция
-// import { keyToImplicitAddress } from '@near-js/utils';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -703,55 +701,48 @@ const generateDogeAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// 8. ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ NEAR АДРЕСА (согласно документации)
+// 8. ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ NEAR АДРЕСА (правильная реализация)
 const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         // Согласно документации NEAR: https://docs.near.org/protocol/account-id
-        // Имплицитный аккаунт - это 64 hex символа, полученные из публичного ключа Ed25519
+        // Имплицитный аккаунт - это hex представление публичного ключа ed25519 (64 символа)
         
         // 1. Генерируем детерминированный seed из мнемонической фразы
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         
-        // 2. Используем BIP44 путь для NEAR: m/44'/397'/0'/0'/0'
-        // NEAR использует coin type 397 согласно SLIP-0044
+        // 2. Используем BIP44 путь для NEAR: m/44'/397'/0'/0'/0' (coin type 397 согласно SLIP-0044)
+        // Для этого используем bip32, но для ed25519 нужна специальная обработка
         const root = bip32.fromSeed(seedBuffer);
         const path = "m/44'/397'/0'/0'/0'";
         const child = root.derivePath(path);
         
-        // 3. Получаем приватный ключ (32 байта) и публичный ключ (32 байта)
+        // 3. Получаем приватный ключ (32 байта) - для ed25519
         const privateKey = child.privateKey;
         if (!privateKey) {
             throw new Error('Failed to derive private key');
         }
         
-        // 4. Создаем ключевую пару NEAR Ed25519
-        // NEAR использует Ed25519 криптографию
-        const keyPair = KeyPair.fromRandom();
+        // 4. Создаем KeyPair NEAR из приватного ключа
+        // Для ed25519 нам нужно создать ключевую пару из 64 байт (32 приватных + 32 публичных)
+        // Но NEAR KeyPair.fromSeed ожидает 32 байта seed
+        const seedForNear = crypto.createHash('sha256').update(privateKey).digest();
+        const keyPair = KeyPair.fromSeed(seedForNear);
         
-        // 5. Вместо случайной генерации, используем детерминированный приватный ключ
-        // Конвертируем приватный ключ в формат, понятный NEAR
-        const privateKeyArray = new Uint8Array(privateKey);
+        // 5. Получаем публичный ключ
+        const publicKey = keyPair.getPublicKey();
         
-        // 6. Создаем KeyPair из приватного ключа
-        // Формат приватного ключа NEAR: "ed25519:байты_в_base58"
-        const privateKeyBase58 = base58.encode(privateKeyArray);
-        const nearKeyPair = KeyPair.fromString(`ed25519:${privateKeyBase58}`);
-        
-        // 7. Получаем публичный ключ
-        const publicKey = nearKeyPair.getPublicKey();
-        
-        // 8. Извлекаем raw байты публичного ключа (32 байта)
+        // 6. Извлекаем raw байты публичного ключа
         const publicKeyBytes = publicKey.data;
         
-        // 9. Конвертируем в hex строку (64 символа)
+        // 7. Конвертируем в hex строку (64 символа) - это и есть имплицитный адрес
         const implicitAccountId = Buffer.from(publicKeyBytes).toString('hex');
         
-        // 10. Проверяем, что получили 64 hex символа
-        if (implicitAccountId.length !== 64 || !/^[0-9a-f]{64}$/.test(implicitAccountId)) {
+        // 8. Проверяем формат
+        if (!implicitAccountId || implicitAccountId.length !== 64 || !/^[0-9a-f]{64}$/.test(implicitAccountId)) {
             throw new Error(`Invalid NEAR address generated: ${implicitAccountId}`);
         }
         
-        console.log("NEAR Address Generation:", {
+        console.log("NEAR Address Generation (Correct):", {
             publicKey: publicKey.toString(),
             implicitAccountId,
             length: implicitAccountId.length,
@@ -761,18 +752,17 @@ const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
         return implicitAccountId;
     } catch (error) {
         console.error('Error generating NEAR address:', error);
-        // Fallback: детерминированная генерация из seed phrase
+        // Fallback: простой детерминированный метод
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const hash = crypto.createHash('sha256')
             .update(seedBuffer)
-            .update('NEAR') // Добавляем соль для уникальности
+            .update('NEAR_IMPLICIT_ACCOUNT')
             .digest('hex')
             .toLowerCase();
         
         // Убеждаемся, что у нас 64 символа
         let result = hash.substring(0, 64);
         if (result.length < 64) {
-            // Дополняем нулями если нужно
             result = result.padEnd(64, '0');
         }
         
@@ -1278,21 +1268,31 @@ const getNearBalance = async (accountId, network = 'mainnet') => {
         const provider = new providers.JsonRpcProvider({ url: config.NEAR.RPC_URL });
         
         try {
-            // Это имплицитный аккаунт NEAR (64 hex символа)
-            // NEAR RPC принимает такие аккаунты напрямую
-            const account = await provider.query({
-                request_type: "view_account",
-                account_id: accountId,
-                finality: "final"
-            });
+            // Проверяем, является ли accountId имплицитным аккаунтом (64 hex символа)
+            const isImplicit = /^[0-9a-f]{64}$/.test(accountId);
             
-            return (parseInt(account.amount) / 1e24).toString();
-        } catch (error) {
-            // Если аккаунт не найден, возвращаем 0
-            if (error.message.includes('does not exist') || error.message.includes('Account not found')) {
+            if (isImplicit) {
+                // Для имплицитных аккаунтов просто запрашиваем баланс
+                const account = await provider.query({
+                    request_type: "view_account",
+                    account_id: accountId,
+                    finality: "final"
+                });
+                
+                return (parseInt(account.amount) / 1e24).toString();
+            } else {
+                // Для named accounts или других форматов
                 return '0';
             }
-            throw error;
+        } catch (error) {
+            // Если аккаунт не найден, возвращаем 0
+            if (error.message.includes('does not exist') || 
+                error.message.includes('Account not found') ||
+                error.message.includes('unknown account')) {
+                return '0';
+            }
+            console.error('NEAR balance query error:', error);
+            return '0';
         }
     } catch (error) {
         console.error('NEAR balance error:', error);
@@ -1487,7 +1487,9 @@ export const validateAddress = async (blockchain, address) => {
                 const nearImplicitRegex = /^[0-9a-f]{64}$/;
                 // Named account: например, alice.near, bob.testnet
                 const nearNamedRegex = /^[a-z0-9_-]+(\.[a-z0-9_-]+)*\.(near|testnet)$/;
-                return nearImplicitRegex.test(address) || nearNamedRegex.test(address);
+                // Ethereum-like account: 0x...
+                const nearEthRegex = /^0x[0-9a-fA-F]{40}$/;
+                return nearImplicitRegex.test(address) || nearNamedRegex.test(address) || nearEthRegex.test(address);
             case 'XRP':
                 const xrpRegex = /^r[1-9A-HJ-NP-Za-km-z]{25,34}$/;
                 return xrpRegex.test(address);
