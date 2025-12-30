@@ -8,7 +8,7 @@ import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import TronWeb from 'tronweb';
 import crypto from 'crypto';
-import { providers } from 'near-api-js';
+import { providers, keyStores, Near, Account } from 'near-api-js';
 import * as xrpl from 'xrpl';
 import { Buffer } from 'buffer';
 import base58 from 'bs58';
@@ -41,9 +41,7 @@ const MAINNET_CONFIG = {
     },
     NEAR: { 
         RPC_URL: 'https://rpc.mainnet.near.org',
-        HELPER_URL: 'https://helper.mainnet.near.org',
         NETWORK_ID: 'mainnet',
-        CHAIN_ID: 'near-mainnet',
         WALLET_URL: 'https://wallet.near.org'
     },
     BSC: { 
@@ -55,7 +53,7 @@ const MAINNET_CONFIG = {
         NETWORK: 'mainnet'
     },
     LTC: { 
-        EXPLORER_API: 'https://blockchair.com/litecoin',
+        EXPLORER_API: 'https://api.blockchair.com/litecoin',
         NETWORK: { 
             messagePrefix: '\x19Litecoin Signed Message:\n',
             bech32: 'ltc',
@@ -66,7 +64,7 @@ const MAINNET_CONFIG = {
         }
     },
     DOGE: { 
-        EXPLORER_API: 'https://blockchair.com/dogecoin',
+        EXPLORER_API: 'https://api.blockchair.com/dogecoin',
         NETWORK: { 
             messagePrefix: '\x19Dogecoin Signed Message:\n',
             bech32: 'doge',
@@ -103,9 +101,7 @@ const TESTNET_CONFIG = {
     },
     NEAR: { 
         RPC_URL: 'https://rpc.testnet.near.org',
-        HELPER_URL: 'https://helper.testnet.near.org',
         NETWORK_ID: 'testnet',
-        CHAIN_ID: 'near-testnet',
         WALLET_URL: 'https://testnet.mynearwallet.com'
     },
     BSC: { 
@@ -117,7 +113,7 @@ const TESTNET_CONFIG = {
         NETWORK: 'testnet'
     },
     LTC: {
-        EXPLORER_API: 'https://blockchair.com/litecoin/testnet',
+        EXPLORER_API: 'https://api.blockchair.com/litecoin/testnet',
         NETWORK: {
             messagePrefix: '\x19Litecoin Signed Message:\n',
             bech32: 'tltc',
@@ -128,7 +124,7 @@ const TESTNET_CONFIG = {
         }
     },
     DOGE: {
-        EXPLORER_API: 'https://blockchair.com/dogecoin/testnet',
+        EXPLORER_API: 'https://api.blockchair.com/dogecoin/testnet',
         NETWORK: {
             messagePrefix: '\x19Dogecoin Signed Message:\n',
             bech32: 'tdge',
@@ -919,41 +915,22 @@ export const getRealBalances = async (wallets) => {
     }
 };
 
+// 1. TON нативный баланс
 const getTonBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
-        const response = await fetch(config.TON.RPC_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-API-Key': config.TON.API_KEY
-            },
-            body: JSON.stringify({
-                id: 1,
-                jsonrpc: '2.0',
-                method: 'getAddressBalance',
-                params: { address: address }
-            })
+        // Создаем TonClient для TON Center API
+        const client = new TonClient({
+            endpoint: config.TON.RPC_URL,
+            apiKey: config.TON.API_KEY
         });
         
-        if (!response.ok) {
-            throw new Error(`TON RPC error: ${response.status}`);
-        }
+        const balance = await client.getBalance(Address.parse(address));
         
-        const data = await response.json();
-        
-        if (data.error) {
-            console.warn('TON balance API error:', data.error);
-            return '0';
-        }
-        
-        if (data.result && data.result.balance) {
-            const balance = parseInt(data.result.balance);
-            return (balance / 1_000_000_000).toFixed(6);
-        }
-        
-        return '0';
+        // Баланс возвращается в нанотонах (1 TON = 1,000,000,000 нанотон)
+        const balanceInTON = Number(balance) / 1_000_000_000;
+        return balanceInTON.toFixed(6);
     } catch (error) {
         console.error('TON balance error:', error);
         return '0';
@@ -994,6 +971,7 @@ const getJettonBalance = async (address, jettonAddress, network = 'mainnet') => 
     }
 };
 
+// 3. Ethereum баланс
 const getEthBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1006,6 +984,7 @@ const getEthBalance = async (address, network = 'mainnet') => {
     }
 };
 
+// 4. ERC20 баланс
 const getERC20Balance = async (address, contractAddress, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1030,6 +1009,7 @@ const getERC20Balance = async (address, contractAddress, network = 'mainnet') =>
     }
 };
 
+// 5. Solana баланс
 const getSolBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1043,6 +1023,7 @@ const getSolBalance = async (address, network = 'mainnet') => {
     }
 };
 
+// 6. SPL баланс
 const getSPLBalance = async (address, tokenAddress, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1076,11 +1057,12 @@ const getSPLBalance = async (address, tokenAddress, network = 'mainnet') => {
     }
 };
 
+// 7. TRON баланс
 const getTronBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
-        // Создаем экземпляр TronWeb для получения баланса
+        // Создаем экземпляр TronWeb
         const tronWeb = new TronWeb({
             fullHost: config.TRON.FULL_HOST,
             headers: config.TRON.API_KEY ? { "TRON-PRO-API-KEY": config.TRON.API_KEY } : {}
@@ -1102,11 +1084,12 @@ const getTronBalance = async (address, network = 'mainnet') => {
     }
 };
 
+// 8. TRC20 баланс
 const getTRC20Balance = async (address, contractAddress, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
-        // Создаем экземпляр TronWeb для получения баланса TRC20
+        // Создаем экземпляр TronWeb
         const tronWeb = new TronWeb({
             fullHost: config.TRON.FULL_HOST,
             headers: config.TRON.API_KEY ? { "TRON-PRO-API-KEY": config.TRON.API_KEY } : {}
@@ -1145,6 +1128,7 @@ const getTRC20Balance = async (address, contractAddress, network = 'mainnet') =>
     }
 };
 
+// 9. Bitcoin баланс
 const getBitcoinBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1162,44 +1146,38 @@ const getBitcoinBalance = async (address, network = 'mainnet') => {
     }
 };
 
+// 10. NEAR баланс
 const getNearBalance = async (accountId, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
-        if (accountId.startsWith('0x')) {
-            try {
-                const evmProvider = new ethers.JsonRpcProvider('https://mainnet.aurora.dev');
-                const balance = await evmProvider.getBalance(accountId);
-                return ethers.formatEther(balance);
-            } catch (evmError) {
-                console.warn('NEAR EVM balance error:', evmError);
-            }
-        }
+        // Создаем конфигурацию для NEAR
+        const nearConfig = {
+            networkId: config.NEAR.NETWORK_ID,
+            nodeUrl: config.NEAR.RPC_URL,
+            walletUrl: config.NEAR.WALLET_URL,
+            keyStore: new keyStores.InMemoryKeyStore(),
+        };
         
-        const provider = new providers.JsonRpcProvider({ url: config.NEAR.RPC_URL });
+        // Создаем экземпляр NEAR
+        const near = new Near(nearConfig);
         
-        try {
-            const account = await provider.query({
-                request_type: "view_account",
-                account_id: accountId,
-                finality: "final"
-            });
-            
-            return (parseInt(account.amount) / 1e24).toString();
-        } catch (error) {
-            if (error.message.includes('does not exist') || 
-                error.message.includes('Account not found') ||
-                error.message.includes('unknown account')) {
-                return '0';
-            }
-            throw error;
-        }
+        // Создаем аккаунт
+        const account = new Account(near, accountId);
+        
+        // Получаем баланс
+        const balance = await account.getAccountBalance();
+        
+        // Баланс возвращается в yoctoNEAR (1 NEAR = 10^24 yoctoNEAR)
+        const balanceInNEAR = Number(balance.total) / 1e24;
+        return balanceInNEAR.toString();
     } catch (error) {
         console.error('NEAR balance error:', error);
         return '0';
     }
 };
 
+// 11. BNB баланс
 const getBNBBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1212,6 +1190,7 @@ const getBNBBalance = async (address, network = 'mainnet') => {
     }
 };
 
+// 12. XRP баланс
 const getXrpBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1246,6 +1225,7 @@ const getXrpBalance = async (address, network = 'mainnet') => {
     }
 };
 
+// 13. Litecoin баланс
 const getLtcBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1259,7 +1239,7 @@ const getLtcBalance = async (address, network = 'mainnet') => {
         
         if (data.data && data.data[address]) {
             const balance = data.data[address].address.balance || 0;
-            return (balance / 100_000_000).toString();
+            return (balance / 100_000_000).toString(); // 1 LTC = 100,000,000 сатоши
         }
         
         return '0';
@@ -1269,6 +1249,7 @@ const getLtcBalance = async (address, network = 'mainnet') => {
     }
 };
 
+// 14. Dogecoin баланс
 const getDogeBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1282,7 +1263,7 @@ const getDogeBalance = async (address, network = 'mainnet') => {
         
         if (data.data && data.data[address]) {
             const balance = data.data[address].address.balance || 0;
-            return (balance / 100_000_000).toString();
+            return (balance / 100_000_000).toString(); // 1 DOGE = 100,000,000 сатоши
         }
         
         return '0';
