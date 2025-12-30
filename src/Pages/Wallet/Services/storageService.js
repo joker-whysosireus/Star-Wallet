@@ -8,7 +8,7 @@ import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import TronWeb from 'tronweb';
 import crypto from 'crypto';
-import { providers, keyStores, Near, Account } from 'near-api-js';
+import { JsonRpcProvider } from '@near-js/providers';
 import * as xrpl from 'xrpl';
 import { Buffer } from 'buffer';
 import base58 from 'bs58';
@@ -18,7 +18,7 @@ const bip32 = BIP32Factory(ecc);
 // === КОНФИГУРАЦИЯ ===
 const MAINNET_CONFIG = {
     TON: { 
-        RPC_URL: 'https://toncenter.com/api/v2/jsonRPC',
+        RPC_URL: 'https://toncenter.com/api/v3',
         API_KEY: 'e9c1f1d2d6c84e8a8b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2'
     },
     ETHEREUM: { 
@@ -78,7 +78,7 @@ const MAINNET_CONFIG = {
 
 const TESTNET_CONFIG = {
     TON: { 
-        RPC_URL: 'https://testnet.toncenter.com/api/v2/jsonRPC',
+        RPC_URL: 'https://testnet.toncenter.com/api/v3',
         API_KEY: 'e9c1f1d2d6c84e8a8b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2'
     },
     ETHEREUM: { 
@@ -915,22 +915,37 @@ export const getRealBalances = async (wallets) => {
     }
 };
 
-// 1. TON нативный баланс
+// 1. TON баланс (v3 API)
 const getTonBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const baseUrl = config.TON.RPC_URL.replace('/api/v3', '');
         
-        // Создаем TonClient для TON Center API
-        const client = new TonClient({
-            endpoint: config.TON.RPC_URL,
-            apiKey: config.TON.API_KEY
+        // Используем TON Center v3 API: /api/v3/walletStates?addresses=...
+        const response = await fetch(`${baseUrl}/api/v3/walletStates?addresses=${encodeURIComponent(address)}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-Key': config.TON.API_KEY
+            }
         });
         
-        const balance = await client.getBalance(Address.parse(address));
+        if (!response.ok) {
+            throw new Error(`TON API error: ${response.status}`);
+        }
         
-        // Баланс возвращается в нанотонах (1 TON = 1,000,000,000 нанотон)
-        const balanceInTON = Number(balance) / 1_000_000_000;
-        return balanceInTON.toFixed(6);
+        const data = await response.json();
+        
+        // Ищем нужный кошелек в ответе
+        if (data.wallets && data.wallets.length > 0) {
+            const wallet = data.wallets[0];
+            if (wallet.balance) {
+                const balanceNano = wallet.balance; // Баланс в нанотонах
+                const balanceTON = (parseInt(balanceNano) / 1_000_000_000).toFixed(6);
+                return balanceTON;
+            }
+        }
+        return '0';
     } catch (error) {
         console.error('TON balance error:', error);
         return '0';
@@ -942,7 +957,7 @@ const getJettonBalance = async (address, jettonAddress, network = 'mainnet') => 
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         const client = new TonClient({
-            endpoint: config.TON.RPC_URL,
+            endpoint: config.TON.RPC_URL.replace('/api/v3', '/api/v2/jsonRPC'),
             apiKey: config.TON.API_KEY
         });
         
@@ -1057,7 +1072,7 @@ const getSPLBalance = async (address, tokenAddress, network = 'mainnet') => {
     }
 };
 
-// 7. TRON баланс
+// 7. TRON баланс (используем TronWeb как в документации)
 const getTronBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1068,14 +1083,14 @@ const getTronBalance = async (address, network = 'mainnet') => {
             headers: config.TRON.API_KEY ? { "TRON-PRO-API-KEY": config.TRON.API_KEY } : {}
         });
         
-        // Получаем баланс в SUN (1 TRX = 1,000,000 SUN)
+        // Используем метод из документации: tronWeb.trx.getBalance(address)
         const balanceSun = await tronWeb.trx.getBalance(address);
         
         if (balanceSun === undefined || balanceSun === null) {
             return '0';
         }
         
-        // Конвертируем SUN в TRX
+        // Конвертируем SUN в TRX (1 TRX = 1,000,000 SUN)
         const balanceTrx = tronWeb.fromSun(balanceSun);
         return balanceTrx.toString();
     } catch (error) {
@@ -1146,33 +1161,28 @@ const getBitcoinBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 10. NEAR баланс
+// 10. NEAR баланс (используем @near-js/providers)
 const getNearBalance = async (accountId, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
-        // Создаем конфигурацию для NEAR
-        const nearConfig = {
-            networkId: config.NEAR.NETWORK_ID,
-            nodeUrl: config.NEAR.RPC_URL,
-            walletUrl: config.NEAR.WALLET_URL,
-            keyStore: new keyStores.InMemoryKeyStore(),
-        };
+        // Используем JsonRpcProvider из @near-js/providers
+        const provider = new JsonRpcProvider({ url: config.NEAR.RPC_URL });
         
-        // Создаем экземпляр NEAR
-        const near = new Near(nearConfig);
+        // Запрос состояния аккаунта через RPC
+        const accountState = await provider.viewAccount({ account_id: accountId });
         
-        // Создаем аккаунт
-        const account = new Account(near, accountId);
+        // Баланс возвращается в yoctoNEAR (1 NEAR = 1e24 yoctoNEAR)
+        const balanceInYocto = accountState.amount;
+        const balanceInNEAR = (BigInt(balanceInYocto) / BigInt(1e24)).toString();
         
-        // Получаем баланс
-        const balance = await account.getAccountBalance();
-        
-        // Баланс возвращается в yoctoNEAR (1 NEAR = 10^24 yoctoNEAR)
-        const balanceInNEAR = Number(balance.total) / 1e24;
-        return balanceInNEAR.toString();
+        return balanceInNEAR;
     } catch (error) {
         console.error('NEAR balance error:', error);
+        // Если аккаунт не существует, возвращаем 0
+        if (error.message.includes('does not exist') || error.message.includes('Account not found')) {
+            return '0';
+        }
         return '0';
     }
 };
@@ -1225,11 +1235,12 @@ const getXrpBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 13. Litecoin баланс
+// 13. Litecoin баланс (используем Blockchair API)
 const getLtcBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
+        // Blockchair API для Litecoin
         const response = await fetch(`${config.LTC.EXPLORER_API}/dashboards/address/${address}`);
         if (!response.ok) {
             throw new Error(`LTC API error: ${response.status}`);
@@ -1237,9 +1248,9 @@ const getLtcBalance = async (address, network = 'mainnet') => {
         
         const data = await response.json();
         
-        if (data.data && data.data[address]) {
-            const balance = data.data[address].address.balance || 0;
-            return (balance / 100_000_000).toString(); // 1 LTC = 100,000,000 сатоши
+        if (data.data && data.data[address] && data.data[address].address) {
+            const balanceSatoshi = data.data[address].address.balance || 0;
+            return (balanceSatoshi / 100_000_000).toString(); // 1 LTC = 100,000,000 сатоши
         }
         
         return '0';
@@ -1249,11 +1260,12 @@ const getLtcBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 14. Dogecoin баланс
+// 14. Dogecoin баланс (используем Blockchair API)
 const getDogeBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
+        // Blockchair API для Dogecoin
         const response = await fetch(`${config.DOGE.EXPLORER_API}/dashboards/address/${address}`);
         if (!response.ok) {
             throw new Error(`DOGE API error: ${response.status}`);
@@ -1261,9 +1273,9 @@ const getDogeBalance = async (address, network = 'mainnet') => {
         
         const data = await response.json();
         
-        if (data.data && data.data[address]) {
-            const balance = data.data[address].address.balance || 0;
-            return (balance / 100_000_000).toString(); // 1 DOGE = 100,000,000 сатоши
+        if (data.data && data.data[address] && data.data[address].address) {
+            const balanceSatoshi = data.data[address].address.balance || 0;
+            return (balanceSatoshi / 100_000_000).toString(); // 1 DOGE = 100,000,000 сатоши
         }
         
         return '0';
