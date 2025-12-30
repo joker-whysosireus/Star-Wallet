@@ -12,11 +12,10 @@ import { providers } from 'near-api-js';
 import * as xrpl from 'xrpl';
 import { Buffer } from 'buffer';
 import base58 from 'bs58';
-import { KeyPair } from '@near-js/crypto';
 
 const bip32 = BIP32Factory(ecc);
 
-// === ОБНОВЛЕННАЯ КОНФИГУРАЦИЯ (с рабочими RPC) ===
+// === КОНФИГУРАЦИЯ ===
 const MAINNET_CONFIG = {
     TON: { 
         RPC_URL: 'https://toncenter.com/api/v2/jsonRPC',
@@ -31,8 +30,9 @@ const MAINNET_CONFIG = {
         NETWORK: 'mainnet-beta'
     },
     TRON: { 
-        RPC_URL: 'https://api.trongrid.io',
-        NETWORK: 'mainnet'
+        FULL_HOST: 'https://api.trongrid.io',
+        NETWORK: 'mainnet',
+        API_KEY: ''
     },
     BITCOIN: { 
         EXPLORER_API: 'https://blockstream.info/api',
@@ -92,8 +92,9 @@ const TESTNET_CONFIG = {
         NETWORK: 'testnet'
     },
     TRON: { 
-        RPC_URL: 'https://api.shasta.trongrid.io',
-        NETWORK: 'shasta'
+        FULL_HOST: 'https://api.shasta.trongrid.io',
+        NETWORK: 'shasta',
+        API_KEY: ''
     },
     BITCOIN: { 
         EXPLORER_API: 'https://blockstream.info/testnet/api',
@@ -139,14 +140,11 @@ const TESTNET_CONFIG = {
     }
 };
 
-// Базовые URL для Netlify функций
 const WALLET_API_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions';
 
-// Константы для Solana
 const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 
-// === ТОКЕНЫ С ПРАВИЛЬНЫМ НАБОРОМ ===
 export const TOKENS = {
     TON: { 
         symbol: 'TON', 
@@ -475,7 +473,6 @@ export const TESTNET_TOKENS = {
     }
 };
 
-// === ОСНОВНЫЕ ФУНКЦИИ ГЕНЕРАЦИИ КОШЕЛЬКОВ ===
 export const generateNewSeedPhrase = () => {
     try {
         return bip39.generateMnemonic(128);
@@ -485,7 +482,6 @@ export const generateNewSeedPhrase = () => {
     }
 };
 
-// ФУНКЦИЯ ГЕНЕРАЦИИ КОШЕЛЬКОВ
 export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         if (!seedPhrase) throw new Error('Seed phrase is required');
@@ -506,42 +502,27 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
         const walletArray = [];
         const tokens = network === 'mainnet' ? TOKENS : TESTNET_TOKENS;
         
-        // 1. TON блокчейн
         walletArray.push(createWallet(tokens.TON, tonAddress, network));
         walletArray.push(createWallet(tokens.USDT_TON, tonAddress, network));
         walletArray.push(createWallet(tokens.USDC_TON, tonAddress, network));
         
-        // 2. Ethereum блокчейн
         walletArray.push(createWallet(tokens.ETH, ethAddress, network));
         walletArray.push(createWallet(tokens.USDT_ETH, ethAddress, network));
         walletArray.push(createWallet(tokens.USDC_ETH, ethAddress, network));
         
-        // 3. Solana блокчейн
         walletArray.push(createWallet(tokens.SOL, solAddress, network));
         walletArray.push(createWallet(tokens.USDT_SOL, solAddress, network));
         walletArray.push(createWallet(tokens.USDC_SOL, solAddress, network));
         
-        // 4. Tron блокчейн
         walletArray.push(createWallet(tokens.TRX, tronAddress, network));
         walletArray.push(createWallet(tokens.USDT_TRX, tronAddress, network));
         walletArray.push(createWallet(tokens.USDC_TRX, tronAddress, network));
         
-        // 5. Bitcoin блокчейн
         walletArray.push(createWallet(tokens.BTC, bitcoinAddress, network));
-        
-        // 6. BSC блокчейн
         walletArray.push(createWallet(tokens.BNB, bscAddress, network));
-        
-        // 7. Dogecoin блокчейн
         walletArray.push(createWallet(tokens.DOGE, dogeAddress, network));
-        
-        // 8. NEAR блокчейн
         walletArray.push(createWallet(tokens.NEAR, nearAddress, network));
-        
-        // 9. XRP блокчейн
         walletArray.push(createWallet(tokens.XRP, xrpAddress, network));
-        
-        // 10. Litecoin блокчейн
         walletArray.push(createWallet(tokens.LTC, ltcAddress, network));
         
         return walletArray;
@@ -551,7 +532,6 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
     }
 };
 
-// Вспомогательная функция для создания кошелька
 const createWallet = (token, address, network = 'mainnet') => ({
     id: `${token.symbol.toLowerCase()}_${token.blockchain.toLowerCase()}_${network}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     name: token.name,
@@ -569,9 +549,6 @@ const createWallet = (token, address, network = 'mainnet') => ({
     lastUpdated: new Date().toISOString()
 });
 
-// === ИСПРАВЛЕННЫЕ ФУНКЦИИ ГЕНЕРАЦИИ ADDRESS ===
-
-// 1. TON адрес
 const generateTonAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         const keyPair = await mnemonicToWalletKey(seedPhrase.split(' '));
@@ -579,11 +556,10 @@ const generateTonAddress = async (seedPhrase, network = 'mainnet') => {
         return wallet.address.toString();
     } catch (error) {
         console.error('Error generating TON address:', error);
-        return network === 'testnet' ? 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c_testnet' : 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c';
+        return '';
     }
 };
 
-// 2. Ethereum адрес
 const generateEthereumAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -592,11 +568,10 @@ const generateEthereumAddress = async (seedPhrase, network = 'mainnet') => {
         return wallet.address;
     } catch (error) {
         console.error('Error generating Ethereum address:', error);
-        return network === 'testnet' ? '0x0000000000000000000000000000000000000000_testnet' : '0x0000000000000000000000000000000000000000';
+        return '';
     }
 };
 
-// 3. Solana адрес
 const generateSolanaAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -605,11 +580,10 @@ const generateSolanaAddress = async (seedPhrase, network = 'mainnet') => {
         return keypair.publicKey.toBase58();
     } catch (error) {
         console.error('Error generating Solana address:', error);
-        return network === 'testnet' ? 'So11111111111111111111111111111111111111112_testnet' : 'So11111111111111111111111111111111111111112';
+        return '';
     }
 };
 
-// 4. Tron адрес
 const generateTronAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -629,29 +603,13 @@ const generateTronAddress = async (seedPhrase, network = 'mainnet') => {
         const checksum = hash2.subarray(0, 4);
         
         const addressWithChecksum = Buffer.concat([addressWithPrefix, checksum]);
-        const address = base58.encode(addressWithChecksum);
-        
-        return address;
+        return base58.encode(addressWithChecksum);
     } catch (error) {
         console.error('Error generating Tron address:', error);
-        try {
-            const rpcUrl = network === 'testnet' ? TESTNET_CONFIG.TRON.RPC_URL : MAINNET_CONFIG.TRON.RPC_URL;
-            const tronWeb = new TronWeb({ fullHost: rpcUrl });
-            const account = tronWeb.createRandom();
-            return account.address.base58;
-        } catch (fallbackError) {
-            const randomBytes = crypto.randomBytes(20);
-            const addressBytes = Buffer.concat([Buffer.from([0x41]), randomBytes]);
-            const hash1 = crypto.createHash('sha256').update(addressBytes).digest();
-            const hash2 = crypto.createHash('sha256').update(hash1).digest();
-            const checksum = hash2.subarray(0, 4);
-            const addressWithChecksum = Buffer.concat([addressBytes, checksum]);
-            return base58.encode(addressWithChecksum);
-        }
+        return '';
     }
 };
 
-// 5. Bitcoin адрес
 const generateBitcoinAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         const networkConfig = network === 'testnet' ? TESTNET_CONFIG.BITCOIN.NETWORK : MAINNET_CONFIG.BITCOIN.NETWORK;
@@ -665,14 +623,12 @@ const generateBitcoinAddress = async (seedPhrase, network = 'mainnet') => {
         return address;
     } catch (error) {
         console.error('Error generating Bitcoin address:', error);
-        return network === 'testnet' ? 'tb1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh' : 'bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh';
+        return '';
     }
 };
 
-// 6. BSC адрес (такой же как Ethereum)
 const generateBSCAddress = generateEthereumAddress;
 
-// 7. Dogecoin адрес
 const generateDogeAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         const networkConfig = network === 'testnet' ? TESTNET_CONFIG.DOGE.NETWORK : MAINNET_CONFIG.DOGE.NETWORK;
@@ -686,24 +642,14 @@ const generateDogeAddress = async (seedPhrase, network = 'mainnet') => {
         return address;
     } catch (error) {
         console.error('Error generating DOGE address:', error);
-        return network === 'testnet' ? 'nX6q6q6q6q6q6q6q6q6q6q6q6q6q6q6q6q' : 'D8eX6q6q6q6q6q6q6q6q6q6q6q6q6q6q6q';
+        return '';
     }
 };
 
-// 8. NEAR адрес
 const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         const ethAddress = await generateEthereumAddress(seedPhrase, network);
-        const nearEvmAddress = ethAddress.toLowerCase();
-        
-        console.log("NEAR EVM Address Generation:", {
-            originalEthAddress: ethAddress,
-            nearEvmAddress: nearEvmAddress,
-            network: network
-        });
-        
-        return nearEvmAddress;
-        
+        return ethAddress.toLowerCase();
     } catch (error) {
         console.error('Error generating NEAR EVM address:', error);
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -713,7 +659,6 @@ const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// 9. ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ XRP АДРЕСА
 const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -722,17 +667,12 @@ const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
         
         const wallet = xrpl.Wallet.fromSeed(seedHex);
         return wallet.address;
-        
     } catch (error) {
         console.error('Error generating XRP address:', error);
-        if (network === 'testnet') {
-            return 'rTestXXXXXXXXXXXXXXXXXXXXXX';
-        }
-        return 'rXXXXXXXXXXXXXXXXXXXXXXXXXX';
+        return '';
     }
 };
 
-// 10. Litecoin адрес
 const generateLtcAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         const networkConfig = network === 'testnet' ? TESTNET_CONFIG.LTC.NETWORK : MAINNET_CONFIG.LTC.NETWORK;
@@ -746,11 +686,10 @@ const generateLtcAddress = async (seedPhrase, network = 'mainnet') => {
         return address;
     } catch (error) {
         console.error('Error generating LTC address:', error);
-        return network === 'testnet' ? 'tltc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh' : 'Lg2UrtoWrQr6r1f4W2eY8W6z6q6q6q6q6q';
+        return '';
     }
 };
 
-// === ФУНКЦИИ ДЛЯ РАБОТЫ С ПОЛЬЗОВАТЕЛЕМ ===
 export const initializeUserWallets = async (userData) => {
     try {
         if (!userData?.telegram_user_id) {
@@ -822,7 +761,6 @@ export const initializeUserWallets = async (userData) => {
     }
 };
 
-// === API ФУНКЦИИ ===
 export const saveSeedPhraseToAPI = async (telegramUserId, seedPhrase) => {
     try {
         const response = await fetch(`${WALLET_API_URL}/save-seed`, {
@@ -861,7 +799,6 @@ export const saveAddressesToAPI = async (telegramUserId, wallet_addresses, testn
     }
 };
 
-// === ФУНКЦИИ ПОЛУЧЕНИЯ БАЛАНСОВ ===
 export const getAllTokens = async (userData, network = 'mainnet') => {
     try {
         if (network === 'mainnet') {
@@ -911,7 +848,6 @@ const generateTestnetWalletsFromSaved = (testnetWallets) => {
     return wallets;
 };
 
-// === РЕАЛЬНЫЕ ФУНКЦИИ ПОЛУЧЕНИЯ БАЛАНСОВ ДЛЯ ВСЕХ БЛОКЧЕЙНОВ ===
 export const getRealBalances = async (wallets) => {
     if (!Array.isArray(wallets)) return wallets;
     
@@ -924,8 +860,8 @@ export const getRealBalances = async (wallets) => {
                     
                     switch(wallet.blockchain) {
                         case 'TON':
-                            balance = wallet.isNative ? 
-                                await getTonBalance(wallet.address, wallet.network) : 
+                            balance = wallet.isNative ?
+                                await getTonBalance(wallet.address, wallet.network) :
                                 await getJettonBalance(wallet.address, wallet.contractAddress, wallet.network);
                             break;
                         case 'Ethereum':
@@ -983,24 +919,48 @@ export const getRealBalances = async (wallets) => {
     }
 };
 
-// 1. TON баланс (реальный)
 const getTonBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const client = new TonClient({
-            endpoint: config.TON.RPC_URL,
-            apiKey: config.TON.API_KEY
+        
+        const response = await fetch(config.TON.RPC_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-API-Key': config.TON.API_KEY
+            },
+            body: JSON.stringify({
+                id: 1,
+                jsonrpc: '2.0',
+                method: 'getAddressBalance',
+                params: { address: address }
+            })
         });
         
-        const balance = await client.getBalance(Address.parse(address));
-        return (Number(balance) / 1e9).toFixed(6);
+        if (!response.ok) {
+            throw new Error(`TON RPC error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            console.warn('TON balance API error:', data.error);
+            return '0';
+        }
+        
+        if (data.result && data.result.balance) {
+            const balance = parseInt(data.result.balance);
+            return (balance / 1_000_000_000).toFixed(6);
+        }
+        
+        return '0';
     } catch (error) {
         console.error('TON balance error:', error);
         return '0';
     }
 };
 
-// 2. TON Jetton баланс
+// 2. TON Jetton баланс (USDT, USDC на TON)
 const getJettonBalance = async (address, jettonAddress, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1009,21 +969,18 @@ const getJettonBalance = async (address, jettonAddress, network = 'mainnet') => 
             apiKey: config.TON.API_KEY
         });
         
-        const response = await client.callGetMethod(
+        // Получаем адрес кошелька токена
+        const jettonWalletAddress = await client.runMethod(
             Address.parse(jettonAddress),
             'get_wallet_address',
-            [
-                {
-                    type: 'cell_slice',
-                    value: Address.parse(address).toCell().beginParse().toString()
-                }
-            ]
+            [{ type: 'slice', value: Address.parse(address).toRawString() }]
         );
         
-        const jettonWalletAddr = response.stack.readAddress();
+        const jettonWalletAddr = jettonWalletAddress.stack.readAddress();
         if (!jettonWalletAddr) return '0';
         
-        const walletData = await client.callGetMethod(
+        // Получаем данные кошелька токена
+        const walletData = await client.runMethod(
             jettonWalletAddr,
             'get_wallet_data',
             []
@@ -1037,7 +994,6 @@ const getJettonBalance = async (address, jettonAddress, network = 'mainnet') => 
     }
 };
 
-// 3. Ethereum баланс (реальный)
 const getEthBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1050,7 +1006,6 @@ const getEthBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 4. Ethereum ERC-20 баланс
 const getERC20Balance = async (address, contractAddress, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1075,7 +1030,6 @@ const getERC20Balance = async (address, contractAddress, network = 'mainnet') =>
     }
 };
 
-// 5. Solana баланс
 const getSolBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1089,7 +1043,6 @@ const getSolBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 6. Solana SPL баланс
 const getSPLBalance = async (address, tokenAddress, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1123,56 +1076,75 @@ const getSPLBalance = async (address, tokenAddress, network = 'mainnet') => {
     }
 };
 
-// 7. Tron баланс (реальный)
 const getTronBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
-        if (network === 'mainnet') {
-            const response = await fetch(`${config.TRON.RPC_URL}/v1/accounts/${address}`);
-            if (response.ok) {
-                const data = await response.json();
-                if (data.data && data.data.length > 0) {
-                    const balance = data.data[0].balance || 0;
-                    return (balance / 1e6).toString();
-                }
-            }
+        // Создаем экземпляр TronWeb для получения баланса
+        const tronWeb = new TronWeb({
+            fullHost: config.TRON.FULL_HOST,
+            headers: config.TRON.API_KEY ? { "TRON-PRO-API-KEY": config.TRON.API_KEY } : {}
+        });
+        
+        // Получаем баланс в SUN (1 TRX = 1,000,000 SUN)
+        const balanceSun = await tronWeb.trx.getBalance(address);
+        
+        if (balanceSun === undefined || balanceSun === null) {
+            return '0';
         }
         
-        const tronWeb = new TronWeb({ fullHost: config.TRON.RPC_URL });
-        const balance = await tronWeb.trx.getBalance(address);
-        return (balance / 1e6).toString();
+        // Конвертируем SUN в TRX
+        const balanceTrx = tronWeb.fromSun(balanceSun);
+        return balanceTrx.toString();
     } catch (error) {
         console.error('TRON balance error:', error);
         return '0';
     }
 };
 
-// 8. Tron TRC-20 баланс
 const getTRC20Balance = async (address, contractAddress, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const tronWeb = new TronWeb({ fullHost: config.TRON.RPC_URL });
         
+        // Создаем экземпляр TronWeb для получения баланса TRC20
+        const tronWeb = new TronWeb({
+            fullHost: config.TRON.FULL_HOST,
+            headers: config.TRON.API_KEY ? { "TRON-PRO-API-KEY": config.TRON.API_KEY } : {}
+        });
+        
+        // Создаем контракт для взаимодействия с TRC20 токеном
         const contract = await tronWeb.contract().at(contractAddress);
+        
+        // Получаем баланс
         const result = await contract.balanceOf(address).call();
         
+        if (!result || result._hex === undefined) {
+            return '0';
+        }
+        
+        // Получаем decimals токена
         let decimals = 6;
         try {
-            decimals = await contract.decimals().call();
-            decimals = parseInt(decimals);
+            const decimalsResult = await contract.decimals().call();
+            if (decimalsResult && decimalsResult._hex) {
+                decimals = parseInt(decimalsResult._hex, 16);
+            }
         } catch (e) {
             console.warn('Could not get decimals, using default 6');
         }
         
-        return (result.toString() / Math.pow(10, decimals)).toString();
+        // Конвертируем баланс с учетом decimals
+        const balanceHex = result._hex;
+        const balance = parseInt(balanceHex, 16);
+        const formattedBalance = balance / Math.pow(10, decimals);
+        
+        return formattedBalance.toString();
     } catch (error) {
         console.error('TRC20 balance error:', error);
         return '0';
     }
 };
 
-// 9. Bitcoin баланс
 const getBitcoinBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1190,15 +1162,18 @@ const getBitcoinBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 10. NEAR баланс (реальный)
 const getNearBalance = async (accountId, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
         if (accountId.startsWith('0x')) {
-            const evmProvider = new ethers.JsonRpcProvider('https://mainnet.aurora.dev');
-            const balance = await evmProvider.getBalance(accountId);
-            return ethers.formatEther(balance);
+            try {
+                const evmProvider = new ethers.JsonRpcProvider('https://mainnet.aurora.dev');
+                const balance = await evmProvider.getBalance(accountId);
+                return ethers.formatEther(balance);
+            } catch (evmError) {
+                console.warn('NEAR EVM balance error:', evmError);
+            }
         }
         
         const provider = new providers.JsonRpcProvider({ url: config.NEAR.RPC_URL });
@@ -1213,7 +1188,8 @@ const getNearBalance = async (accountId, network = 'mainnet') => {
             return (parseInt(account.amount) / 1e24).toString();
         } catch (error) {
             if (error.message.includes('does not exist') || 
-                error.message.includes('Account not found')) {
+                error.message.includes('Account not found') ||
+                error.message.includes('unknown account')) {
                 return '0';
             }
             throw error;
@@ -1224,7 +1200,6 @@ const getNearBalance = async (accountId, network = 'mainnet') => {
     }
 };
 
-// 11. BSC баланс (BNB) - реальный
 const getBNBBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1237,7 +1212,6 @@ const getBNBBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 12. XRP баланс (реальный)
 const getXrpBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1272,19 +1246,20 @@ const getXrpBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 13. Litecoin баланс (реальный)
 const getLtcBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
         const response = await fetch(`${config.LTC.EXPLORER_API}/dashboards/address/${address}`);
-        if (!response.ok) throw new Error('Network response was not ok');
+        if (!response.ok) {
+            throw new Error(`LTC API error: ${response.status}`);
+        }
         
         const data = await response.json();
         
         if (data.data && data.data[address]) {
             const balance = data.data[address].address.balance || 0;
-            return (balance / 1e8).toString();
+            return (balance / 100_000_000).toString();
         }
         
         return '0';
@@ -1294,19 +1269,20 @@ const getLtcBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 14. Dogecoin баланс (реальный)
 const getDogeBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
         const response = await fetch(`${config.DOGE.EXPLORER_API}/dashboards/address/${address}`);
-        if (!response.ok) throw new Error('Network response was not ok');
+        if (!response.ok) {
+            throw new Error(`DOGE API error: ${response.status}`);
+        }
         
         const data = await response.json();
         
         if (data.data && data.data[address]) {
             const balance = data.data[address].address.balance || 0;
-            return (balance / 1e8).toString();
+            return (balance / 100_000_000).toString();
         }
         
         return '0';
@@ -1316,7 +1292,6 @@ const getDogeBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// === ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ ===
 export const getTokenPrices = async () => {
     try {
         const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ethereum,solana,binancecoin,tron,bitcoin,near-protocol,ripple,litecoin,dogecoin,tether,usd-coin&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true');
