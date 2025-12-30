@@ -6,6 +6,7 @@ import * as bitcoin from 'bitcoinjs-lib';
 import * as bip39 from 'bip39';
 import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
+import TronWeb from 'tronweb';
 import crypto from 'crypto';
 import { JsonRpcProvider } from '@near-js/providers';
 import * as xrpl from 'xrpl';
@@ -30,7 +31,6 @@ const MAINNET_CONFIG = {
         NETWORK: 'mainnet-beta'
     },
     TRON: { 
-        RPC_URL: 'https://api.trongrid.io',
         FULL_NODE: 'https://api.trongrid.io',
         SOLIDITY_NODE: 'https://api.trongrid.io',
         EVENT_SERVER: 'https://api.trongrid.io',
@@ -55,11 +55,19 @@ const MAINNET_CONFIG = {
         NETWORK: 'mainnet'
     },
     LTC: { 
-        NETWORK: litecore.Networks.litecoin,
-        EXPLORER_API: 'https://blockchair.com/litecoin'
+        EXPLORER_API: 'https://blockchair.com/api',
+        NETWORK: { 
+            messagePrefix: '\x19Litecoin Signed Message:\n',
+            bech32: 'ltc',
+            bip32: { public: 0x019da462, private: 0x019d9cfe },
+            pubKeyHash: 0x30,
+            scriptHash: 0x32,
+            wif: 0xb0
+        }
     },
     DOGE: { 
-        NETWORK: {
+        EXPLORER_API: 'https://blockchair.com/api',
+        NETWORK: { 
             messagePrefix: '\x19Dogecoin Signed Message:\n',
             bech32: 'doge',
             bip32: { public: 0x02facafd, private: 0x02fac398 },
@@ -85,7 +93,6 @@ const TESTNET_CONFIG = {
         NETWORK: 'testnet'
     },
     TRON: { 
-        RPC_URL: 'https://api.shasta.trongrid.io',
         FULL_NODE: 'https://api.shasta.trongrid.io',
         SOLIDITY_NODE: 'https://api.shasta.trongrid.io',
         EVENT_SERVER: 'https://api.shasta.trongrid.io',
@@ -110,13 +117,21 @@ const TESTNET_CONFIG = {
         NETWORK: 'testnet'
     },
     LTC: {
-        NETWORK: litecore.Networks.testnet,
-        EXPLORER_API: 'https://blockchair.com/litecoin/testnet'
+        EXPLORER_API: 'https://blockchair.com/api',
+        NETWORK: {
+            messagePrefix: '\x19Litecoin Signed Message:\n',
+            bech32: 'tltc',
+            bip32: { public: 0x0436ef7d, private: 0x0436f6e1 },
+            pubKeyHash: 0x6f,
+            scriptHash: 0xc4,
+            wif: 0xef
+        }
     },
     DOGE: {
+        EXPLORER_API: 'https://blockchair.com/api',
         NETWORK: {
             messagePrefix: '\x19Dogecoin Signed Message:\n',
-            bech32: 'tdoge',
+            bech32: 'tdge',
             bip32: { public: 0x0432a9a8, private: 0x0432a243 },
             pubKeyHash: 0x71,
             scriptHash: 0xc4,
@@ -157,6 +172,7 @@ export const TOKENS = {
         contractAddress: 'EQB-MPwrd1G6WKNkLz_VnV6WqBDd142KMQv-g1O-8QUA3727', 
         logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
+    
     ETH: { 
         symbol: 'ETH', 
         name: 'Ethereum', 
@@ -183,6 +199,7 @@ export const TOKENS = {
         contractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', 
         logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
+    
     SOL: { 
         symbol: 'SOL', 
         name: 'Solana', 
@@ -209,6 +226,7 @@ export const TOKENS = {
         contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 
         logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
+    
     TRX: { 
         symbol: 'TRX', 
         name: 'TRON', 
@@ -235,6 +253,7 @@ export const TOKENS = {
         contractAddress: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8', 
         logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
+    
     BTC: { 
         symbol: 'BTC', 
         name: 'Bitcoin', 
@@ -243,6 +262,7 @@ export const TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png' 
     },
+    
     BNB: { 
         symbol: 'BNB', 
         name: 'BNB', 
@@ -251,6 +271,7 @@ export const TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' 
     },
+    
     DOGE: { 
         symbol: 'DOGE', 
         name: 'Dogecoin', 
@@ -259,6 +280,7 @@ export const TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/dogecoin-doge-logo.png' 
     },
+    
     NEAR: { 
         symbol: 'NEAR', 
         name: 'NEAR Protocol', 
@@ -267,6 +289,7 @@ export const TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' 
     },
+    
     XRP: { 
         symbol: 'XRP', 
         name: 'Ripple', 
@@ -275,6 +298,7 @@ export const TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/ripple-xrp-logo.svg' 
     },
+    
     LTC: { 
         symbol: 'LTC', 
         name: 'Litecoin', 
@@ -312,6 +336,7 @@ export const TESTNET_TOKENS = {
         contractAddress: 'EQB-MPwrd1G6WKNkLz_VnV6WqBDd142KMQv-g1O-8QUA3727', 
         logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
+    
     ETH: { 
         symbol: 'ETH', 
         name: 'Ethereum', 
@@ -338,6 +363,7 @@ export const TESTNET_TOKENS = {
         contractAddress: '0x07865c6E87B9F70255377e024ace6630C1Eaa37F', 
         logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
+    
     SOL: { 
         symbol: 'SOL', 
         name: 'Solana', 
@@ -364,6 +390,7 @@ export const TESTNET_TOKENS = {
         contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 
         logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
+    
     TRX: { 
         symbol: 'TRX', 
         name: 'TRON', 
@@ -390,6 +417,7 @@ export const TESTNET_TOKENS = {
         contractAddress: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf', 
         logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     },
+    
     BTC: { 
         symbol: 'BTC', 
         name: 'Bitcoin', 
@@ -398,6 +426,7 @@ export const TESTNET_TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png' 
     },
+    
     BNB: { 
         symbol: 'BNB', 
         name: 'BNB', 
@@ -406,6 +435,7 @@ export const TESTNET_TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' 
     },
+    
     DOGE: { 
         symbol: 'DOGE', 
         name: 'Dogecoin', 
@@ -414,6 +444,7 @@ export const TESTNET_TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/dogecoin-doge-logo.png' 
     },
+    
     NEAR: { 
         symbol: 'NEAR', 
         name: 'NEAR Protocol', 
@@ -422,6 +453,7 @@ export const TESTNET_TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' 
     },
+    
     XRP: { 
         symbol: 'XRP', 
         name: 'Ripple', 
@@ -430,6 +462,7 @@ export const TESTNET_TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/ripple-xrp-logo.svg' 
     },
+    
     LTC: { 
         symbol: 'LTC', 
         name: 'Litecoin', 
@@ -815,9 +848,78 @@ const generateTestnetWalletsFromSaved = (testnetWallets) => {
     return wallets;
 };
 
-// ===== ФУНКЦИИ ПОЛУЧЕНИЯ БАЛАНСОВ =====
+export const getRealBalances = async (wallets) => {
+    if (!Array.isArray(wallets)) return wallets;
+    
+    try {
+        const updatedWallets = await Promise.all(
+            wallets.map(async (wallet) => {
+                try {
+                    let balance = '0';
+                    const config = wallet.network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+                    
+                    switch(wallet.blockchain) {
+                        case 'TON':
+                            balance = wallet.isNative ?
+                                await getTonBalance(wallet.address, wallet.network) :
+                                await getJettonBalance(wallet.address, wallet.contractAddress, wallet.network);
+                            break;
+                        case 'Ethereum':
+                            balance = wallet.isNative ?
+                                await getEthBalance(wallet.address, wallet.network) :
+                                await getERC20Balance(wallet.address, wallet.contractAddress, wallet.network);
+                            break;
+                        case 'Solana':
+                            balance = wallet.isNative ?
+                                await getSolBalance(wallet.address, wallet.network) :
+                                await getSPLBalance(wallet.address, wallet.contractAddress, wallet.network);
+                            break;
+                        case 'Tron':
+                            balance = wallet.isNative ?
+                                await getTronBalance(wallet.address, wallet.network) :
+                                await getTRC20Balance(wallet.address, wallet.contractAddress, wallet.network);
+                            break;
+                        case 'Bitcoin':
+                            balance = await getBitcoinBalance(wallet.address, wallet.network);
+                            break;
+                        case 'NEAR':
+                            balance = await getNearBalance(wallet.address, wallet.network);
+                            break;
+                        case 'BSC':
+                            balance = await getBNBBalance(wallet.address, wallet.network);
+                            break;
+                        case 'XRP':
+                            balance = await getXrpBalance(wallet.address, wallet.network);
+                            break;
+                        case 'LTC':
+                            balance = await getLtcBalance(wallet.address, wallet.network);
+                            break;
+                        case 'DOGE':
+                            balance = await getDogeBalance(wallet.address, wallet.network);
+                            break;
+                    }
+                    
+                    return {
+                        ...wallet,
+                        balance: balance || '0',
+                        lastUpdated: new Date().toISOString(),
+                        isRealBalance: true
+                    };
+                } catch (error) {
+                    console.error(`Error getting balance for ${wallet.symbol}:`, error);
+                    return { ...wallet, balance: wallet.balance || '0' };
+                }
+            })
+        );
+        
+        return updatedWallets;
+    } catch (error) {
+        console.error('Error in getRealBalances:', error);
+        return wallets;
+    }
+};
 
-// 1. TON баланс
+// 1. TON баланс (используем TonAPI.io)
 const getTonBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -838,11 +940,12 @@ const getTonBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 2. TON Jetton баланс
+// 2. TON Jetton баланс (используем TonAPI.io)
 const getJettonBalance = async (address, jettonAddress, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
+        // Получаем все jetton балансы для адреса
         const response = await fetch(`${config.TON.API_URL}/accounts/${address}/jettons`);
         if (!response.ok) {
             throw new Error(`TON Jetton API error: ${response.status}`);
@@ -851,12 +954,14 @@ const getJettonBalance = async (address, jettonAddress, network = 'mainnet') => 
         const data = await response.json();
         
         if (data.balances && Array.isArray(data.balances)) {
+            // Ищем нужный jetton по адресу контракта
             const jettonBalance = data.balances.find(
                 jetton => jetton.jetton.address === jettonAddress
             );
             
             if (jettonBalance && jettonBalance.balance) {
                 const balanceInNano = parseInt(jettonBalance.balance);
+                // USDT/USDC на TON имеют 6 decimals
                 return (balanceInNano / 1e6).toFixed(6);
             }
         }
@@ -954,66 +1059,66 @@ const getSPLBalance = async (address, tokenAddress, network = 'mainnet') => {
     }
 };
 
-// 7. TRON баланс (используем прямое обращение к нодам)
+// 7. TRON баланс (используем TronWeb с публичными нодами)
 const getTronBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const baseUrl = config.TRON.RPC_URL;
         
-        // Метод getaccount через прямой HTTP-запрос
-        const response = await fetch(`${baseUrl}/wallet/getaccount`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                address: address.startsWith('T') ? address : undefined,
-                address_hex: address.startsWith('41') ? address : undefined,
-                visible: address.startsWith('T')
-            })
+        // Создаем экземпляр TronWeb с правильной конфигурацией
+        const tronWeb = new TronWeb({
+            fullHost: config.TRON.FULL_NODE
         });
-
-        if (!response.ok) return '0';
         
-        const data = await response.json();
+        // Получаем баланс в SUN
+        const balanceSun = await tronWeb.trx.getBalance(address);
         
-        if (data.balance !== undefined) {
-            const balanceTRX = (parseInt(data.balance) / 1_000_000).toFixed(6);
-            return balanceTRX;
+        if (balanceSun === undefined || balanceSun === null) {
+            return '0';
         }
-        return '0';
+        
+        // Конвертируем SUN в TRX (1 TRX = 1,000,000 SUN)
+        const balanceTrx = tronWeb.fromSun(balanceSun);
+        return balanceTrx.toString();
     } catch (error) {
         console.error('TRON balance error:', error);
         return '0';
     }
 };
 
-// 8. TRC20 баланс (упрощенная версия)
+// 8. TRC20 баланс (используем прямой RPC запрос)
 const getTRC20Balance = async (address, contractAddress, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const baseUrl = config.TRON.RPC_URL;
         
-        // Используем triggerconstantcontract для вызова метода balanceOf
-        const response = await fetch(`${baseUrl}/wallet/triggerconstantcontract`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                owner_address: address,
-                contract_address: contractAddress,
-                function_selector: 'balanceOf(address)',
-                parameter: address.replace('T', '').padStart(64, '0')
-            })
+        // Создаем экземпляр TronWeb
+        const tronWeb = new TronWeb({
+            fullHost: config.TRON.FULL_NODE
         });
-
-        if (!response.ok) return '0';
         
-        const data = await response.json();
+        // Прямой вызов контракта для получения баланса
+        const contract = await tronWeb.contract().at(contractAddress);
         
-        if (data.constant_result && data.constant_result.length > 0) {
-            const balanceHex = data.constant_result[0];
-            const balance = parseInt(balanceHex, 16);
-            return (balance / 1_000_000).toString(); // Предполагаем decimals = 6
+        // Получаем баланс
+        const result = await contract.balanceOf(address).call();
+        
+        if (!result) {
+            return '0';
         }
-        return '0';
+        
+        const balanceHex = result._hex || result.toString(16);
+        const balance = parseInt(balanceHex, 16);
+        
+        // Получаем decimals токена
+        let decimals = 6;
+        try {
+            const decimalsResult = await contract.decimals().call();
+            decimals = parseInt(decimalsResult._hex || decimalsResult, 16) || 6;
+        } catch (e) {
+            console.warn('Could not get decimals, using default 6');
+        }
+        
+        const formattedBalance = balance / Math.pow(10, decimals);
+        return formattedBalance.toString();
     } catch (error) {
         console.error('TRC20 balance error:', error);
         return '0';
@@ -1110,23 +1215,22 @@ const getXrpBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 13. Litecoin баланс (через Blockchair API)
+// 13. Litecoin баланс (используем Blockchair API)
 const getLtcBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
-        const response = await fetch(`${config.LTC.EXPLORER_API}/dashboards/address/${address}`);
-        
+        // Используем Blockchair API
+        const response = await fetch(`${config.LTC.EXPLORER_API}/litecoin/dashboards/address/${address}`);
         if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
+            throw new Error(`LTC API error: ${response.status}`);
         }
         
         const data = await response.json();
         
         if (data.data && data.data[address] && data.data[address].address) {
-            const balanceSatoshis = data.data[address].address.balance || 0;
-            const balanceLTC = balanceSatoshis / 100000000;
-            return balanceLTC.toString();
+            const balanceSatoshi = data.data[address].address.balance || 0;
+            return (balanceSatoshi / 100_000_000).toString();
         }
         
         return '0';
@@ -1136,114 +1240,28 @@ const getLtcBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 14. Dogecoin баланс (простая версия через публичный API)
+// 14. Dogecoin баланс (используем Blockchair API)
 const getDogeBalance = async (address, network = 'mainnet') => {
     try {
-        // Используем Dogechain.info API (работает без API ключа)
-        const response = await fetch(`https://dogechain.info/api/v1/address/balance/${address}`);
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
+        // Используем Blockchair API
+        const response = await fetch(`${config.DOGE.EXPLORER_API}/dogecoin/dashboards/address/${address}`);
         if (!response.ok) {
-            throw new Error(`Dogecoin API error: ${response.status}`);
+            throw new Error(`DOGE API error: ${response.status}`);
         }
         
         const data = await response.json();
         
-        // Формат ответа: {"success":1,"balance":"100.12345678","received":"...","sent":"..."}
-        if (data.success === 1 && data.balance) {
-            return parseFloat(data.balance).toString();
+        if (data.data && data.data[address] && data.data[address].address) {
+            const balanceSatoshi = data.data[address].address.balance || 0;
+            return (balanceSatoshi / 100_000_000).toString();
         }
         
         return '0';
     } catch (error) {
         console.error('DOGE balance error:', error);
-        
-        // Fallback на Blockchair API
-        try {
-            const response = await fetch(`https://api.blockchair.com/dogecoin/dashboards/address/${address}`);
-            if (response.ok) {
-                const data = await response.json();
-                if (data.data && data.data[address] && data.data[address].address) {
-                    const balanceSatoshis = data.data[address].address.balance || 0;
-                    const balanceDOGE = balanceSatoshis / 100000000; // 1 DOGE = 100,000,000 сатоши
-                    return balanceDOGE.toString();
-                }
-            }
-        } catch (fallbackError) {
-            console.warn('Blockchair fallback failed:', fallbackError);
-        }
-        
         return '0';
-    }
-};
-
-export const getRealBalances = async (wallets) => {
-    if (!Array.isArray(wallets)) return wallets;
-    
-    try {
-        const updatedWallets = await Promise.all(
-            wallets.map(async (wallet) => {
-                try {
-                    let balance = '0';
-                    const config = wallet.network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-                    
-                    switch(wallet.blockchain) {
-                        case 'TON':
-                            balance = wallet.isNative ?
-                                await getTonBalance(wallet.address, wallet.network) :
-                                await getJettonBalance(wallet.address, wallet.contractAddress, wallet.network);
-                            break;
-                        case 'Ethereum':
-                            balance = wallet.isNative ?
-                                await getEthBalance(wallet.address, wallet.network) :
-                                await getERC20Balance(wallet.address, wallet.contractAddress, wallet.network);
-                            break;
-                        case 'Solana':
-                            balance = wallet.isNative ?
-                                await getSolBalance(wallet.address, wallet.network) :
-                                await getSPLBalance(wallet.address, wallet.contractAddress, wallet.network);
-                            break;
-                        case 'Tron':
-                            balance = wallet.isNative ?
-                                await getTronBalance(wallet.address, wallet.network) :
-                                await getTRC20Balance(wallet.address, wallet.contractAddress, wallet.network);
-                            break;
-                        case 'Bitcoin':
-                            balance = await getBitcoinBalance(wallet.address, wallet.network);
-                            break;
-                        case 'NEAR':
-                            balance = await getNearBalance(wallet.address, wallet.network);
-                            break;
-                        case 'BSC':
-                            balance = await getBNBBalance(wallet.address, wallet.network);
-                            break;
-                        case 'XRP':
-                            balance = await getXrpBalance(wallet.address, wallet.network);
-                            break;
-                        case 'LTC':
-                            balance = await getLtcBalance(wallet.address, wallet.network);
-                            break;
-                        case 'DOGE':
-                            balance = await getDogeBalance(wallet.address, wallet.network);
-                            break;
-                    }
-                    
-                    return {
-                        ...wallet,
-                        balance: balance || '0',
-                        lastUpdated: new Date().toISOString(),
-                        isRealBalance: true
-                    };
-                } catch (error) {
-                    console.error(`Error getting balance for ${wallet.symbol}:`, error);
-                    return { ...wallet, balance: wallet.balance || '0' };
-                }
-            })
-        );
-        
-        return updatedWallets;
-    } catch (error) {
-        console.error('Error in getRealBalances:', error);
-        return wallets;
     }
 };
 
@@ -1361,19 +1379,14 @@ export const validateAddress = async (blockchain, address) => {
                 return xrpRegex.test(address);
             case 'LTC':
                 try {
-                    litecore.Address.isValid(address, MAINNET_CONFIG.LTC.NETWORK);
+                    bitcoin.address.toOutputScript(address, MAINNET_CONFIG.LTC.NETWORK);
                     return true;
                 } catch { return false; }
             case 'DOGE':
                 try {
-                    // Fallback: regex проверка для Dogecoin адресов
-                    const dogeMainnetRegex = /^D{1}[5-9A-HJ-NP-U]{1}[1-9A-HJ-NP-Za-km-z]{32}$/;
-                    const dogeTestnetRegex = /^[nm2]{1}[1-9A-HJ-NP-Za-km-z]{33}$/;
-                    
-                    return dogeMainnetRegex.test(address) || dogeTestnetRegex.test(address);
-                } catch {
-                    return false;
-                }
+                    bitcoin.address.toOutputScript(address, MAINNET_CONFIG.DOGE.NETWORK);
+                    return true;
+                } catch { return false; }
             default:
                 return true;
         }
