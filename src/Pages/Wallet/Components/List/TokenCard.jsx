@@ -83,8 +83,7 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet' }) => {
             'NEAR': { color: '#0b4731ff', text: 'NEAR' },
             'BSC': { color: '#bfcd43ff', text: 'BNB' },
             'XRP': { color: '#23292f', text: 'XRP' },
-            'LTC': { color: '#bfbbbb', text: 'LTC' },
-            'DOGE': { color: '#c2a633', text: 'DOGE' }
+            'LTC': { color: '#bfbbbb', text: 'LTC' }
         };
         
         return badges[blockchain] || { color: '#666', text: blockchain };

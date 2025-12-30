@@ -12,8 +12,10 @@ import ReceiveToken from './Pages/Wallet/Subpages/Receive/ReceiveToken';
 import BackupSeedPhrase from './Pages/Wallet/Subpages/BackupSeedPhrase/BackupSeedPhrase';
 import PinCodeScreen from './assets/PIN/PinCodeScreen.jsx';
 import Loader from './assets/Loader/Loader.jsx';
+import USDTDetail from './Pages/Wallet/Subpages/USDT/USDTDetail.jsx';
 import { initializeUserWallets } from './Pages/Wallet/Services/storageService.js';
 import { setupAppCloseListener, clearAllData } from './Pages/Wallet/Services/storageService.js';
+
 
 const AUTH_FUNCTION_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions/auth';
 const VERIFY_PIN_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions/verify-pin';
@@ -282,6 +284,10 @@ const App = () => {
                     <BackupSeedPhrase isActive={isActive} userData={userData} />
                 } />
                 
+                <Route path="/usdt-detail" element={
+                    <USDTDetail isActive={isActive} userData={userData} />
+                } />
+
                 <Route path="/history" element={
                     <History isActive={isActive} userData={userData} />
                 } />

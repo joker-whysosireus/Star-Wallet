@@ -210,32 +210,38 @@ function Wallet({ isActive, userData }) {
         return () => clearInterval(interval);
     }, [userData, currentNetwork, updateBalances]);
 
-    // Добавьте этот useEffect для обновления цен каждую минуту
     useEffect(() => {
         if (!userData) return;
         
         const priceUpdateInterval = setInterval(async () => {
-            // Обновляем цены и пересчитываем балансы
             const prices = await getTokenPrices();
             console.log('Token prices updated:', prices);
             
-            // Обновляем отображение балансов
             updateBalances(false, false, currentNetwork);
-        }, 60000); // Каждую минуту
+        }, 60000);
         
         return () => clearInterval(priceUpdateInterval);
     }, [userData, currentNetwork, updateBalances]);
 
     const handleTokenClick = useCallback((wallet) => {
         if (wallet && wallet.symbol) {
-            navigate(`/wallet/token/${wallet.symbol}`, { 
-                state: { 
-                    ...wallet,
-                    blockchain: wallet.blockchain,
-                    userData: userData,
-                    network: currentNetwork
-                }
-            });
+            if (wallet.symbol === 'USDT') {
+                navigate(`/usdt-detail`, { 
+                    state: { 
+                        userData: userData,
+                        network: currentNetwork
+                    }
+                });
+            } else {
+                navigate(`/wallet/token/${wallet.symbol}`, { 
+                    state: { 
+                        ...wallet,
+                        blockchain: wallet.blockchain,
+                        userData: userData,
+                        network: currentNetwork
+                    }
+                });
+            }
         }
     }, [navigate, userData, currentNetwork]);
 
@@ -389,7 +395,7 @@ function Wallet({ isActive, userData }) {
 
                 <div className="assets-container">
                     {showSkeleton && (isInitialLoad || isRefreshing) ? (
-                        Array.from({ length: 13 }).map((_, index) => (
+                        Array.from({ length: 9 }).map((_, index) => (
                             <div 
                                 key={`skeleton-${index}`} 
                                 className="token-block"

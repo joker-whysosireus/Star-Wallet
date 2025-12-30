@@ -81,12 +81,11 @@ const TokenDetail = () => {
             'Solana': { color: '#00ff88', text: 'SOL' },
             'Ethereum': { color: '#8c8cff', text: 'ETH' },
             'Tron': { color: '#ff0000', text: 'TRX' },
-            'Bitcoin': { color: '#f7931a', text: 'BTC' },
+            'Bitcoin': { color: '#E49E00', text: 'BTC' },
             'NEAR': { color: '#0b4731ff', text: 'NEAR' },
             'BSC': { color: '#bfcd43ff', text: 'BNB' },
             'XRP': { color: '#23292f', text: 'XRP' },
-            'LTC': { color: '#bfbbbb', text: 'LTC' },
-            'DOGE': { color: '#c2a633', text: 'DOGE' } 
+            'LTC': { color: '#bfbbbb', text: 'LTC' }
         };
         
         return badges[blockchain] || { color: '#666', text: blockchain };
