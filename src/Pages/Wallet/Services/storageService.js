@@ -12,9 +12,6 @@ import * as xrpl from 'xrpl';
 import { Buffer } from 'buffer';
 import base58 from 'bs58';
 
-// Убрали импорт dogecoinjs, так как библиотека загружается через HTML
-// import Dogecoin from 'dogecoinjs';
-
 const bip32 = BIP32Factory(ecc);
 
 // === КОНФИГУРАЦИЯ ===
@@ -133,7 +130,6 @@ const WALLET_API_URL = 'https://star-wallet-backend.netlify.app/.netlify/functio
 const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 
-// Токены остаются без изменений
 export const TOKENS = {
     TON: { 
         symbol: 'TON', 
@@ -1140,48 +1136,42 @@ const getLtcBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// 14. Dogecoin баланс (ИСПРАВЛЕННЫЙ - использует DogecoinJS из window)
+// 14. Dogecoin баланс (простая версия через публичный API)
 const getDogeBalance = async (address, network = 'mainnet') => {
     try {
-        if (network === 'testnet') {
-            console.warn('DogecoinJS может не поддерживать testnet. Возвращаем 0.');
-            return '0';
-        }
-
-        // Проверяем доступность глобального объекта Dogecoin
-        if (typeof window.Dogecoin === 'undefined') {
-            console.error('DogecoinJS не загружен. Убедитесь, что подключили скрипт в HTML.');
-            return '0';
-        }
-
-        // Используем window.Dogecoin для доступа к библиотеке
-        // Обертка в Promise для работы с callback-стилем библиотеки
-        return new Promise((resolve) => {
-            window.Dogecoin.lookup(address, (wallet) => {
-                if (wallet) {
-                    console.log('DogecoinJS response:', wallet); // Для отладки
-                    
-                    // Проверяем возможные пути к балансу
-                    if (wallet.balance !== undefined) {
-                        resolve(parseFloat(wallet.balance).toString());
-                    } else if (wallet.total && wallet.total.balance !== undefined) {
-                        resolve(parseFloat(wallet.total.balance).toString());
-                    } else if (wallet.received !== undefined) {
-                        // Иногда баланс может быть в received
-                        resolve(parseFloat(wallet.received).toString());
-                    } else {
-                        console.warn('Не удалось найти баланс в ответе DogecoinJS');
-                        resolve('0');
-                    }
-                } else {
-                    console.warn('DogecoinJS вернул пустой ответ');
-                    resolve('0');
-                }
-            });
-        });
+        // Используем Dogechain.info API (работает без API ключа)
+        const response = await fetch(`https://dogechain.info/api/v1/address/balance/${address}`);
         
+        if (!response.ok) {
+            throw new Error(`Dogecoin API error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Формат ответа: {"success":1,"balance":"100.12345678","received":"...","sent":"..."}
+        if (data.success === 1 && data.balance) {
+            return parseFloat(data.balance).toString();
+        }
+        
+        return '0';
     } catch (error) {
         console.error('DOGE balance error:', error);
+        
+        // Fallback на Blockchair API
+        try {
+            const response = await fetch(`https://api.blockchair.com/dogecoin/dashboards/address/${address}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.data && data.data[address] && data.data[address].address) {
+                    const balanceSatoshis = data.data[address].address.balance || 0;
+                    const balanceDOGE = balanceSatoshis / 100000000; // 1 DOGE = 100,000,000 сатоши
+                    return balanceDOGE.toString();
+                }
+            }
+        } catch (fallbackError) {
+            console.warn('Blockchair fallback failed:', fallbackError);
+        }
+        
         return '0';
     }
 };
@@ -1376,20 +1366,11 @@ export const validateAddress = async (blockchain, address) => {
                 } catch { return false; }
             case 'DOGE':
                 try {
-                    // Проверяем доступность библиотеки
-                    if (typeof window.Dogecoin === 'undefined') {
-                        // Fallback: проверяем через regex
-                        const dogeMainnetRegex = /^D{1}[5-9A-HJ-NP-U]{1}[1-9A-HJ-NP-Za-km-z]{32}$/;
-                        return dogeMainnetRegex.test(address);
-                    }
+                    // Fallback: regex проверка для Dogecoin адресов
+                    const dogeMainnetRegex = /^D{1}[5-9A-HJ-NP-U]{1}[1-9A-HJ-NP-Za-km-z]{32}$/;
+                    const dogeTestnetRegex = /^[nm2]{1}[1-9A-HJ-NP-Za-km-z]{33}$/;
                     
-                    // Используем библиотеку для проверки (через быстрый запрос)
-                    return new Promise((resolve) => {
-                        window.Dogecoin.lookup(address, (wallet) => {
-                            // Если запрос успешен и есть ответ, адрес валиден
-                            resolve(wallet !== null && wallet !== undefined);
-                        });
-                    });
+                    return dogeMainnetRegex.test(address) || dogeTestnetRegex.test(address);
                 } catch {
                     return false;
                 }
@@ -1546,29 +1527,6 @@ getTokenPrices().then(prices => {
     currentPrices = prices;
 });
 
-// Функция для проверки загрузки DogecoinJS
-export const checkDogeLibLoaded = () => {
-    return typeof window.Dogecoin !== 'undefined';
-};
-
-// Функция для тестирования DogecoinJS
-export const testDogeBalance = async (address = 'DPsvmxqaJV15nqVnT9BiwYskVmQLozRKht') => {
-    if (typeof window.Dogecoin === 'undefined') {
-        console.error('❌ Библиотека DogecoinJS не загружена');
-        return false;
-    }
-    
-    try {
-        console.log('🔄 Тестируем получение баланса для:', address);
-        const balance = await getDogeBalance(address);
-        console.log('✅ Баланс получен:', balance, 'DOGE');
-        return true;
-    } catch (error) {
-        console.error('❌ Ошибка теста:', error);
-        return false;
-    }
-};
-
 export default {
     generateNewSeedPhrase,
     generateWalletsFromSeed,
@@ -1589,8 +1547,6 @@ export default {
     startPriceUpdates,
     stopPriceUpdates,
     getCurrentPrices,
-    checkDogeLibLoaded,
-    testDogeBalance,
     TOKENS,
     TESTNET_TOKENS
 };
