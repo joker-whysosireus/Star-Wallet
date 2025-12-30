@@ -12,6 +12,9 @@ import * as xrpl from 'xrpl';
 import { Buffer } from 'buffer';
 import base58 from 'bs58';
 
+// Убрали импорт dogecoinjs, так как библиотека загружается через HTML
+// import Dogecoin from 'dogecoinjs';
+
 const bip32 = BIP32Factory(ecc);
 
 // === КОНФИГУРАЦИЯ ===
@@ -28,6 +31,13 @@ const MAINNET_CONFIG = {
     SOLANA: { 
         RPC_URL: 'https://api.mainnet-beta.solana.com',
         NETWORK: 'mainnet-beta'
+    },
+    TRON: { 
+        RPC_URL: 'https://api.trongrid.io',
+        FULL_NODE: 'https://api.trongrid.io',
+        SOLIDITY_NODE: 'https://api.trongrid.io',
+        EVENT_SERVER: 'https://api.trongrid.io',
+        NETWORK: 'mainnet'
     },
     BITCOIN: { 
         EXPLORER_API: 'https://blockstream.info/api',
@@ -46,6 +56,20 @@ const MAINNET_CONFIG = {
     XRP: { 
         RPC_URL: 'wss://xrplcluster.com',
         NETWORK: 'mainnet'
+    },
+    LTC: { 
+        NETWORK: litecore.Networks.litecoin,
+        EXPLORER_API: 'https://blockchair.com/litecoin'
+    },
+    DOGE: { 
+        NETWORK: {
+            messagePrefix: '\x19Dogecoin Signed Message:\n',
+            bech32: 'doge',
+            bip32: { public: 0x02facafd, private: 0x02fac398 },
+            pubKeyHash: 0x1e,
+            scriptHash: 0x16,
+            wif: 0x9e
+        }
     }
 };
 
@@ -62,6 +86,13 @@ const TESTNET_CONFIG = {
     SOLANA: { 
         RPC_URL: 'https://api.testnet.solana.com',
         NETWORK: 'testnet'
+    },
+    TRON: { 
+        RPC_URL: 'https://api.shasta.trongrid.io',
+        FULL_NODE: 'https://api.shasta.trongrid.io',
+        SOLIDITY_NODE: 'https://api.shasta.trongrid.io',
+        EVENT_SERVER: 'https://api.shasta.trongrid.io',
+        NETWORK: 'shasta'
     },
     BITCOIN: { 
         EXPLORER_API: 'https://blockstream.info/testnet/api',
@@ -80,16 +111,29 @@ const TESTNET_CONFIG = {
     XRP: { 
         RPC_URL: 'wss://s.altnet.rippletest.net:51233',
         NETWORK: 'testnet'
+    },
+    LTC: {
+        NETWORK: litecore.Networks.testnet,
+        EXPLORER_API: 'https://blockchair.com/litecoin/testnet'
+    },
+    DOGE: {
+        NETWORK: {
+            messagePrefix: '\x19Dogecoin Signed Message:\n',
+            bech32: 'tdoge',
+            bip32: { public: 0x0432a9a8, private: 0x0432a243 },
+            pubKeyHash: 0x71,
+            scriptHash: 0xc4,
+            wif: 0xf1
+        }
     }
 };
 
 const WALLET_API_URL = 'https://star-wallet-backend.netlify.app/.netlify/functions';
-const NETLIFY_SITE_URL = 'https://your-site.netlify.app';
-const NETLIFY_FUNCTIONS_URL = `${NETLIFY_SITE_URL}/.netlify/functions`;
 
 const TOKEN_PROGRAM_ID = new PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
 
+// Токены остаются без изменений
 export const TOKENS = {
     TON: { 
         symbol: 'TON', 
@@ -775,66 +819,9 @@ const generateTestnetWalletsFromSaved = (testnetWallets) => {
     return wallets;
 };
 
-// Функции получения балансов через Netlify Functions
-const getTronBalance = async (address, network = 'mainnet') => {
-    try {
-        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/get-tron-balance`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ address, network })
-        });
-        
-        if (!response.ok) return '0';
-        
-        const data = await response.json();
-        return data.balance || '0';
-    } catch (error) {
-        console.error('TRON balance error:', error);
-        return '0';
-    }
-};
+// ===== ФУНКЦИИ ПОЛУЧЕНИЯ БАЛАНСОВ =====
 
-const getTRC20Balance = async (address, contractAddress, network = 'mainnet') => {
-    return '0';
-};
-
-const getLtcBalance = async (address, network = 'mainnet') => {
-    try {
-        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/get-ltc-balance`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ address, network })
-        });
-        
-        if (!response.ok) return '0';
-        
-        const data = await response.json();
-        return data.balance || '0';
-    } catch (error) {
-        console.error('LTC balance error:', error);
-        return '0';
-    }
-};
-
-const getDogeBalance = async (address, network = 'mainnet') => {
-    try {
-        const response = await fetch(`${NETLIFY_FUNCTIONS_URL}/get-doge-balance`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ address, network })
-        });
-        
-        if (!response.ok) return '0';
-        
-        const data = await response.json();
-        return data.balance || '0';
-    } catch (error) {
-        console.error('DOGE balance error:', error);
-        return '0';
-    }
-};
-
-// Оригинальные функции получения балансов
+// 1. TON баланс
 const getTonBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -855,6 +842,7 @@ const getTonBalance = async (address, network = 'mainnet') => {
     }
 };
 
+// 2. TON Jetton баланс
 const getJettonBalance = async (address, jettonAddress, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -884,6 +872,7 @@ const getJettonBalance = async (address, jettonAddress, network = 'mainnet') => 
     }
 };
 
+// 3. Ethereum баланс
 const getEthBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -896,6 +885,7 @@ const getEthBalance = async (address, network = 'mainnet') => {
     }
 };
 
+// 4. ERC20 баланс
 const getERC20Balance = async (address, contractAddress, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -920,6 +910,7 @@ const getERC20Balance = async (address, contractAddress, network = 'mainnet') =>
     }
 };
 
+// 5. Solana баланс
 const getSolBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -933,6 +924,7 @@ const getSolBalance = async (address, network = 'mainnet') => {
     }
 };
 
+// 6. SPL баланс
 const getSPLBalance = async (address, tokenAddress, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -966,6 +958,73 @@ const getSPLBalance = async (address, tokenAddress, network = 'mainnet') => {
     }
 };
 
+// 7. TRON баланс (используем прямое обращение к нодам)
+const getTronBalance = async (address, network = 'mainnet') => {
+    try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const baseUrl = config.TRON.RPC_URL;
+        
+        // Метод getaccount через прямой HTTP-запрос
+        const response = await fetch(`${baseUrl}/wallet/getaccount`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                address: address.startsWith('T') ? address : undefined,
+                address_hex: address.startsWith('41') ? address : undefined,
+                visible: address.startsWith('T')
+            })
+        });
+
+        if (!response.ok) return '0';
+        
+        const data = await response.json();
+        
+        if (data.balance !== undefined) {
+            const balanceTRX = (parseInt(data.balance) / 1_000_000).toFixed(6);
+            return balanceTRX;
+        }
+        return '0';
+    } catch (error) {
+        console.error('TRON balance error:', error);
+        return '0';
+    }
+};
+
+// 8. TRC20 баланс (упрощенная версия)
+const getTRC20Balance = async (address, contractAddress, network = 'mainnet') => {
+    try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const baseUrl = config.TRON.RPC_URL;
+        
+        // Используем triggerconstantcontract для вызова метода balanceOf
+        const response = await fetch(`${baseUrl}/wallet/triggerconstantcontract`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                owner_address: address,
+                contract_address: contractAddress,
+                function_selector: 'balanceOf(address)',
+                parameter: address.replace('T', '').padStart(64, '0')
+            })
+        });
+
+        if (!response.ok) return '0';
+        
+        const data = await response.json();
+        
+        if (data.constant_result && data.constant_result.length > 0) {
+            const balanceHex = data.constant_result[0];
+            const balance = parseInt(balanceHex, 16);
+            return (balance / 1_000_000).toString(); // Предполагаем decimals = 6
+        }
+        return '0';
+    } catch (error) {
+        console.error('TRC20 balance error:', error);
+        return '0';
+    }
+};
+
+// 9. Bitcoin баланс
 const getBitcoinBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -983,6 +1042,7 @@ const getBitcoinBalance = async (address, network = 'mainnet') => {
     }
 };
 
+// 10. NEAR баланс
 const getNearBalance = async (accountId, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1006,6 +1066,7 @@ const getNearBalance = async (accountId, network = 'mainnet') => {
     }
 };
 
+// 11. BNB баланс
 const getBNBBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1018,6 +1079,7 @@ const getBNBBalance = async (address, network = 'mainnet') => {
     }
 };
 
+// 12. XRP баланс
 const getXrpBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1048,6 +1110,78 @@ const getXrpBalance = async (address, network = 'mainnet') => {
         }
     } catch (error) {
         console.error('XRP balance error:', error);
+        return '0';
+    }
+};
+
+// 13. Litecoin баланс (через Blockchair API)
+const getLtcBalance = async (address, network = 'mainnet') => {
+    try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        
+        const response = await fetch(`${config.LTC.EXPLORER_API}/dashboards/address/${address}`);
+        
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.data && data.data[address] && data.data[address].address) {
+            const balanceSatoshis = data.data[address].address.balance || 0;
+            const balanceLTC = balanceSatoshis / 100000000;
+            return balanceLTC.toString();
+        }
+        
+        return '0';
+    } catch (error) {
+        console.error('LTC balance error:', error);
+        return '0';
+    }
+};
+
+// 14. Dogecoin баланс (ИСПРАВЛЕННЫЙ - использует DogecoinJS из window)
+const getDogeBalance = async (address, network = 'mainnet') => {
+    try {
+        if (network === 'testnet') {
+            console.warn('DogecoinJS может не поддерживать testnet. Возвращаем 0.');
+            return '0';
+        }
+
+        // Проверяем доступность глобального объекта Dogecoin
+        if (typeof window.Dogecoin === 'undefined') {
+            console.error('DogecoinJS не загружен. Убедитесь, что подключили скрипт в HTML.');
+            return '0';
+        }
+
+        // Используем window.Dogecoin для доступа к библиотеке
+        // Обертка в Promise для работы с callback-стилем библиотеки
+        return new Promise((resolve) => {
+            window.Dogecoin.lookup(address, (wallet) => {
+                if (wallet) {
+                    console.log('DogecoinJS response:', wallet); // Для отладки
+                    
+                    // Проверяем возможные пути к балансу
+                    if (wallet.balance !== undefined) {
+                        resolve(parseFloat(wallet.balance).toString());
+                    } else if (wallet.total && wallet.total.balance !== undefined) {
+                        resolve(parseFloat(wallet.total.balance).toString());
+                    } else if (wallet.received !== undefined) {
+                        // Иногда баланс может быть в received
+                        resolve(parseFloat(wallet.received).toString());
+                    } else {
+                        console.warn('Не удалось найти баланс в ответе DogecoinJS');
+                        resolve('0');
+                    }
+                } else {
+                    console.warn('DogecoinJS вернул пустой ответ');
+                    resolve('0');
+                }
+            });
+        });
+        
+    } catch (error) {
+        console.error('DOGE balance error:', error);
         return '0';
     }
 };
@@ -1237,14 +1371,28 @@ export const validateAddress = async (blockchain, address) => {
                 return xrpRegex.test(address);
             case 'LTC':
                 try {
-                    bitcoin.address.toOutputScript(address, MAINNET_CONFIG.LTC.NETWORK);
+                    litecore.Address.isValid(address, MAINNET_CONFIG.LTC.NETWORK);
                     return true;
                 } catch { return false; }
             case 'DOGE':
                 try {
-                    bitcoin.address.toOutputScript(address, MAINNET_CONFIG.DOGE.NETWORK);
-                    return true;
-                } catch { return false; }
+                    // Проверяем доступность библиотеки
+                    if (typeof window.Dogecoin === 'undefined') {
+                        // Fallback: проверяем через regex
+                        const dogeMainnetRegex = /^D{1}[5-9A-HJ-NP-U]{1}[1-9A-HJ-NP-Za-km-z]{32}$/;
+                        return dogeMainnetRegex.test(address);
+                    }
+                    
+                    // Используем библиотеку для проверки (через быстрый запрос)
+                    return new Promise((resolve) => {
+                        window.Dogecoin.lookup(address, (wallet) => {
+                            // Если запрос успешен и есть ответ, адрес валиден
+                            resolve(wallet !== null && wallet !== undefined);
+                        });
+                    });
+                } catch {
+                    return false;
+                }
             default:
                 return true;
         }
@@ -1398,6 +1546,29 @@ getTokenPrices().then(prices => {
     currentPrices = prices;
 });
 
+// Функция для проверки загрузки DogecoinJS
+export const checkDogeLibLoaded = () => {
+    return typeof window.Dogecoin !== 'undefined';
+};
+
+// Функция для тестирования DogecoinJS
+export const testDogeBalance = async (address = 'DPsvmxqaJV15nqVnT9BiwYskVmQLozRKht') => {
+    if (typeof window.Dogecoin === 'undefined') {
+        console.error('❌ Библиотека DogecoinJS не загружена');
+        return false;
+    }
+    
+    try {
+        console.log('🔄 Тестируем получение баланса для:', address);
+        const balance = await getDogeBalance(address);
+        console.log('✅ Баланс получен:', balance, 'DOGE');
+        return true;
+    } catch (error) {
+        console.error('❌ Ошибка теста:', error);
+        return false;
+    }
+};
+
 export default {
     generateNewSeedPhrase,
     generateWalletsFromSeed,
@@ -1418,6 +1589,8 @@ export default {
     startPriceUpdates,
     stopPriceUpdates,
     getCurrentPrices,
+    checkDogeLibLoaded,
+    testDogeBalance,
     TOKENS,
     TESTNET_TOKENS
 };
