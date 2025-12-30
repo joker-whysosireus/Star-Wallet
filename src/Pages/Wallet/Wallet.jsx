@@ -226,6 +226,7 @@ function Wallet({ isActive, userData }) {
     const handleTokenClick = useCallback((wallet) => {
         if (wallet && wallet.symbol) {
             if (wallet.symbol === 'USDT') {
+                // Для USDT перенаправляем на страницу с выбором блокчейна
                 navigate(`/usdt-detail`, { 
                     state: { 
                         userData: userData,
@@ -297,6 +298,13 @@ function Wallet({ isActive, userData }) {
         localStorage.removeItem('cached_total_balance');
         updateBalances(true, true, newNetwork);
     };
+
+    // Сортируем кошельки: USDT всегда первый
+    const sortedWallets = [...wallets].sort((a, b) => {
+        if (a.symbol === 'USDT' && b.symbol !== 'USDT') return -1;
+        if (a.symbol !== 'USDT' && b.symbol === 'USDT') return 1;
+        return 0;
+    });
 
     if (showPinForBackup) {
         return (
@@ -418,14 +426,18 @@ function Wallet({ isActive, userData }) {
                                 </div>
                             </div>
                         ))
-                    ) : wallets.length > 0 ? (
-                        wallets.map((wallet) => (
+                    ) : sortedWallets.length > 0 ? (
+                        sortedWallets.map((wallet) => (
                             <div 
                                 key={wallet.id} 
                                 className="token-block"
                                 onClick={() => handleTokenClick(wallet)}
                             >
-                                <TokenCard wallet={wallet} network={currentNetwork} />
+                                <TokenCard 
+                                    wallet={wallet} 
+                                    network={currentNetwork}
+                                    isUSDTInList={wallet.symbol === 'USDT'}
+                                />
                             </div>
                         ))
                     ) : (

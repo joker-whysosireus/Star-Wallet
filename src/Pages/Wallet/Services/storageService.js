@@ -642,7 +642,12 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
                 for (const wallet of userData.wallets) {
                     if (wallet.symbol === 'USDT') {
                         if (!usdtFound && wallet.blockchain === 'TON') {
-                            filteredWallets.push(wallet);
+                            // Для USDT в основном списке скрываем информацию о блокчейне
+                            filteredWallets.push({
+                                ...wallet,
+                                name: 'Tether',
+                                showBlockchain: false
+                            });
                             usdtFound = true;
                         }
                     } else {
@@ -663,7 +668,12 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
                 for (const wallet of allWallets) {
                     if (wallet.symbol === 'USDT') {
                         if (!usdtFound && wallet.blockchain === 'TON') {
-                            filteredWallets.push(wallet);
+                            // Для USDT в основном списке скрываем информацию о блокчейне
+                            filteredWallets.push({
+                                ...wallet,
+                                name: 'Tether',
+                                showBlockchain: false
+                            });
                             usdtFound = true;
                         }
                     } else {
@@ -675,7 +685,28 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
             }
         } else {
             if (userData?.seed_phrases) {
-                return await generateWalletsFromSeed(userData.seed_phrases, 'testnet');
+                const testnetWallets = await generateWalletsFromSeed(userData.seed_phrases, 'testnet');
+                
+                // Для testnet также показываем только один USDT
+                const filteredWallets = [];
+                let usdtFound = false;
+                
+                for (const wallet of testnetWallets) {
+                    if (wallet.symbol === 'USDT') {
+                        if (!usdtFound && wallet.blockchain === 'TON') {
+                            filteredWallets.push({
+                                ...wallet,
+                                name: 'Tether',
+                                showBlockchain: false
+                            });
+                            usdtFound = true;
+                        }
+                    } else {
+                        filteredWallets.push(wallet);
+                    }
+                }
+                
+                return filteredWallets;
             }
             
             if (userData?.testnet_wallets && Object.keys(userData.testnet_wallets).length > 0) {
@@ -1389,28 +1420,32 @@ export const getUSDTTokensForDetail = async (userData, network = 'mainnet') => {
                 address: tonAddress,
                 blockchain: 'TON',
                 name: 'Tether (TON)',
-                displayName: 'TON USDT'
+                displayName: 'TON USDT',
+                showBlockchain: true
             },
             {
                 ...tokens.USDT_ETH,
                 address: ethAddress,
                 blockchain: 'Ethereum',
                 name: 'Tether (ERC20)',
-                displayName: 'ERC20 USDT'
+                displayName: 'ERC20 USDT',
+                showBlockchain: true
             },
             {
                 ...tokens.USDT_SOL,
                 address: solAddress,
                 blockchain: 'Solana',
                 name: 'Tether (SPL)',
-                displayName: 'SPL USDT'
+                displayName: 'SPL USDT',
+                showBlockchain: true
             },
             {
                 ...tokens.USDT_TRX,
                 address: tronAddress,
                 blockchain: 'Tron',
                 name: 'Tether (TRC20)',
-                displayName: 'TRC20 USDT'
+                displayName: 'TRC20 USDT',
+                showBlockchain: true
             }
         ];
         
@@ -1420,7 +1455,8 @@ export const getUSDTTokensForDetail = async (userData, network = 'mainnet') => {
             balance: '0',
             isActive: true,
             network: network,
-            id: `usdt_${token.blockchain.toLowerCase()}_${Date.now()}`
+            id: `usdt_${token.blockchain.toLowerCase()}_${Date.now()}`,
+            showBlockchain: true
         }));
         
         return await getRealBalances(wallets);

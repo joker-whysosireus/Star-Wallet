@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getTokenPrices } from '../../Services/storageService';
 import './TokenCard.css';
 
-const TokenCard = ({ wallet, isLoading = false, network = 'mainnet' }) => {
+const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInList = false }) => {
     const [usdBalance, setUsdBalance] = useState('$0.00');
     const [tokenPrice, setTokenPrice] = useState('$0.00');
     
@@ -91,6 +91,44 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet' }) => {
     
     const badge = getBlockchainBadge(wallet.blockchain);
 
+    // Для USDT в списке скрываем бейдж и информацию о блокчейне
+    if (isUSDTInList) {
+        return (
+            <div className="token-card">
+                <div className="token-left">
+                    <div className="token-icon">
+                        <img 
+                            src={wallet.logo} 
+                            alt={wallet.symbol}
+                            className="token-logo"
+                            onError={(e) => {
+                                console.error(`Failed to load logo for ${wallet.symbol}:`, e);
+                                e.target.style.display = 'none';
+                                const fallback = document.createElement('div');
+                                fallback.className = 'token-logo-fallback';
+                                fallback.textContent = wallet.symbol.substring(0, 2);
+                                e.target.parentNode.appendChild(fallback);
+                            }}
+                        />
+                    </div>
+                    <div className="token-names">
+                        <div className="token-name" style={{ fontSize: '14px', color: 'white' }}>Tether</div>
+                        <div className="token-symbol" style={{ fontSize: '16px', fontWeight: '600', color: 'white' }}>USDT</div>
+                        <div className="token-price">{tokenPrice}</div>
+                    </div>
+                </div>
+                <div className="token-right">
+                    <div className="token-balance" style={{ fontSize: '16px', fontWeight: '600', color: 'white' }}>
+                        {wallet.balance || '0.00'}
+                    </div>
+                    <div className="token-usd-balance" style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.5)' }}>
+                        {usdBalance}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="token-card">
             <div className="token-left">
@@ -118,7 +156,7 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet' }) => {
             <div className="token-right">
                 <div className="token-balance">{wallet.balance || '0.00'}</div>
                 <div className="token-usd-balance">{usdBalance}</div>
-                {wallet.showBlockchain && (
+                {wallet.showBlockchain && !isUSDTInList && (
                     <div 
                         className="blockchain-badge-tokencard" 
                         style={{ backgroundColor: badge.color }}
