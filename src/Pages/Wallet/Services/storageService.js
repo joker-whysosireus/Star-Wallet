@@ -59,7 +59,9 @@ const MAINNET_CONFIG = {
     },
     LTC: { 
         NETWORK: 'litecoin',
-        API_URL: 'https://litecoinspace.org/api'
+        // Используем публичные API без ключей
+        MAINNET_API: 'https://litecoinspace.org/api',
+        BLOCKBOOK_API: 'https://ltc1.trezor.io/api'
     }
 };
 
@@ -107,7 +109,9 @@ const TESTNET_CONFIG = {
     },
     LTC: {
         NETWORK: 'litecoin-testnet',
-        API_URL: 'https://litecoinspace.org/api'
+        // Используем публичные API для testnet без ключей
+        TESTNET_API: 'https://tltc.bitaps.com',
+        BLOCKBOOK_API: 'https://ltc-testnet.greyh.at/api'
     }
 };
 
@@ -494,19 +498,26 @@ const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// === ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ XRP АДРЕСА С ИСПОЛЬЗОВАНИЕМ xrpl.js ===
+// === ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ XRP АДРЕСА ===
 const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
     try {
-        // Генерируем seed из мнемонической фразы
+        console.log('Генерация XRP адреса из seed фразы...');
+        
+        if (!seedPhrase || !bip39.validateMnemonic(seedPhrase)) {
+            throw new Error('Некорректная seed-фраза');
+        }
+        
+        // Создаем детерминированный seed из фразы
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         
-        // Создаем детерминированный seed для XRP (первые 16 байт)
-        const xrpSeed = seedBuffer.slice(0, 16);
-        const seedHex = xrpSeed.toString('hex');
+        // Для XRP используем первые 16 байт
+        const xrpSeedBytes = seedBuffer.slice(0, 16);
+        const seedHex = xrpSeedBytes.toString('hex');
         
         // Создаем кошелек XRP из seed с использованием xrpl.js
         const wallet = xrpl.Wallet.fromSeed(seedHex);
         
+        console.log('✅ Сгенерирован уникальный XRP адрес:', wallet.classicAddress);
         return wallet.classicAddress;
     } catch (error) {
         console.error('Error generating XRP address with xrpl.js:', error);
@@ -524,8 +535,9 @@ const generateLtcAddress = async (seedPhrase, network = 'mainnet') => {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const root = bip32.fromSeed(seedBuffer);
         
-        // Путь для Litecoin: m/44'/2'/0'/0/0
-        const child = root.derivePath("m/44'/2'/0'/0/0");
+        // Определяем путь для Litecoin в зависимости от сети
+        const path = network === 'testnet' ? "m/44'/1'/0'/0/0" : "m/44'/2'/0'/0/0";
+        const child = root.derivePath(path);
         
         // Определяем сеть для Litecoin
         let ltcNetwork;
@@ -561,6 +573,7 @@ const generateLtcAddress = async (seedPhrase, network = 'mainnet') => {
             network: ltcNetwork
         });
         
+        console.log('✅ Сгенерирован LTC адрес:', address);
         return address;
     } catch (error) {
         console.error('Error generating LTC address:', error);
@@ -1096,32 +1109,87 @@ const getXrpBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// === ФУНКЦИЯ ПОЛУЧЕНИЯ БАЛАНСА LTC ===
+// === ИСПРАВЛЕННАЯ ФУНКЦИЯ ПОЛУЧЕНИЯ БАЛАНСА LTC ===
 const getLtcBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
-        // Используем Litecoin Space API
-        const response = await fetch(`${config.LTC.API_URL}/address/${address}`);
-        
-        if (!response.ok) {
-            throw new Error(`Litecoin Space API error: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data.chain_stats) {
-            const funded = data.chain_stats.funded_txo_sum || 0;
-            const spent = data.chain_stats.spent_txo_sum || 0;
-            const balanceSatoshis = funded - spent;
+        let apiUrl;
+        if (network === 'testnet') {
+            // Для testnet используем Blockbook API
+            apiUrl = `${config.LTC.BLOCKBOOK_API}/address/${address}`;
             
-            const balanceLTC = balanceSatoshis / 100000000;
-            return balanceLTC.toString();
+            const response = await fetch(apiUrl);
+            if (!response.ok) {
+                throw new Error(`LTC testnet API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.balance) {
+                // Баланс в сатоши, конвертируем в LTC
+                const balanceLTC = parseFloat(data.balance) / 100000000;
+                return balanceLTC.toString();
+            }
+            
+            return '0';
+        } else {
+            // Для mainnet используем litecoinspace.org API
+            apiUrl = `${config.LTC.MAINNET_API}/address/${address}`;
+            
+            const response = await fetch(apiUrl);
+            if (!response.ok) {
+                // Fallback на Blockbook API если litecoinspace недоступен
+                const fallbackUrl = `${config.LTC.BLOCKBOOK_API}/address/${address}`;
+                const fallbackResponse = await fetch(fallbackUrl);
+                
+                if (!fallbackResponse.ok) {
+                    throw new Error(`LTC mainnet API error: ${response.status}`);
+                }
+                
+                const fallbackData = await fallbackResponse.json();
+                
+                if (fallbackData.balance) {
+                    const balanceLTC = parseFloat(fallbackData.balance) / 100000000;
+                    return balanceLTC.toString();
+                }
+                
+                return '0';
+            }
+            
+            const data = await response.json();
+            
+            if (data.chain_stats) {
+                const funded = data.chain_stats.funded_txo_sum || 0;
+                const spent = data.chain_stats.spent_txo_sum || 0;
+                const balanceSatoshis = funded - spent;
+                
+                const balanceLTC = balanceSatoshis / 100000000;
+                return balanceLTC.toString();
+            }
+            
+            return '0';
         }
-        
-        return '0';
     } catch (error) {
         console.error('LTC balance error:', error);
+        
+        // Дополнительный fallback для mainnet
+        if (network === 'mainnet') {
+            try {
+                const blockbookUrl = `${MAINNET_CONFIG.LTC.BLOCKBOOK_API}/address/${address}`;
+                const response = await fetch(blockbookUrl);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.balance) {
+                        const balanceLTC = parseFloat(data.balance) / 100000000;
+                        return balanceLTC.toString();
+                    }
+                }
+            } catch (fallbackError) {
+                console.error('LTC fallback также не сработал:', fallbackError);
+            }
+        }
+        
         return '0';
     }
 };
@@ -1323,9 +1391,10 @@ export const validateAddress = async (blockchain, address) => {
                 return true;
             case 'LTC':
                 try {
-                    // Простая проверка формата LTC-адреса
-                    const ltcRegex = /^[LM3][a-km-zA-HJ-NP-Z1-9]{26,33}$/;
-                    return ltcRegex.test(address);
+                    // Проверка формата LTC-адреса для mainnet и testnet
+                    const ltcMainnetRegex = /^[LM3][a-km-zA-HJ-NP-Z1-9]{26,33}$/;
+                    const ltcTestnetRegex = /^[mn2Q][a-km-zA-HJ-NP-Z1-9]{26,33}$/;
+                    return ltcMainnetRegex.test(address) || ltcTestnetRegex.test(address);
                 } catch { return false; }
             default:
                 return true;
