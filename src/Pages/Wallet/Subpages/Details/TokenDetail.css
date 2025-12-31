@@ -116,34 +116,3 @@
     opacity: 0.9;
     transform: translateY(-2px);
 }
-
-/* Стили для скелетон-загрузчика */
-.skeleton-loader {
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 8px;
-    overflow: hidden;
-    position: relative;
-}
-
-.skeleton-loader::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, 
-        transparent, 
-        rgba(255, 255, 255, 0.05), 
-        transparent);
-    animation: shimmer 1.5s infinite;
-}
-
-@keyframes shimmer {
-    0% {
-        left: -100%;
-    }
-    100% {
-        left: 100%;
-    }
-}

@@ -19,9 +19,7 @@ const USDTDetail = () => {
     const [usdtTokens, setUsdtTokens] = useState([]);
     const [totalUSDTBalance, setTotalUSDTBalance] = useState('0.00');
     const [totalUSDTValue, setTotalUSDTValue] = useState('0.00');
-    const [isLoading, setIsLoading] = useState(true);
     
-    // Получаем URL логотипа USDT из storageService
     const usdtLogo = TOKENS.USDT_TON?.logo || 'https://cryptologos.cc/logos/tether-usdt-logo.svg';
     
     useEffect(() => {
@@ -30,6 +28,7 @@ const USDTDetail = () => {
             return;
         }
         
+        // Загружаем данные без отображения лоадера
         const loadData = async () => {
             try {
                 const tokens = await getUSDTTokensForDetail(userData, network);
@@ -38,7 +37,6 @@ const USDTDetail = () => {
                 const total = await getTotalUSDTBalance(userData, network);
                 setTotalUSDTBalance(total);
                 
-                // Рассчитываем общую стоимость USDT в долларах
                 const prices = await getTokenPrices();
                 const usdtPrice = prices['USDT'] || 1.00;
                 const totalValue = parseFloat(total) * usdtPrice;
@@ -48,8 +46,6 @@ const USDTDetail = () => {
                 setUsdtTokens([]);
                 setTotalUSDTBalance('0.00');
                 setTotalUSDTValue('0.00');
-            } finally {
-                setIsLoading(false);
             }
         };
         
@@ -68,20 +64,6 @@ const USDTDetail = () => {
         });
     };
 
-    // Создаем макет для скелетонов (4 блока)
-    const skeletonTokens = Array.from({ length: 4 }).map((_, index) => ({
-        id: `skeleton-${index}`,
-        symbol: 'USDT',
-        name: 'Loading...',
-        balance: '0.00',
-        blockchain: 'TON',
-        logo: '',
-        showBlockchain: true,
-        isSkeleton: true
-    }));
-
-    const displayTokens = isLoading ? skeletonTokens : usdtTokens;
-
     return (
         <div className="page-container">
             <Header 
@@ -97,7 +79,6 @@ const USDTDetail = () => {
                             alt="USDT"
                             style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover' }}
                             onError={(e) => {
-                                console.error('Failed to load USDT logo:', e);
                                 e.target.style.display = 'none';
                                 const fallback = document.createElement('div');
                                 fallback.className = 'token-logo-fallback';
@@ -121,44 +102,25 @@ const USDTDetail = () => {
                 </div>
                 
                 <div className="total-usdt-balance-display">
-                    {isLoading ? (
-                        <div className="total-usdt-skeleton-container">
-                            <div className="skeleton-loader" style={{ 
-                                width: '150px', 
-                                height: '32px', 
-                                margin: '0 auto 8px auto',
-                                borderRadius: '6px'
-                            }}></div>
-                            <div className="skeleton-loader" style={{ 
-                                width: '100px', 
-                                height: '20px', 
-                                margin: '0 auto',
-                                borderRadius: '6px'
-                            }}></div>
+                    <div className="total-usdt-amount-container">
+                        <div className="total-usdt-amount">
+                            {totalUSDTBalance} USDT
                         </div>
-                    ) : (
-                        <>
-                            <div className="total-usdt-amount-container">
-                                <div className="total-usdt-amount">
-                                    {totalUSDTBalance} USDT
-                                </div>
-                                <div className="total-usdt-badge">
-                                    USDT
-                                </div>
-                            </div>
-                            <div className="total-usdt-value">
-                                ${totalUSDTValue}
-                            </div>
-                        </>
-                    )}
+                        <div className="total-usdt-badge">
+                            USDT
+                        </div>
+                    </div>
+                    <div className="total-usdt-value">
+                        ${totalUSDTValue}
+                    </div>
                 </div>
                 
                 <div className="usdt-tokens-grid">
-                    {displayTokens.map(token => (
+                    {usdtTokens.map(token => (
                         <div 
                             key={token.id} 
                             className="usdt-token-block"
-                            onClick={() => !isLoading && handleTokenClick(token)}
+                            onClick={() => handleTokenClick(token)}
                         >
                             <TokenCard 
                                 wallet={{
@@ -168,13 +130,12 @@ const USDTDetail = () => {
                                     showBlockchain: true
                                 }} 
                                 network={network}
-                                isLoading={isLoading && token.isSkeleton}
                             />
                         </div>
                     ))}
                 </div>
                 
-                {!isLoading && usdtTokens.length === 0 && (
+                {usdtTokens.length === 0 && (
                     <div className="no-tokens-message">
                         <p>No USDT tokens available</p>
                     </div>
