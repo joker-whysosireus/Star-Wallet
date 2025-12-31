@@ -46,12 +46,37 @@
     width: 100%;
 }
 
+.total-usdt-skeleton {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.total-usdt-amount-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
 .total-usdt-amount {
     font-size: 24px;
     font-weight: 600;
     color: white;
     margin: 0;
     line-height: 1.2;
+}
+
+.total-usdt-badge {
+    background-color: #26A17B;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .usdt-tokens-grid {
@@ -73,31 +98,45 @@
     border: none;
 }
 
-/* Удаляем эффекты при наведении */
 .usdt-token-block:hover {
     background: rgba(255, 255, 255, 0.05);
     transform: none;
 }
 
-.loading-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 200px;
-    gap: 20px;
+.no-tokens-message {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: 20px;
+    font-size: 14px;
 }
 
-.spinner {
-    border: 3px solid rgba(255, 255, 255, 0.1);
-    border-top: 3px solid #FFD700;
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    animation: spin 1s linear infinite;
+/* Стили для скелетонов */
+.skeleton-loader {
+    background: rgba(255, 255, 255, 0.03) !important;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
 }
 
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+.skeleton-loader::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, 
+        transparent, 
+        rgba(255, 255, 255, 0.05), 
+        transparent);
+    animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
 }

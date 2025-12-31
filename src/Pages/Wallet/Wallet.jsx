@@ -162,10 +162,17 @@ function Wallet({ isActive, userData }) {
                 };
             });
             
-            setWallets(updatedWallets);
-            localStorage.setItem('cached_wallets', JSON.stringify(updatedWallets));
+            // Сортируем: USDT всегда первый
+            const sortedWallets = updatedWallets.sort((a, b) => {
+                if (a.symbol === 'USDT' && b.symbol !== 'USDT') return -1;
+                if (a.symbol !== 'USDT' && b.symbol === 'USDT') return 1;
+                return 0;
+            });
             
-            const total = await calculateTotalBalance(updatedWallets);
+            setWallets(sortedWallets);
+            localStorage.setItem('cached_wallets', JSON.stringify(sortedWallets));
+            
+            const total = await calculateTotalBalance(sortedWallets);
             setTotalBalance(`$${total}`);
             localStorage.setItem('cached_total_balance', `$${total}`);
             
@@ -226,7 +233,6 @@ function Wallet({ isActive, userData }) {
     const handleTokenClick = useCallback((wallet) => {
         if (wallet && wallet.symbol) {
             if (wallet.symbol === 'USDT') {
-                // Для USDT перенаправляем на страницу с выбором блокчейна
                 navigate(`/usdt-detail`, { 
                     state: { 
                         userData: userData,
@@ -298,13 +304,6 @@ function Wallet({ isActive, userData }) {
         localStorage.removeItem('cached_total_balance');
         updateBalances(true, true, newNetwork);
     };
-
-    // Сортируем кошельки: USDT всегда первый
-    const sortedWallets = [...wallets].sort((a, b) => {
-        if (a.symbol === 'USDT' && b.symbol !== 'USDT') return -1;
-        if (a.symbol !== 'USDT' && b.symbol === 'USDT') return 1;
-        return 0;
-    });
 
     if (showPinForBackup) {
         return (
@@ -426,8 +425,8 @@ function Wallet({ isActive, userData }) {
                                 </div>
                             </div>
                         ))
-                    ) : sortedWallets.length > 0 ? (
-                        sortedWallets.map((wallet) => (
+                    ) : wallets.length > 0 ? (
+                        wallets.map((wallet) => (
                             <div 
                                 key={wallet.id} 
                                 className="token-block"

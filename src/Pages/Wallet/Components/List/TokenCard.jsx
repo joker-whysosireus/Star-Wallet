@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { getTokenPrices } from '../../Services/storageService';
 import './TokenCard.css';
 
-const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', showUSDTBadge = false }) => {
+const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInList = false }) => {
     const [usdBalance, setUsdBalance] = useState('$0.00');
     const [tokenPrice, setTokenPrice] = useState('$0.00');
     
     useEffect(() => {
-        if (!isLoading && wallet) {
+        if (!isLoading && wallet && !wallet.isSkeleton) {
             calculateUsdBalance();
             getTokenPrice();
         }
@@ -79,7 +79,7 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', showUSDTBad
         return `${integerPart}.${limitedDecimal.padEnd(3, '0').substring(0, 3)}`;
     };
     
-    if (isLoading || !wallet) {
+    if (isLoading || wallet?.isSkeleton) {
         return (
             <div className="token-card">
                 <div className="token-left">
@@ -118,6 +118,46 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', showUSDTBad
     const badge = getBlockchainBadge(wallet.blockchain);
     const formattedBalance = formatBalance(wallet.balance);
 
+    // Для USDT в основном списке (Wallet) - без бейджа
+    if (isUSDTInList) {
+        return (
+            <div className="token-card">
+                <div className="token-left">
+                    <div className="token-icon">
+                        <img 
+                            src={wallet.logo} 
+                            alt={wallet.symbol}
+                            className="token-logo"
+                            onError={(e) => {
+                                console.error(`Failed to load logo for ${wallet.symbol}:`, e);
+                                e.target.style.display = 'none';
+                                const fallback = document.createElement('div');
+                                fallback.className = 'token-logo-fallback';
+                                fallback.textContent = wallet.symbol.substring(0, 2);
+                                e.target.parentNode.appendChild(fallback);
+                            }}
+                        />
+                    </div>
+                    <div className="token-names">
+                        <div className="token-name" style={{ fontSize: '14px', color: 'white' }}>Tether</div>
+                        <div className="token-symbol" style={{ fontSize: '16px', fontWeight: '600', color: 'white' }}>USDT</div>
+                        <div className="token-price">{tokenPrice}</div>
+                    </div>
+                </div>
+                <div className="token-right">
+                    <div className="token-balance" style={{ fontSize: '16px', fontWeight: '600', color: 'white' }}>
+                        {formattedBalance}
+                    </div>
+                    <div className="token-usd-balance" style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.5)' }}>
+                        {usdBalance}
+                    </div>
+                    {/* Нет бейджа для USDT в основном списке */}
+                </div>
+            </div>
+        );
+    }
+
+    // Для всех остальных токенов (и USDT в USDTDetail через showUSDTBadge)
     return (
         <div className="token-card">
             <div className="token-left">
@@ -145,7 +185,7 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', showUSDTBad
             <div className="token-right">
                 <div className="token-balance">{formattedBalance}</div>
                 <div className="token-usd-balance">{usdBalance}</div>
-                {(showUSDTBadge && wallet.symbol === 'USDT') ? (
+                {(wallet.showUSDTBadge && wallet.symbol === 'USDT') ? (
                     <div 
                         className="blockchain-badge-tokencard" 
                         style={{ backgroundColor: '#26A17B' }}
@@ -154,7 +194,7 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', showUSDTBad
                         USDT
                     </div>
                 ) : (
-                    wallet.showBlockchain && (
+                    wallet.showBlockchain && wallet.symbol !== 'USDT' && (
                         <div 
                             className="blockchain-badge-tokencard" 
                             style={{ backgroundColor: badge.color }}
