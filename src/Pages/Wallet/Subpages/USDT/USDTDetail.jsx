@@ -6,6 +6,7 @@ import TokenCard from '../../Components/List/TokenCard';
 import { 
     getUSDTTokensForDetail, 
     getTotalUSDTBalance,
+    getTokenPrices,
     TOKENS 
 } from '../../Services/storageService';
 import './USDTDetail.css';
@@ -17,6 +18,7 @@ const USDTDetail = () => {
     
     const [usdtTokens, setUsdtTokens] = useState([]);
     const [totalUSDTBalance, setTotalUSDTBalance] = useState('0.00');
+    const [totalUSDTValue, setTotalUSDTValue] = useState('0.00');
     const [isLoading, setIsLoading] = useState(true);
     
     // Получаем URL логотипа USDT из storageService
@@ -35,10 +37,17 @@ const USDTDetail = () => {
                 
                 const total = await getTotalUSDTBalance(userData, network);
                 setTotalUSDTBalance(total);
+                
+                // Рассчитываем общую стоимость USDT в долларах
+                const prices = await getTokenPrices();
+                const usdtPrice = prices['USDT'] || 1.00;
+                const totalValue = parseFloat(total) * usdtPrice;
+                setTotalUSDTValue(totalValue.toFixed(2));
             } catch (error) {
                 console.error('Error loading USDT tokens:', error);
                 setUsdtTokens([]);
                 setTotalUSDTBalance('0.00');
+                setTotalUSDTValue('0.00');
             } finally {
                 setIsLoading(false);
             }
@@ -68,7 +77,6 @@ const USDTDetail = () => {
         blockchain: 'TON',
         logo: '',
         showBlockchain: true,
-        showUSDTBadge: true,
         isSkeleton: true
     }));
 
@@ -114,23 +122,34 @@ const USDTDetail = () => {
                 
                 <div className="total-usdt-balance-display">
                     {isLoading ? (
-                        <div className="total-usdt-skeleton">
+                        <div className="total-usdt-skeleton-container">
                             <div className="skeleton-loader" style={{ 
-                                width: '120px', 
-                                height: '28px', 
+                                width: '150px', 
+                                height: '32px', 
+                                margin: '0 auto 8px auto',
+                                borderRadius: '6px'
+                            }}></div>
+                            <div className="skeleton-loader" style={{ 
+                                width: '100px', 
+                                height: '20px', 
                                 margin: '0 auto',
                                 borderRadius: '6px'
                             }}></div>
                         </div>
                     ) : (
-                        <div className="total-usdt-amount-container">
-                            <div className="total-usdt-amount">
-                                {totalUSDTBalance} USDT
+                        <>
+                            <div className="total-usdt-amount-container">
+                                <div className="total-usdt-amount">
+                                    {totalUSDTBalance} USDT
+                                </div>
+                                <div className="total-usdt-badge">
+                                    USDT
+                                </div>
                             </div>
-                            <div className="total-usdt-badge">
-                                USDT
+                            <div className="total-usdt-value">
+                                ${totalUSDTValue}
                             </div>
-                        </div>
+                        </>
                     )}
                 </div>
                 
@@ -146,8 +165,7 @@ const USDTDetail = () => {
                                     ...token,
                                     symbol: 'USDT',
                                     name: token.displayName || token.name,
-                                    showBlockchain: true,
-                                    showUSDTBadge: true
+                                    showBlockchain: true
                                 }} 
                                 network={network}
                                 isLoading={isLoading && token.isSkeleton}

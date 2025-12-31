@@ -118,7 +118,7 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInLis
     const badge = getBlockchainBadge(wallet.blockchain);
     const formattedBalance = formatBalance(wallet.balance);
 
-    // Для USDT в основном списке (Wallet) - без бейджа
+    // Для USDT в основном списке (Wallet) - с бейджем USDT
     if (isUSDTInList) {
         return (
             <div className="token-card">
@@ -151,13 +151,19 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInLis
                     <div className="token-usd-balance" style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.5)' }}>
                         {usdBalance}
                     </div>
-                    {/* Нет бейджа для USDT в основном списке */}
+                    <div 
+                        className="blockchain-badge-tokencard" 
+                        style={{ backgroundColor: '#26A17B' }}
+                        title="USDT"
+                    >
+                        USDT
+                    </div>
                 </div>
             </div>
         );
     }
 
-    // Для всех остальных токенов (и USDT в USDTDetail через showUSDTBadge)
+    // Для всех остальных токенов (и USDT в USDTDetail)
     return (
         <div className="token-card">
             <div className="token-left">
@@ -185,24 +191,14 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInLis
             <div className="token-right">
                 <div className="token-balance">{formattedBalance}</div>
                 <div className="token-usd-balance">{usdBalance}</div>
-                {(wallet.showUSDTBadge && wallet.symbol === 'USDT') ? (
+                {wallet.showBlockchain && (
                     <div 
                         className="blockchain-badge-tokencard" 
-                        style={{ backgroundColor: '#26A17B' }}
-                        title="USDT"
+                        style={{ backgroundColor: badge.color }}
+                        title={wallet.blockchain}
                     >
-                        USDT
+                        {badge.text}
                     </div>
-                ) : (
-                    wallet.showBlockchain && wallet.symbol !== 'USDT' && (
-                        <div 
-                            className="blockchain-badge-tokencard" 
-                            style={{ backgroundColor: badge.color }}
-                            title={wallet.blockchain}
-                        >
-                            {badge.text}
-                        </div>
-                    )
                 )}
             </div>
         </div>
