@@ -349,82 +349,42 @@ export const generateNewSeedPhrase = () => {
     }
 };
 
-// ================================ ИСПРАВЛЕННАЯ ФУНКЦИЯ ================================
-export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet', existingAddresses = {}) => {
+export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         if (!seedPhrase) throw new Error('Seed phrase is required');
 
-        console.log(`Генерация кошельков для сети: ${network}`);
-        
-        // Сначала проверяем, есть ли уже сгенерированные адреса
-        const existingAddressMap = existingAddresses || {};
-        
-        // Генерируем только те адреса, которых еще нет
-        const generationPromises = [];
-        
-        if (!existingAddressMap['TON']) {
-            generationPromises.push(generateTonAddress(seedPhrase, network).then(addr => ({ blockchain: 'TON', address: addr })));
-        }
-        if (!existingAddressMap['Ethereum']) {
-            generationPromises.push(generateEthereumAddress(seedPhrase, network).then(addr => ({ blockchain: 'Ethereum', address: addr })));
-        }
-        if (!existingAddressMap['Solana']) {
-            generationPromises.push(generateSolanaAddress(seedPhrase, network).then(addr => ({ blockchain: 'Solana', address: addr })));
-        }
-        if (!existingAddressMap['Tron']) {
-            generationPromises.push(generateTronAddress(seedPhrase, network).then(addr => ({ blockchain: 'Tron', address: addr })));
-        }
-        if (!existingAddressMap['Bitcoin']) {
-            generationPromises.push(generateBitcoinAddress(seedPhrase, network).then(addr => ({ blockchain: 'Bitcoin', address: addr })));
-        }
-        if (!existingAddressMap['BSC']) {
-            generationPromises.push(generateBSCAddress(seedPhrase, network).then(addr => ({ blockchain: 'BSC', address: addr })));
-        }
-        if (!existingAddressMap['NEAR']) {
-            generationPromises.push(generateNearAddress(seedPhrase, network).then(addr => ({ blockchain: 'NEAR', address: addr })));
-        }
-        if (!existingAddressMap['XRP']) {
-            generationPromises.push(generateXrpAddress(seedPhrase, network).then(addr => ({ blockchain: 'XRP', address: addr })));
-        }
-        if (!existingAddressMap['LTC']) {
-            generationPromises.push(generateLtcAddress(seedPhrase, network).then(addr => ({ blockchain: 'LTC', address: addr })));
-        }
-        
-        // Ждем генерации только новых адресов
-        const newAddresses = await Promise.all(generationPromises);
-        
-        // Объединяем существующие и новые адреса
-        const allAddresses = { ...existingAddressMap };
-        newAddresses.forEach(({ blockchain, address }) => {
-            if (address) {
-                allAddresses[blockchain] = address;
-            }
-        });
-        
-        console.log('Все адреса:', allAddresses);
-        
-        // Создаем кошельки на основе всех адресов
+        const [tonAddress, ethAddress, solAddress, tronAddress, bitcoinAddress, bscAddress, nearAddress, xrpAddress, ltcAddress] = await Promise.all([
+            generateTonAddress(seedPhrase, network),
+            generateEthereumAddress(seedPhrase, network),
+            generateSolanaAddress(seedPhrase, network),
+            generateTronAddress(seedPhrase, network),
+            generateBitcoinAddress(seedPhrase, network),
+            generateBSCAddress(seedPhrase, network),
+            generateNearAddress(seedPhrase, network),
+            generateXrpAddress(seedPhrase, network),
+            generateLtcAddress(seedPhrase, network)
+        ]);
+
         const walletArray = [];
         const tokens = network === 'mainnet' ? TOKENS : TESTNET_TOKENS;
         
-        // Для каждого токена создаем кошелек, используя соответствующий адрес
-        for (const [key, token] of Object.entries(tokens)) {
-            const address = allAddresses[token.blockchain];
-            if (address) {
-                walletArray.push(createWallet(token, address, network));
-            }
-        }
+        walletArray.push(createWallet(tokens.TON, tonAddress, network));
+        walletArray.push(createWallet(tokens.USDT_TON, tonAddress, network));
+        walletArray.push(createWallet(tokens.ETH, ethAddress, network));
+        walletArray.push(createWallet(tokens.SOL, solAddress, network));
+        walletArray.push(createWallet(tokens.TRX, tronAddress, network));
+        walletArray.push(createWallet(tokens.BTC, bitcoinAddress, network));
+        walletArray.push(createWallet(tokens.BNB, bscAddress, network));
+        walletArray.push(createWallet(tokens.NEAR, nearAddress, network));
+        walletArray.push(createWallet(tokens.XRP, xrpAddress, network));
+        walletArray.push(createWallet(tokens.LTC, ltcAddress, network));
         
-        return {
-            wallets: walletArray,
-            addresses: allAddresses
-        };
+        return walletArray;
     } catch (error) {
         console.error('Error generating wallets:', error);
         throw error;
     }
 };
-// ======================================================================================
 
 const createWallet = (token, address, network = 'mainnet') => ({
     id: `${token.symbol.toLowerCase()}_${token.blockchain.toLowerCase()}_${network}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -536,7 +496,6 @@ const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// ================================ ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ XRP ================================
 const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         console.log('Генерация XRP адреса из seed фразы...');
@@ -545,48 +504,33 @@ const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
             throw new Error('Некорректная seed-фраза');
         }
         
-        // Детерминированная генерация на основе seed фразы
+        // Создаем детерминированный seed из фразы
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         
-        // Используем SHA256 от seed фразы для детерминированности
-        const hash = crypto.createHash('sha256').update(seedPhrase).digest();
-        const xrpSeed = hash.slice(0, 16); // Берем первые 16 байт для XRP
+        // Для XRP используем первые 16 байт
+        const xrpSeedBytes = seedBuffer.slice(0, 16);
+        const seedHex = xrpSeedBytes.toString('hex');
         
-        // Преобразуем в hex строку
-        const seedHex = xrpSeed.toString('hex');
-        
-        // Создаем кошелек XRP
+        // Создаем кошелек XRP из seed с использованием xrpl.js
         const wallet = xrpl.Wallet.fromSeed(seedHex);
         
-        console.log('✅ Сгенерирован детерминированный XRP адрес:', wallet.classicAddress);
+        console.log('✅ Сгенерирован уникальный XRP адрес:', wallet.classicAddress);
         return wallet.classicAddress;
         
     } catch (error) {
-        console.error('Error generating XRP address:', error);
+        console.error('Error generating XRP address with xrpl.js:', error);
         
-        // Fallback - создаем из seed фразы напрямую
+        // Временный fallback для тестирования - генерируем случайный адрес
         try {
-            // Альтернативный метод: используем первые 16 символов seed фразы
-            const seedHex = Buffer.from(seedPhrase.slice(0, 16)).toString('hex');
-            const wallet = xrpl.Wallet.fromSeed(seedHex);
-            console.log('✅ Сгенерирован XRP адрес (fallback):', wallet.classicAddress);
-            return wallet.classicAddress;
+            const randomWallet = xrpl.Wallet.generate();
+            console.log('⚠️  Используем случайный XRP адрес из-за ошибки:', randomWallet.classicAddress);
+            return randomWallet.classicAddress;
         } catch (fallbackError) {
             console.error('Fallback также не сработал:', fallbackError);
-            
-            // Генерируем случайный адрес только в крайнем случае
-            try {
-                const randomWallet = xrpl.Wallet.generate();
-                console.log('⚠️  Используем случайный XRP адрес из-за ошибки:', randomWallet.classicAddress);
-                return randomWallet.classicAddress;
-            } catch (finalError) {
-                console.error('Не удалось сгенерировать XRP адрес:', finalError);
-                return '';
-            }
+            throw new Error(`Не удалось сгенерировать XRP адрес: ${error.message}`);
         }
     }
 };
-// ============================================================================================
 
 const generateLtcAddress = async (seedPhrase, network = 'mainnet') => {
     try {
@@ -638,7 +582,6 @@ const generateLtcAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// ================================ ИСПРАВЛЕННАЯ ИНИЦИАЛИЗАЦИЯ ================================
 export const initializeUserWallets = async (userData) => {
     try {
         if (!userData?.telegram_user_id) {
@@ -656,24 +599,33 @@ export const initializeUserWallets = async (userData) => {
             }
         }
 
-        // Получаем существующие адреса из userData
-        const existingMainnetAddresses = userData.wallet_addresses || {};
-        const existingTestnetAddresses = userData.testnet_wallets || {};
+        const mainnetWallets = await generateWalletsFromSeed(seedPhrase, 'mainnet');
         
-        console.log('Существующие mainnet адреса:', existingMainnetAddresses);
-        console.log('Существующие testnet адреса:', existingTestnetAddresses);
+        const mainnetAddresses = {};
+        mainnetWallets.forEach(wallet => {
+            if (!mainnetAddresses[wallet.blockchain]) {
+                mainnetAddresses[wallet.blockchain] = {
+                    address: wallet.address,
+                    symbol: wallet.symbol,
+                    network: 'mainnet',
+                    tokenType: wallet.isNative ? 'native' : 'token'
+                };
+            }
+        });
 
-        // Генерируем кошельки с использованием существующих адресов
-        const mainnetResult = await generateWalletsFromSeed(seedPhrase, 'mainnet', existingMainnetAddresses);
-        const testnetResult = await generateWalletsFromSeed(seedPhrase, 'testnet', existingTestnetAddresses);
-        
-        const mainnetWallets = mainnetResult.wallets;
-        const mainnetAddresses = mainnetResult.addresses;
-        
-        const testnetWallets = testnetResult.wallets;
-        const testnetAddresses = testnetResult.addresses;
+        const testnetWallets = await generateWalletsFromSeed(seedPhrase, 'testnet');
+        const testnetAddresses = {};
+        testnetWallets.forEach(wallet => {
+            if (!testnetAddresses[wallet.blockchain]) {
+                testnetAddresses[wallet.blockchain] = {
+                    address: wallet.address,
+                    symbol: wallet.symbol,
+                    network: 'testnet',
+                    tokenType: wallet.isNative ? 'native' : 'token'
+                };
+            }
+        });
 
-        // Сохраняем адреса только если они изменились или если их не было
         const saveAddressesResult = await saveAddressesToAPI(
             userData.telegram_user_id, 
             mainnetAddresses,
@@ -700,7 +652,6 @@ export const initializeUserWallets = async (userData) => {
         return { ...userData, wallets: [] };
     }
 };
-// ============================================================================================
 
 export const saveSeedPhraseToAPI = async (telegramUserId, seedPhrase) => {
     try {
@@ -765,17 +716,8 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
                 return filteredWallets;
             }
             
-            if (userData?.seed_phrases && userData?.wallet_addresses) {
-                // Используем сохраненные адреса для создания кошельков
-                const allWallets = [];
-                const tokens = TOKENS;
-                
-                for (const [key, token] of Object.entries(tokens)) {
-                    const address = userData.wallet_addresses[token.blockchain];
-                    if (address) {
-                        allWallets.push(createWallet(token, address, 'mainnet'));
-                    }
-                }
+            if (userData?.seed_phrases) {
+                const allWallets = await generateWalletsFromSeed(userData.seed_phrases, 'mainnet');
                 
                 const filteredWallets = [];
                 let usdtFound = false;
@@ -798,22 +740,13 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
                 return filteredWallets;
             }
         } else {
-            if (userData?.seed_phrases && userData?.testnet_wallets) {
-                // Используем сохраненные адреса для testnet
-                const allWallets = [];
-                const tokens = TESTNET_TOKENS;
-                
-                for (const [key, token] of Object.entries(tokens)) {
-                    const address = userData.testnet_wallets[token.blockchain];
-                    if (address) {
-                        allWallets.push(createWallet(token, address, 'testnet'));
-                    }
-                }
+            if (userData?.seed_phrases) {
+                const testnetWallets = await generateWalletsFromSeed(userData.seed_phrases, 'testnet');
                 
                 const filteredWallets = [];
                 let usdtFound = false;
                 
-                for (const wallet of allWallets) {
+                for (const wallet of testnetWallets) {
                     if (wallet.symbol === 'USDT') {
                         if (!usdtFound && wallet.blockchain === 'TON') {
                             filteredWallets.push({
@@ -830,6 +763,10 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
                 
                 return filteredWallets;
             }
+            
+            if (userData?.testnet_wallets && Object.keys(userData.testnet_wallets).length > 0) {
+                return generateTestnetWalletsFromSaved(userData.testnet_wallets);
+            }
         }
         
         return [];
@@ -837,6 +774,27 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
         console.error('Error getting all tokens:', error);
         return [];
     }
+};
+
+const generateTestnetWalletsFromSaved = (testnetWallets) => {
+    const wallets = [];
+    
+    const allTestnetTokens = Object.values(TESTNET_TOKENS);
+    
+    for (const token of allTestnetTokens) {
+        const blockchain = token.blockchain;
+        const savedWallet = testnetWallets[blockchain];
+        
+        if (savedWallet && savedWallet.address) {
+            wallets.push(createWallet(
+                token,
+                savedWallet.address,
+                'testnet'
+            ));
+        }
+    }
+    
+    return wallets;
 };
 
 const getTonBalance = async (address, network = 'mainnet') => {
@@ -1091,7 +1049,9 @@ const getBNBBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// ================================ ИСПРАВЛЕННОЕ ПОЛУЧЕНИЕ БАЛАНСА XRP ================================
+// ================= ИСПРАВЛЕННЫЕ ФУНКЦИИ ТОЛЬКО ДЛЯ XRP И LTC =================
+
+// Исправленная функция для получения баланса XRP через прямой RPC
 const getXrpBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1103,7 +1063,7 @@ const getXrpBalance = async (address, network = 'mainnet') => {
             return '0';
         }
         
-        console.log(`Подключение к XRPL ${network} для адреса: ${address}`);
+        console.log(`Получение баланса XRP для адреса: ${address} (${network})`);
         
         // Подключаемся к XRPL через WebSocket
         const client = new xrpl.Client(config.XRP.RPC_URL);
@@ -1127,64 +1087,32 @@ const getXrpBalance = async (address, network = 'mainnet') => {
             
             console.log(`✅ XRP баланс: ${balanceXRP} XRP (${balanceDrops} капель)`);
             
-            // Если баланс очень маленький, возвращаем 0
-            return balanceXRP < 0.000001 ? '0' : balanceXRP.toString();
+            return balanceXRP.toString();
             
         } finally {
             // Всегда отключаемся от клиента
             await client.disconnect();
-            console.log('Отключено от XRPL');
         }
         
     } catch (error) {
         console.error('XRP balance error:', error);
         
         // Обработка ошибки "аккаунт не найден"
-        if (error.message.includes('actNotFound') || error.message.includes('Account not found')) {
+        if (error.message?.includes('actNotFound') || error.message?.includes('Account not found')) {
             console.log('XRP аккаунт не найден, баланс = 0');
             return '0';
-        }
-        
-        // Fallback на публичный API
-        try {
-            console.log('Пробуем fallback для XRP баланса...');
-            const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-            const fallbackUrl = `https://s1.ripple.com:51234/`;
-            const fallbackResponse = await fetch(fallbackUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    method: 'account_info',
-                    params: [{
-                        account: address,
-                        ledger_index: 'validated'
-                    }]
-                })
-            });
-            
-            if (fallbackResponse.ok) {
-                const fallbackData = await fallbackResponse.json();
-                if (fallbackData.result?.account_data?.Balance) {
-                    const balanceDrops = fallbackData.result.account_data.Balance;
-                    const balanceXRP = parseInt(balanceDrops) / 1000000;
-                    return balanceXRP.toString();
-                }
-            }
-        } catch (fallbackError) {
-            console.error('Fallback для XRP также не сработал:', fallbackError);
         }
         
         return '0';
     }
 };
-// ============================================================================================
 
-// ================================ ИСПРАВЛЕННОЕ ПОЛУЧЕНИЕ БАЛАНСА LTC ================================
+// Исправленная функция для получения баланса LTC через Blockbook API
 const getLtcBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
-        console.log(`Запрос LTC баланса для адреса: ${address} (${network})`);
+        console.log(`Получение баланса LTC для адреса: ${address} (${network})`);
         
         // Используем Blockbook API как основной источник
         const blockbookUrl = network === 'testnet' 
@@ -1219,7 +1147,7 @@ const getLtcBalance = async (address, network = 'mainnet') => {
                 console.error('BlockCypher fallback также не сработал:', fallbackError);
             }
             
-            throw new Error(`LTC API error: ${response.status}`);
+            return '0';
         }
         
         const data = await response.json();
@@ -1232,42 +1160,16 @@ const getLtcBalance = async (address, network = 'mainnet') => {
             return balanceLTC.toString();
         }
         
-        // Проверяем альтернативные поля
-        if (data.chainStats?.funded_txo_sum !== undefined && data.chainStats?.spent_txo_sum !== undefined) {
-            const funded = data.chainStats.funded_txo_sum;
-            const spent = data.chainStats.spent_txo_sum;
-            const balanceLTC = (funded - spent) / 100000000;
-            console.log(`✅ LTC баланс через chainStats: ${balanceLTC} LTC`);
-            return balanceLTC.toString();
-        }
-        
         console.log('Баланс LTC не найден в ответе API');
         return '0';
         
     } catch (error) {
         console.error('LTC balance error:', error);
-        
-        // Последний fallback для testnet (Litecore)
-        if (network === 'testnet') {
-            try {
-                const litecoreUrl = `https://testnet.litecore.io/api/addr/${address}/balance`;
-                console.log('Пробуем Litecore API как последний fallback:', litecoreUrl);
-                const response = await fetch(litecoreUrl);
-                if (response.ok) {
-                    const satoshiBalance = await response.text();
-                    const balanceLTC = parseInt(satoshiBalance) / 100000000;
-                    console.log(`✅ LTC баланс через Litecore (fallback): ${balanceLTC} LTC`);
-                    return balanceLTC.toString();
-                }
-            } catch (finalError) {
-                console.error('Финальный fallback также не сработал:', finalError);
-            }
-        }
-        
         return '0';
     }
 };
-// ============================================================================================
+
+// ============================================================================
 
 export const getRealBalances = async (wallets) => {
     if (!Array.isArray(wallets)) return wallets;
