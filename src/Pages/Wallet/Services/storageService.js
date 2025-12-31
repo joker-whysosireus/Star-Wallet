@@ -54,8 +54,6 @@ const MAINNET_CONFIG = {
     XRP: { 
         RPC_URL: 'wss://xrplcluster.com',
         NETWORK: 'mainnet',
-        API_URL: 'https://api.bithomp.com',
-        API_KEY: '7a078d78-a00a-4eed-922b-246ad33e9bc2',
         EXPLORER_URL: 'https://xrpscan.com'
     },
     LTC: { 
@@ -105,8 +103,6 @@ const TESTNET_CONFIG = {
     XRP: { 
         RPC_URL: 'wss://s.altnet.rippletest.net:51233',
         NETWORK: 'testnet',
-        API_URL: 'https://test.bithomp.com/api/v2',
-        API_KEY: '7a078d78-a00a-4eed-922b-246ad33e9bc2',
         EXPLORER_URL: 'https://testnet.xrpscan.com'
     },
     LTC: {
@@ -1053,7 +1049,7 @@ const getBNBBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// === ОБНОВЛЕННАЯ ФУНКЦИЯ ПОЛУЧЕНИЯ БАЛАНСА XRP (Bithomp API) ===
+// === ИСПРАВЛЕННАЯ ФУНКЦИЯ ПОЛУЧЕНИЯ БАЛАНСА XRP (прямое подключение к XRPL) ===
 const getXrpBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1065,61 +1061,71 @@ const getXrpBalance = async (address, network = 'mainnet') => {
             return '0';
         }
         
-        // Используем Bithomp API для получения баланса
-        const apiUrl = `${config.XRP.API_URL}/account-info/${address}`;
-        console.log('Запрос к Bithomp API:', apiUrl);
+        console.log(`Подключение к XRPL ${network} для адреса: ${address}`);
         
-        const response = await fetch(apiUrl, {
-            headers: {
-                'Authorization': `Bearer ${config.XRP.API_KEY}`,
-                'Content-Type': 'application/json'
-            }
-        });
+        // Подключаемся к XRPL через WebSocket
+        const client = new xrpl.Client(config.XRP.RPC_URL);
         
-        if (!response.ok) {
-            // Если аккаунт не найден (ошибка 404), баланс равен 0
-            if (response.status === 404) {
-                console.log('XRP аккаунт не найден, баланс = 0');
-                return '0';
-            }
+        try {
+            await client.connect();
+            console.log(`✅ Подключено к XRPL ${network}`);
             
-            console.error(`Bithomp API error: ${response.status}`, await response.text());
+            // Запрашиваем информацию об аккаунте
+            const accountInfo = await client.request({
+                command: "account_info",
+                account: address,
+                ledger_index: "validated"
+            });
             
-            // Если запрос не авторизован, возможно проблема с ключом
-            if (response.status === 401) {
-                console.error('Ошибка авторизации Bithomp API. Проверьте API ключ.');
-            }
+            // Получаем баланс в каплях (drops)
+            const balanceDrops = accountInfo.result.account_data?.Balance || "0";
             
-            throw new Error(`Bithomp API error: ${response.status}`);
+            // Конвертируем капли в XRP (1 XRP = 1,000,000 drops)
+            const balanceXRP = parseInt(balanceDrops) / 1000000;
+            
+            console.log(`✅ XRP баланс: ${balanceXRP} XRP (${balanceDrops} капель)`);
+            
+            // Если баланс очень маленький, возвращаем 0
+            return balanceXRP < 0.000001 ? '0' : balanceXRP.toString();
+            
+        } finally {
+            // Всегда отключаемся от клиента
+            await client.disconnect();
+            console.log('Отключено от XRPL');
         }
-        
-        const data = await response.json();
-        
-        // Извлекаем баланс из ответа Bithomp API
-        if (data.account && data.account.balance) {
-            const balanceInDrops = data.account.balance;
-            const balanceInXRP = parseFloat(balanceInDrops) / 1000000;
-            console.log(`✅ XRP баланс: ${balanceInXRP} XRP (${balanceInDrops} капель)`);
-            return balanceInXRP.toString();
-        }
-        
-        console.log('Баланс XRP не найден в ответе API');
-        return '0';
         
     } catch (error) {
-        console.error('XRP balance error (Bithomp):', error);
+        console.error('XRP balance error:', error);
         
-        // Fallback на старый метод если Bithomp не работает
+        // Обработка ошибки "аккаунт не найден"
+        if (error.message.includes('actNotFound') || error.message.includes('Account not found')) {
+            console.log('XRP аккаунт не найден, баланс = 0');
+            return '0';
+        }
+        
+        // Fallback на публичный API
         try {
-            console.log('Пробуем fallback метод для XRP баланса...');
+            console.log('Пробуем fallback для XRP баланса...');
             const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-            const fallbackUrl = `${config.XRP.EXPLORER_URL}/account/${address}`;
-            const fallbackResponse = await fetch(fallbackUrl);
+            const fallbackUrl = `https://s1.ripple.com:51234/`;
+            const fallbackResponse = await fetch(fallbackUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    method: 'account_info',
+                    params: [{
+                        account: address,
+                        ledger_index: 'validated'
+                    }]
+                })
+            });
             
             if (fallbackResponse.ok) {
                 const fallbackData = await fallbackResponse.json();
-                if (fallbackData.xrpBalance) {
-                    return parseFloat(fallbackData.xrpBalance).toString();
+                if (fallbackData.result?.account_data?.Balance) {
+                    const balanceDrops = fallbackData.result.account_data.Balance;
+                    const balanceXRP = parseInt(balanceDrops) / 1000000;
+                    return balanceXRP.toString();
                 }
             }
         } catch (fallbackError) {
@@ -1130,43 +1136,44 @@ const getXrpBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// === ОБНОВЛЕННАЯ ФУНКЦИЯ ПОЛУЧЕНИЯ БАЛАНСА LTC (BlockCypher API) ===
+// === ИСПРАВЛЕННАЯ ФУНКЦИЯ ПОЛУЧЕНИЯ БАЛАНСА LTC (Blockbook API) ===
 const getLtcBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
-        // Определяем URL для BlockCypher API
-        const apiUrl = network === 'testnet' 
-            ? `${config.LTC.TESTNET_API}/addrs/${address}/balance`
-            : `${config.LTC.MAINNET_API}/addrs/${address}/balance`;
+        console.log(`Запрос LTC баланса для адреса: ${address} (${network})`);
         
-        console.log('Запрос LTC баланса к BlockCypher:', apiUrl);
+        // Используем Blockbook API как основной источник
+        const blockbookUrl = network === 'testnet' 
+            ? `${config.LTC.BLOCKBOOK_API}/v2/address/${address}`
+            : `${config.LTC.BLOCKBOOK_API}/v2/address/${address}`;
         
-        const response = await fetch(apiUrl);
+        console.log('Запрос к Blockbook API:', blockbookUrl);
+        
+        const response = await fetch(blockbookUrl);
         
         if (!response.ok) {
-            console.error(`BlockCypher API error: ${response.status}`);
+            console.error(`Blockbook API error: ${response.status}`);
             
-            // Fallback на Blockbook API
+            // Fallback на BlockCypher API
             try {
-                const blockbookUrl = network === 'testnet' 
-                    ? `${config.LTC.BLOCKBOOK_API}/v2/address/${address}`
-                    : `${config.LTC.BLOCKBOOK_API}/v2/address/${address}`;
+                const blockcypherUrl = network === 'testnet' 
+                    ? `${config.LTC.TESTNET_API}/addrs/${address}/balance`
+                    : `${config.LTC.MAINNET_API}/addrs/${address}/balance`;
                 
-                console.log('Пробуем Blockbook API как fallback:', blockbookUrl);
-                const fallbackResponse = await fetch(blockbookUrl);
+                console.log('Пробуем BlockCypher API как fallback:', blockcypherUrl);
+                const fallbackResponse = await fetch(blockcypherUrl);
                 
                 if (fallbackResponse.ok) {
                     const fallbackData = await fallbackResponse.json();
-                    if (fallbackData.balance) {
-                        const balanceSatoshi = parseInt(fallbackData.balance);
-                        const balanceLTC = balanceSatoshi / 100000000;
-                        console.log(`✅ LTC баланс через Blockbook: ${balanceLTC} LTC`);
+                    if (fallbackData.balance !== undefined) {
+                        const balanceLTC = fallbackData.balance / 100000000;
+                        console.log(`✅ LTC баланс через BlockCypher: ${balanceLTC} LTC`);
                         return balanceLTC.toString();
                     }
                 }
             } catch (fallbackError) {
-                console.error('Blockbook fallback также не сработал:', fallbackError);
+                console.error('BlockCypher fallback также не сработал:', fallbackError);
             }
             
             throw new Error(`LTC API error: ${response.status}`);
@@ -1174,30 +1181,34 @@ const getLtcBalance = async (address, network = 'mainnet') => {
         
         const data = await response.json();
         
-        // BlockCypher возвращает баланс в сатоши
+        // Blockbook возвращает баланс в сатоши
         if (data.balance !== undefined) {
-            const balanceLTC = data.balance / 100000000;
-            console.log(`✅ LTC баланс через BlockCypher: ${balanceLTC} LTC`);
+            const balanceSatoshi = parseInt(data.balance);
+            const balanceLTC = balanceSatoshi / 100000000;
+            console.log(`✅ LTC баланс через Blockbook: ${balanceLTC} LTC`);
             return balanceLTC.toString();
         }
         
-        // Альтернативное поле в ответе
-        if (data.final_balance !== undefined) {
-            const balanceLTC = data.final_balance / 100000000;
-            console.log(`✅ LTC баланс через BlockCypher (final_balance): ${balanceLTC} LTC`);
+        // Проверяем альтернативные поля
+        if (data.chainStats?.funded_txo_sum !== undefined && data.chainStats?.spent_txo_sum !== undefined) {
+            const funded = data.chainStats.funded_txo_sum;
+            const spent = data.chainStats.spent_txo_sum;
+            const balanceLTC = (funded - spent) / 100000000;
+            console.log(`✅ LTC баланс через chainStats: ${balanceLTC} LTC`);
             return balanceLTC.toString();
         }
         
-        console.log('Баланс LTC не найден в ответе BlockCypher');
+        console.log('Баланс LTC не найден в ответе API');
         return '0';
         
     } catch (error) {
         console.error('LTC balance error:', error);
         
-        // Последний fallback для testnet
+        // Последний fallback для testnet (Litecore)
         if (network === 'testnet') {
             try {
                 const litecoreUrl = `https://testnet.litecore.io/api/addr/${address}/balance`;
+                console.log('Пробуем Litecore API как последний fallback:', litecoreUrl);
                 const response = await fetch(litecoreUrl);
                 if (response.ok) {
                     const satoshiBalance = await response.text();
