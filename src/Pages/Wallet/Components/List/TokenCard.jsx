@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getTokenPrices } from '../../Services/storageService';
 import './TokenCard.css';
 
-const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInList = false }) => {
+const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', showUSDTBadge = false }) => {
     const [usdBalance, setUsdBalance] = useState('$0.00');
     const [tokenPrice, setTokenPrice] = useState('$0.00');
     
@@ -53,6 +53,32 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInLis
         }
     };
     
+    // Форматирование баланса: только первые три нуля после целого числа
+    const formatBalance = (balanceStr) => {
+        if (!balanceStr || balanceStr === '0') return '0.000';
+        
+        const balance = parseFloat(balanceStr);
+        if (isNaN(balance)) return '0.000';
+        
+        // Разделяем целую и дробную части
+        const [integerPart, decimalPart] = balance.toString().split('.');
+        
+        if (!decimalPart) {
+            return `${integerPart}.000`;
+        }
+        
+        // Ограничиваем до 3 знаков после запятой
+        const limitedDecimal = decimalPart.length > 3 ? decimalPart.substring(0, 3) : decimalPart;
+        
+        // Если после запятой все нули или их меньше 3, дополняем до 3 знаков
+        if (limitedDecimal === '0' || limitedDecimal === '00') {
+            return `${integerPart}.${limitedDecimal.padEnd(3, '0')}`;
+        }
+        
+        // Если есть значимые цифры после запятой, показываем до 3 знаков
+        return `${integerPart}.${limitedDecimal.padEnd(3, '0').substring(0, 3)}`;
+    };
+    
     if (isLoading || !wallet) {
         return (
             <div className="token-card">
@@ -90,44 +116,7 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInLis
     };
     
     const badge = getBlockchainBadge(wallet.blockchain);
-
-    // Для USDT в списке скрываем бейдж и информацию о блокчейне
-    if (isUSDTInList) {
-        return (
-            <div className="token-card">
-                <div className="token-left">
-                    <div className="token-icon">
-                        <img 
-                            src={wallet.logo} 
-                            alt={wallet.symbol}
-                            className="token-logo"
-                            onError={(e) => {
-                                console.error(`Failed to load logo for ${wallet.symbol}:`, e);
-                                e.target.style.display = 'none';
-                                const fallback = document.createElement('div');
-                                fallback.className = 'token-logo-fallback';
-                                fallback.textContent = wallet.symbol.substring(0, 2);
-                                e.target.parentNode.appendChild(fallback);
-                            }}
-                        />
-                    </div>
-                    <div className="token-names">
-                        <div className="token-name" style={{ fontSize: '14px', color: 'white' }}>Tether</div>
-                        <div className="token-symbol" style={{ fontSize: '16px', fontWeight: '600', color: 'white' }}>USDT</div>
-                        <div className="token-price">{tokenPrice}</div>
-                    </div>
-                </div>
-                <div className="token-right">
-                    <div className="token-balance" style={{ fontSize: '16px', fontWeight: '600', color: 'white' }}>
-                        {wallet.balance || '0.00'}
-                    </div>
-                    <div className="token-usd-balance" style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.5)' }}>
-                        {usdBalance}
-                    </div>
-                </div>
-            </div>
-        );
-    }
+    const formattedBalance = formatBalance(wallet.balance);
 
     return (
         <div className="token-card">
@@ -154,16 +143,26 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInLis
                 </div>
             </div>
             <div className="token-right">
-                <div className="token-balance">{wallet.balance || '0.00'}</div>
+                <div className="token-balance">{formattedBalance}</div>
                 <div className="token-usd-balance">{usdBalance}</div>
-                {wallet.showBlockchain && !isUSDTInList && (
+                {(showUSDTBadge && wallet.symbol === 'USDT') ? (
                     <div 
                         className="blockchain-badge-tokencard" 
-                        style={{ backgroundColor: badge.color }}
-                        title={wallet.blockchain}
+                        style={{ backgroundColor: '#26A17B' }}
+                        title="USDT"
                     >
-                        {badge.text}
+                        USDT
                     </div>
+                ) : (
+                    wallet.showBlockchain && (
+                        <div 
+                            className="blockchain-badge-tokencard" 
+                            style={{ backgroundColor: badge.color }}
+                            title={wallet.blockchain}
+                        >
+                            {badge.text}
+                        </div>
+                    )
                 )}
             </div>
         </div>

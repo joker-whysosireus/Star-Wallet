@@ -1209,6 +1209,20 @@ export const calculateTotalBalance = async (wallets) => {
     }
 };
 
+export const getTotalUSDTBalance = async (userData, network = 'mainnet') => {
+    try {
+        const usdtTokens = await getUSDTTokensForDetail(userData, network);
+        let total = 0;
+        usdtTokens.forEach(token => {
+            total += parseFloat(token.balance || 0);
+        });
+        return total.toFixed(2);
+    } catch (error) {
+        console.error('Error calculating total USDT balance:', error);
+        return '0.00';
+    }
+};
+
 export const validateAddress = async (blockchain, address) => {
     try {
         switch(blockchain) {
@@ -1421,7 +1435,8 @@ export const getUSDTTokensForDetail = async (userData, network = 'mainnet') => {
                 blockchain: 'TON',
                 name: 'Tether (TON)',
                 displayName: 'TON USDT',
-                showBlockchain: true
+                showBlockchain: true,
+                showUSDTBadge: true
             },
             {
                 ...tokens.USDT_ETH,
@@ -1429,7 +1444,8 @@ export const getUSDTTokensForDetail = async (userData, network = 'mainnet') => {
                 blockchain: 'Ethereum',
                 name: 'Tether (ERC20)',
                 displayName: 'ERC20 USDT',
-                showBlockchain: true
+                showBlockchain: true,
+                showUSDTBadge: true
             },
             {
                 ...tokens.USDT_SOL,
@@ -1437,7 +1453,8 @@ export const getUSDTTokensForDetail = async (userData, network = 'mainnet') => {
                 blockchain: 'Solana',
                 name: 'Tether (SPL)',
                 displayName: 'SPL USDT',
-                showBlockchain: true
+                showBlockchain: true,
+                showUSDTBadge: true
             },
             {
                 ...tokens.USDT_TRX,
@@ -1445,7 +1462,8 @@ export const getUSDTTokensForDetail = async (userData, network = 'mainnet') => {
                 blockchain: 'Tron',
                 name: 'Tether (TRC20)',
                 displayName: 'TRC20 USDT',
-                showBlockchain: true
+                showBlockchain: true,
+                showUSDTBadge: true
             }
         ];
         
@@ -1456,7 +1474,8 @@ export const getUSDTTokensForDetail = async (userData, network = 'mainnet') => {
             isActive: true,
             network: network,
             id: `usdt_${token.blockchain.toLowerCase()}_${Date.now()}`,
-            showBlockchain: true
+            showBlockchain: true,
+            showUSDTBadge: true
         }));
         
         return await getRealBalances(wallets);
@@ -1493,6 +1512,7 @@ export default {
     getTokenPrices,
     getTokenPricesFromRPC,
     calculateTotalBalance,
+    getTotalUSDTBalance,
     validateAddress,
     revealSeedPhrase,
     saveSeedPhraseToAPI,

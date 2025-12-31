@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
 import TokenCard from '../../Components/List/TokenCard';
-import { getUSDTTokensForDetail } from '../../Services/storageService';
+import { getUSDTTokensForDetail, getTotalUSDTBalance } from '../../Services/storageService';
 import './USDTDetail.css';
 
 const USDTDetail = () => {
@@ -12,7 +12,7 @@ const USDTDetail = () => {
     const { userData, network = 'mainnet' } = location.state || {};
     
     const [usdtTokens, setUsdtTokens] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [totalUSDTBalance, setTotalUSDTBalance] = useState('0.00');
     
     useEffect(() => {
         if (!userData) {
@@ -24,18 +24,17 @@ const USDTDetail = () => {
 
     const loadUSDTTokens = async () => {
         try {
-            setIsLoading(true);
             const tokens = await getUSDTTokensForDetail(userData, network);
             setUsdtTokens(tokens);
+            
+            const total = await getTotalUSDTBalance(userData, network);
+            setTotalUSDTBalance(total);
         } catch (error) {
             console.error('Error loading USDT tokens:', error);
-        } finally {
-            setIsLoading(false);
         }
     };
 
     const handleTokenClick = (token) => {
-        // Переход на страницу TokenDetail для выбранного USDT
         navigate(`/wallet/token/USDT`, { 
             state: { 
                 ...token,
@@ -46,25 +45,6 @@ const USDTDetail = () => {
             }
         });
     };
-
-    if (isLoading) {
-        return (
-            <div className="page-container">
-                <Header 
-                    userData={userData} 
-                    currentNetwork={network}
-                    disableNetworkSwitch={true}
-                />
-                <div className="page-content">
-                    <div className="loading-container">
-                        <div className="spinner"></div>
-                        <p>Loading USDT tokens...</p>
-                    </div>
-                </div>
-                <Menu />
-            </div>
-        );
-    }
 
     return (
         <div className="page-container">
@@ -84,6 +64,12 @@ const USDTDetail = () => {
                     </div>
                 </div>
                 
+                <div className="total-usdt-balance-display">
+                    <div className="total-usdt-amount">
+                        {totalUSDTBalance} USDT
+                    </div>
+                </div>
+                
                 <div className="usdt-tokens-grid">
                     {usdtTokens.map(token => (
                         <div 
@@ -96,7 +82,8 @@ const USDTDetail = () => {
                                     ...token,
                                     symbol: 'USDT',
                                     name: token.displayName || token.name,
-                                    showBlockchain: true
+                                    showBlockchain: true,
+                                    showUSDTBadge: true
                                 }} 
                                 network={network}
                             />

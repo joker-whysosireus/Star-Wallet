@@ -40,13 +40,27 @@
     border: 2px solid rgba(255, 215, 0, 0.2);
 }
 
+.total-usdt-balance-display {
+    text-align: center;
+    margin-bottom: 15px;
+    width: 100%;
+}
+
+.total-usdt-amount {
+    font-size: 24px;
+    font-weight: 600;
+    color: white;
+    margin: 0;
+    line-height: 1.2;
+}
+
 .usdt-tokens-grid {
     display: grid;
     grid-template-columns: 1fr;
     gap: 12px;
     width: 100%;
     max-width: 400px;
-    margin-top: 20px;
+    margin-top: 10px;
 }
 
 .usdt-token-block {
@@ -55,15 +69,14 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    transition: all 0.2s ease;
-    border: 1px solid rgba(255, 255, 255, 0.1);
     cursor: pointer;
+    border: none;
 }
 
+/* Удаляем эффекты при наведении */
 .usdt-token-block:hover {
-    background: rgba(255, 255, 255, 0.08);
-    transform: translateY(-2px);
-    border-color: rgba(255, 215, 0, 0.3);
+    background: rgba(255, 255, 255, 0.05);
+    transform: none;
 }
 
 .loading-container {

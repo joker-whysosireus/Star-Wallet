@@ -75,7 +75,12 @@ const TokenDetail = () => {
         return wallet.logo;
     };
 
-    const getBlockchainBadge = (blockchain) => {
+    const getBlockchainBadge = (blockchain, symbol) => {
+        // Для USDT возвращаем специальный бейдж
+        if (symbol === 'USDT') {
+            return { color: '#26A17B', text: 'USDT' };
+        }
+        
         const badges = {
             'TON': { color: '#0088cc', text: 'TON' },
             'Solana': { color: '#00ff88', text: 'SOL' },
@@ -91,7 +96,7 @@ const TokenDetail = () => {
         return badges[blockchain] || { color: '#666', text: blockchain };
     };
 
-    const badge = wallet ? getBlockchainBadge(wallet.blockchain) : null;
+    const badge = wallet ? getBlockchainBadge(wallet.blockchain, wallet.symbol) : null;
 
     if (!wallet) {
         return (
