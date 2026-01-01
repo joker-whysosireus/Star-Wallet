@@ -397,7 +397,7 @@ const TokenDetail = () => {
                 
                 <div className="chart-container" style={{
                     width: '100%',
-                    maxWidth: '400px',
+                    maxWidth: '380px',
                     marginTop: '25px',
                     background: 'rgba(255, 255, 255, 0.03)',
                     borderRadius: '15px',
@@ -449,7 +449,7 @@ const TokenDetail = () => {
                     
                     {isLoadingChart ? (
                         <div style={{
-                            height: '200px',
+                            height: '170px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
