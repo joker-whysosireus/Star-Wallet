@@ -459,7 +459,7 @@ const TokenDetail = () => {
                             Loading chart...
                         </div>
                     ) : (
-                        <ResponsiveContainer width="100%" height={160}> {/* Уменьшена на 40px (было 200px) */}
+                        <ResponsiveContainer width="85%" height={160}> {/* Уменьшена на 40px (было 200px) */}
                             <LineChart
                                 data={chartData}
                                 margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
