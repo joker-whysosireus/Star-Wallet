@@ -28,6 +28,7 @@ const SendToken = () => {
     const [isAddressValid, setIsAddressValid] = useState(true);
     const [balance, setBalance] = useState('0');
     const [isCameraAvailable, setIsCameraAvailable] = useState(true);
+    const [sendSuccess, setSendSuccess] = useState(false);
     
     const amountInputRef = useRef(null);
     const underlineRef = useRef(null);
@@ -137,6 +138,7 @@ const SendToken = () => {
 
         setIsLoading(true);
         setTransactionStatus(null);
+        setSendSuccess(false);
 
         try {
             let privateKey = userData.private_key;
@@ -166,6 +168,7 @@ const SendToken = () => {
             });
 
             if (result.success) {
+                setSendSuccess(true);
                 setTransactionStatus({ 
                     type: 'success', 
                     message: `Successfully sent ${amount} ${token.symbol}`,
@@ -175,12 +178,14 @@ const SendToken = () => {
                 
                 setTimeout(async () => {
                     await loadBalances();
-                    
-                    setTimeout(() => {
-                        setAmount('');
-                        setToAddress('');
-                        setComment('');
-                    }, 3000);
+                }, 2000);
+                
+                setTimeout(() => {
+                    setAmount('');
+                    setToAddress('');
+                    setComment('');
+                    setTransactionStatus(null);
+                    setSendSuccess(false);
                 }, 5000);
             } else {
                 setTransactionStatus({ 
@@ -274,6 +279,8 @@ const SendToken = () => {
     }
     
     const badge = getBlockchainBadge(token.blockchain);
+    const buttonText = sendSuccess ? '✓ Sent!' : (isLoading ? 'Sending...' : 'Send');
+    const buttonClass = sendSuccess ? 'send-button send-button-success' : 'send-button';
     
     return (
         <div className="wallet-page">
@@ -400,32 +407,19 @@ const SendToken = () => {
                         </div>
                     </div>
                     
-                    {transactionStatus && (
+                    {transactionStatus && transactionStatus.type === 'error' && (
                         <div className={`transaction-status ${transactionStatus.type}`}>
                             {transactionStatus.message}
-                            {transactionStatus.hash && (
-                                <div className="transaction-hash">
-                                    Hash: {transactionStatus.hash.substring(0, 20)}...
-                                </div>
-                            )}
-                            {transactionStatus.explorerUrl && (
-                                <button 
-                                    className="view-explorer-btn"
-                                    onClick={() => window.open(transactionStatus.explorerUrl, '_blank')}
-                                >
-                                    View on Explorer
-                                </button>
-                            )}
                         </div>
                     )}
                 </div>
                 
                 <button 
-                    className="send-button"
+                    className={buttonClass}
                     onClick={handleSend}
-                    disabled={isLoading || !toAddress || !amount || !isAddressValid}
+                    disabled={isLoading || !toAddress || !amount || !isAddressValid || sendSuccess}
                 >
-                    {isLoading ? 'Sending...' : 'Send'}
+                    {buttonText}
                 </button>
             </div>
             

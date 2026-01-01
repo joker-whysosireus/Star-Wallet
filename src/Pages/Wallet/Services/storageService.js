@@ -19,10 +19,10 @@ const MAINNET_CONFIG = {
         RPC_URL: 'https://toncenter.com/api/v2/jsonRPC',
         API_URL: 'https://tonapi.io/v2',
         API_URL_V1: 'https://tonapi.io/v1',
-        API_KEY: 'e9c1f1d2d6c84e8a8b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2'
+        API_KEY: ''
     },
     ETHEREUM: { 
-        RPC_URL: 'https://eth.llamarpc.com',
+        RPC_URL: 'https://rpc.ankr.com/eth',
         CHAIN_ID: 1
     },
     SOLANA: { 
@@ -57,10 +57,10 @@ const TESTNET_CONFIG = {
         RPC_URL: 'https://testnet.toncenter.com/api/v2/jsonRPC',
         API_URL: 'https://testnet.tonapi.io/v2',
         API_URL_V1: 'https://testnet.tonapi.io/v1',
-        API_KEY: 'e9c1f1d2d6c84e8a8b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2'
+        API_KEY: ''
     },
     ETHEREUM: { 
-        RPC_URL: 'https://ethereum-sepolia-rpc.publicnode.com',
+        RPC_URL: 'https://rpc.sepolia.org',
         CHAIN_ID: 11155111
     },
     SOLANA: { 
@@ -407,7 +407,7 @@ const generateTronAddress = async (seedPhrase, network = 'mainnet') => {
 
 const generateBitcoinAddress = async (seedPhrase, network = 'mainnet') => {
     try {
-        const networkConfig = network === 'testnet' ? TESTNET_CONFIG.BITCOIN.NETWORK : MAINNET_CONFIG.BITCOIN.NETWORK;
+        const networkConfig = network === 'testnet' ? bitcoin.networks.testnet : bitcoin.networks.bitcoin;
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const root = bip32.fromSeed(seedBuffer, networkConfig);
         const child = root.derivePath("m/84'/0'/0'/0/0");
@@ -912,7 +912,6 @@ export const getRealBalances = async (wallets) => {
             wallets.map(async (wallet) => {
                 try {
                     let balance = '0';
-                    const config = wallet.network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
                     
                     switch(wallet.blockchain) {
                         case 'TON':
@@ -1047,7 +1046,7 @@ export const getTotalUSDTBalance = async (userData, network = 'mainnet') => {
     }
 };
 
-export const validateAddress = async (blockchain, address) => {
+export const validateAddress = async (blockchain, address, network = 'mainnet') => {
     try {
         switch(blockchain) {
             case 'TON':
@@ -1065,10 +1064,18 @@ export const validateAddress = async (blockchain, address) => {
                 const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$|^41[0-9a-fA-F]{40}$/;
                 return tronRegex.test(address);
             case 'Bitcoin':
+                // Исправлено: проверяем обе сети для Bitcoin
                 try {
                     bitcoin.address.toOutputScript(address, bitcoin.networks.bitcoin);
                     return true;
-                } catch { return false; }
+                } catch {
+                    try {
+                        bitcoin.address.toOutputScript(address, bitcoin.networks.testnet);
+                        return true;
+                    } catch {
+                        return false;
+                    }
+                }
             case 'NEAR':
                 const nearImplicitRegex = /^[0-9a-f]{64}$/;
                 const nearNamedRegex = /^[a-z0-9_-]+(\.[a-z0-9_-]+)*\.(near|testnet)$/;
@@ -1147,18 +1154,19 @@ export const sendTransaction = async (transactionData) => {
     }
 };
 
-export const estimateTransactionFee = async (blockchain) => {
+export const estimateTransactionFee = async (blockchain, network = 'mainnet') => {
     const defaultFees = {
-        'TON': '0.05',
-        'Ethereum': '0.001',
-        'BSC': '0.0001',
-        'Solana': '0.000005',
-        'Tron': '0.1',
-        'Bitcoin': '0.0001',
-        'NEAR': '0.01'
+        'TON': { mainnet: '0.05', testnet: '0.05' },
+        'Ethereum': { mainnet: '0.001', testnet: '0.0001' },
+        'BSC': { mainnet: '0.0001', testnet: '0.00001' },
+        'Solana': { mainnet: '0.000005', testnet: '0.000001' },
+        'Tron': { mainnet: '0.1', testnet: '0.01' },
+        'Bitcoin': { mainnet: '0.0001', testnet: '0.00001' },
+        'NEAR': { mainnet: '0.01', testnet: '0.001' }
     };
     
-    return defaultFees[blockchain] || '0.01';
+    const fees = defaultFees[blockchain] || { mainnet: '0.01', testnet: '0.001' };
+    return network === 'testnet' ? fees.testnet : fees.mainnet;
 };
 
 export const getTokenPricesFromRPC = async () => {

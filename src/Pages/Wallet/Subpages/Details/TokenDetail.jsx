@@ -81,65 +81,134 @@ const TokenDetail = () => {
         }
     };
 
+    const getCoinGeckoId = (symbol) => {
+        const coinIds = {
+            'TON': 'the-open-network',
+            'ETH': 'ethereum',
+            'SOL': 'solana',
+            'BNB': 'binancecoin',
+            'TRX': 'tron',
+            'BTC': 'bitcoin',
+            'NEAR': 'near-protocol',
+            'USDT': 'tether'
+        };
+        return coinIds[symbol] || symbol.toLowerCase();
+    };
+
+    const getDaysFromTimeframe = (timeframe) => {
+        switch(timeframe) {
+            case '1D': return 1;
+            case '1W': return 7;
+            case '1M': return 30;
+            case '1Y': return 365;
+            default: return 1;
+        }
+    };
+
     const loadChartData = async (tokenSymbol, timeRange) => {
         setIsLoadingChart(true);
         try {
-            let mockData = [];
-            const basePrice = await getMockPrice(tokenSymbol);
+            const coinId = getCoinGeckoId(tokenSymbol);
+            const days = getDaysFromTimeframe(timeRange);
             
-            switch(timeRange) {
-                case '1D':
-                    for (let i = 23; i >= 0; i--) {
-                        const time = new Date(Date.now() - i * 60 * 60 * 1000);
-                        mockData.push({
-                            time: time.getHours() + ':00',
-                            price: basePrice * (0.95 + Math.random() * 0.1)
-                        });
+            const response = await fetch(
+                `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${days}&interval=${days === 1 ? 'hourly' : 'daily'}`
+            );
+            
+            if (response.ok) {
+                const data = await response.json();
+                let formattedData = [];
+                
+                if (data.prices && data.prices.length > 0) {
+                    if (days === 1) {
+                        // Для 1 дня показываем почасовые данные
+                        formattedData = data.prices.slice(-24).map(([timestamp, price]) => ({
+                            time: new Date(timestamp).toLocaleTimeString('en-US', { 
+                                hour: '2-digit', 
+                                minute: '2-digit',
+                                hour12: false 
+                            }),
+                            price: price
+                        }));
+                    } else if (days <= 7) {
+                        // Для недели показываем ежедневные данные
+                        formattedData = data.prices.filter((_, index) => index % 24 === 0).map(([timestamp, price]) => ({
+                            time: new Date(timestamp).toLocaleDateString('en-US', { 
+                                weekday: 'short'
+                            }),
+                            price: price
+                        }));
+                    } else {
+                        // Для месяца и года показываем выборку
+                        const step = Math.max(1, Math.floor(data.prices.length / 10));
+                        formattedData = data.prices.filter((_, index) => index % step === 0).map(([timestamp, price]) => ({
+                            time: new Date(timestamp).toLocaleDateString('en-US', { 
+                                month: days <= 30 ? 'short' : 'numeric',
+                                day: days <= 30 ? 'numeric' : undefined
+                            }),
+                            price: price
+                        }));
                     }
-                    break;
-                case '1W':
-                    for (let i = 6; i >= 0; i--) {
-                        const time = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-                        mockData.push({
-                            time: time.toLocaleDateString('en-US', { weekday: 'short' }),
-                            price: basePrice * (0.9 + Math.random() * 0.2)
-                        });
-                    }
-                    break;
-                case '1M':
-                    for (let i = 9; i >= 0; i--) {
-                        const time = new Date(Date.now() - i * 3 * 24 * 60 * 60 * 1000);
-                        mockData.push({
-                            time: time.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                            price: basePrice * (0.8 + Math.random() * 0.4)
-                        });
-                    }
-                    break;
-                case '1Y':
-                    for (let i = 11; i >= 0; i--) {
-                        const time = new Date(Date.now() - i * 30 * 24 * 60 * 60 * 1000);
-                        mockData.push({
-                            time: time.toLocaleDateString('en-US', { month: 'short' }),
-                            price: basePrice * (0.7 + Math.random() * 0.6)
-                        });
-                    }
-                    break;
-                default:
-                    mockData = [
-                        { time: '09:00', price: basePrice },
-                        { time: '12:00', price: basePrice * 1.05 },
-                        { time: '15:00', price: basePrice * 0.98 },
-                        { time: '18:00', price: basePrice * 1.02 },
-                        { time: '21:00', price: basePrice * 1.01 }
-                    ];
+                }
+                
+                setChartData(formattedData);
+            } else {
+                // Fallback к мок-данным если API не работает
+                const basePrice = await getMockPrice(tokenSymbol);
+                generateMockData(basePrice, timeRange);
             }
-            
-            setChartData(mockData);
         } catch (error) {
             console.error('Error loading chart data:', error);
+            const basePrice = await getMockPrice(tokenSymbol);
+            generateMockData(basePrice, timeRange);
         } finally {
             setIsLoadingChart(false);
         }
+    };
+
+    const generateMockData = (basePrice, timeRange) => {
+        let mockData = [];
+        const now = Date.now();
+        
+        switch(timeRange) {
+            case '1D':
+                for (let i = 23; i >= 0; i--) {
+                    const time = new Date(now - i * 60 * 60 * 1000);
+                    mockData.push({
+                        time: time.getHours().toString().padStart(2, '0') + ':00',
+                        price: basePrice * (0.95 + Math.random() * 0.1)
+                    });
+                }
+                break;
+            case '1W':
+                for (let i = 6; i >= 0; i--) {
+                    const time = new Date(now - i * 24 * 60 * 60 * 1000);
+                    mockData.push({
+                        time: time.toLocaleDateString('en-US', { weekday: 'short' }),
+                        price: basePrice * (0.9 + Math.random() * 0.2)
+                    });
+                }
+                break;
+            case '1M':
+                for (let i = 9; i >= 0; i--) {
+                    const time = new Date(now - i * 3 * 24 * 60 * 60 * 1000);
+                    mockData.push({
+                        time: time.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                        price: basePrice * (0.8 + Math.random() * 0.4)
+                    });
+                }
+                break;
+            default:
+                mockData = [
+                    { time: '09:00', price: basePrice },
+                    { time: '12:00', price: basePrice * 1.05 },
+                    { time: '15:00', price: basePrice * 0.98 },
+                    { time: '18:00', price: basePrice * 1.02 },
+                    { time: '21:00', price: basePrice * 1.01 }
+                ];
+        }
+        
+        setChartData(mockData);
     };
 
     const getMockPrice = async (symbol) => {
@@ -236,7 +305,7 @@ const TokenDetail = () => {
                                     height: 80px;
                                     display: flex;
                                     align-items: center;
-                                    justifyContent: center;
+                                    justify-content: center;
                                     background: rgba(255, 215, 0, 0.2);
                                     border-radius: 50%;
                                     color: #FFD700;
@@ -269,6 +338,7 @@ const TokenDetail = () => {
                     <p className="usd-amount">${usdValue}</p>
                 </div>
                 
+                {/* Блок с кнопками действий */}
                 <div style={{
                     display: 'flex',
                     justifyContent: 'center',
@@ -395,9 +465,10 @@ const TokenDetail = () => {
                     </button>
                 </div>
                 
+                {/* Блок с графиком */}
                 <div className="chart-container" style={{
                     width: '100%',
-                    maxWidth: '400px',
+                    maxWidth: '400px', // Такая же ширина как у блока с кнопками
                     marginTop: '25px',
                     background: 'rgba(255, 255, 255, 0.03)',
                     borderRadius: '15px',
@@ -408,11 +479,11 @@ const TokenDetail = () => {
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        marginBottom: '15px'
+                        marginBottom: '10px'
                     }}>
                         <h3 style={{
                             color: 'white',
-                            fontSize: '16px',
+                            fontSize: '14px',
                             fontWeight: '600',
                             margin: 0
                         }}>
@@ -420,22 +491,22 @@ const TokenDetail = () => {
                         </h3>
                         <div style={{
                             display: 'flex',
-                            gap: '8px',
+                            gap: '6px',
                             background: 'rgba(255, 255, 255, 0.05)',
-                            borderRadius: '8px',
-                            padding: '4px'
+                            borderRadius: '6px',
+                            padding: '3px'
                         }}>
-                            {['1D', '1W', '1M', '1Y'].map((time) => (
+                            {['1D', '1W', '1M'].map((time) => (
                                 <button
                                     key={time}
                                     onClick={() => handleTimeframeChange(time)}
                                     style={{
-                                        padding: '6px 12px',
-                                        borderRadius: '6px',
+                                        padding: '4px 8px',
+                                        borderRadius: '4px',
                                         border: 'none',
                                         background: timeframe === time ? 'rgba(255, 215, 0, 0.2)' : 'transparent',
                                         color: timeframe === time ? '#FFD700' : 'rgba(255, 255, 255, 0.6)',
-                                        fontSize: '12px',
+                                        fontSize: '10px',
                                         fontWeight: '600',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s ease'
@@ -449,7 +520,7 @@ const TokenDetail = () => {
                     
                     {isLoadingChart ? (
                         <div style={{
-                            height: '200px',
+                            height: '150px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -458,57 +529,60 @@ const TokenDetail = () => {
                             Loading chart...
                         </div>
                     ) : (
-                        <ResponsiveContainer width="100%" height={200}>
+                        <ResponsiveContainer width="100%" height={150}>
                             <LineChart
                                 data={chartData}
-                                margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
+                                margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
                             >
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
+                                <CartesianGrid strokeDasharray="2 2" stroke="rgba(255, 255, 255, 0.1)" />
                                 <XAxis 
                                     dataKey="time" 
                                     stroke="rgba(255, 255, 255, 0.5)"
-                                    fontSize={10}
+                                    fontSize={8}
+                                    tick={{ fill: 'rgba(255, 255, 255, 0.5)' }}
                                 />
                                 <YAxis 
                                     stroke="rgba(255, 255, 255, 0.5)"
-                                    fontSize={10}
+                                    fontSize={8}
                                     tickFormatter={(value) => `$${value.toFixed(2)}`}
+                                    tick={{ fill: 'rgba(255, 255, 255, 0.5)' }}
                                 />
                                 <Tooltip
                                     formatter={(value) => [`$${parseFloat(value).toFixed(4)}`, 'Price']}
                                     labelFormatter={(label) => `Time: ${label}`}
                                     contentStyle={{
-                                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                        backgroundColor: 'rgba(0, 0, 0, 0.9)',
                                         border: '1px solid rgba(255, 215, 0, 0.3)',
-                                        borderRadius: '8px'
+                                        borderRadius: '6px',
+                                        fontSize: '11px'
                                     }}
                                 />
                                 <Line
                                     type="monotone"
                                     dataKey="price"
                                     stroke="#FFD700"
-                                    strokeWidth={2}
+                                    strokeWidth={1.5}
                                     dot={false}
-                                    activeDot={{ r: 4, fill: '#FFD700' }}
+                                    activeDot={{ r: 3, fill: '#FFD700' }}
                                 />
                             </LineChart>
                         </ResponsiveContainer>
                     )}
                     
-                    <div style={{
-                        marginTop: '15px',
-                        fontSize: '12px',
-                        color: 'rgba(255, 255, 255, 0.5)',
-                        textAlign: 'center'
-                    }}>
-                        {chartData.length > 0 && (
+                    {chartData.length > 0 && (
+                        <div style={{
+                            marginTop: '10px',
+                            fontSize: '11px',
+                            color: 'rgba(255, 255, 255, 0.5)',
+                            textAlign: 'center'
+                        }}>
                             <p>
                                 Current: ${chartData[chartData.length - 1]?.price?.toFixed(4) || '0.00'} • 
                                 Change: {chartData.length > 1 ? 
                                     (((chartData[chartData.length - 1].price - chartData[0].price) / chartData[0].price * 100).toFixed(2)) : '0.00'}%
                             </p>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             </div>
             

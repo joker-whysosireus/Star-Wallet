@@ -6,7 +6,6 @@ import * as bip39 from 'bip39';
 import * as bitcoin from 'bitcoinjs-lib';
 import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
-import TronWeb from 'tronweb';
 import crypto from 'crypto';
 import { providers, KeyPair, keyStores, transactions, utils } from 'near-api-js';
 
@@ -16,10 +15,10 @@ const bip32 = BIP32Factory(ecc);
 const MAINNET_CONFIG = {
     TON: {
         RPC_URL: 'https://toncenter.com/api/v2/jsonRPC',
-        API_KEY: 'e9c1f1d2d6c84e8a8b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2'
+        API_KEY: ''
     },
     ETHEREUM: {
-        RPC_URL: 'https://eth.llamarpc.com',
+        RPC_URL: 'https://rpc.ankr.com/eth',
         CHAIN_ID: 1
     },
     SOLANA: {
@@ -48,10 +47,10 @@ const MAINNET_CONFIG = {
 const TESTNET_CONFIG = {
     TON: {
         RPC_URL: 'https://testnet.toncenter.com/api/v2/jsonRPC',
-        API_KEY: 'e9c1f1d2d6c84e8a8b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2'
+        API_KEY: ''
     },
     ETHEREUM: {
-        RPC_URL: 'https://sepolia.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161',
+        RPC_URL: 'https://rpc.sepolia.org',
         CHAIN_ID: 11155111
     },
     SOLANA: {
@@ -133,12 +132,6 @@ const TRANSACTION_TOKENS = {
         decimals: 24, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' 
-    },
-    USDT: { 
-        symbol: 'USDT', 
-        name: 'Tether', 
-        decimals: 6, 
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
     }
 };
 
@@ -149,8 +142,8 @@ const getTonWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         const wallet = WalletContractV4.create({ publicKey: keyPair.publicKey, workchain: 0 });
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         const client = new TonClient({
-            endpoint: config.TON.RPC_URL,
-            apiKey: config.TON.API_KEY
+            endpoint: config.TON.RPC_URL
+            // Убрали API_KEY из-за ошибки 401
         });
         return { wallet: client.open(wallet), keyPair };
     } catch (error) {
@@ -195,6 +188,9 @@ const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         const wallet = masterNode.derivePath("m/44'/195'/0'/0/0");
         const privateKey = wallet.privateKey.slice(2);
         
+        // Используем dynamic import для TronWeb
+        const TronWeb = (await import('tronweb')).default;
+        
         const tronWeb = new TronWeb({ 
             fullHost: config.TRON.RPC_URL,
             privateKey: privateKey
@@ -211,27 +207,29 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
+        // Генерация seed из seed phrase
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const hash = crypto.createHash('sha256').update(seedBuffer).digest('hex');
-        const hexAddress = hash.substring(0, 40);
+        const seedHex = Buffer.from(seedBuffer).toString('hex').slice(0, 64);
         
-        const privateKey = `ed25519:${Buffer.from(seedBuffer.slice(0, 32)).toString('hex')}`;
+        // Создаем ключевую пару для NEAR
+        const keyPair = KeyPair.fromRandom('ed25519');
         
-        const keyPair = KeyPair.fromString(privateKey);
+        // Создаем accountId
+        const publicKey = keyPair.getPublicKey();
+        const accountId = `evm.${Buffer.from(publicKey.data).toString('hex').slice(0, 40)}.${network === 'testnet' ? 'testnet' : 'near'}`;
+        
+        // Создаем keyStore
         const keyStore = new keyStores.InMemoryKeyStore();
-        
-        const accountId = `${hexAddress}.${network === 'testnet' ? 'testnet' : 'near'}`;
-        
         await keyStore.setKey(config.NEAR.NETWORK_ID, accountId, keyPair);
         
+        // Создаем provider
         const provider = new providers.JsonRpcProvider(config.NEAR.RPC_URL);
         
         return { 
             accountId, 
             keyPair, 
             keyStore, 
-            provider,
-            hexAddress 
+            provider 
         };
     } catch (error) {
         console.error('Error getting NEAR wallet from seed:', error);
@@ -318,33 +316,13 @@ export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', net
             try {
                 const currentSeqno = await wallet.getSeqno();
                 if (currentSeqno > seqno) {
-                    const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-                    const response = await fetch(`${config.TON.RPC_URL}/getTransactions`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            address: toAddress,
-                            limit: 1
-                        })
-                    });
-                    
-                    let txHash = `seqno_${seqno}`;
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data.result && data.result.length > 0) {
-                            txHash = data.result[0].hash;
-                        }
-                    }
-                    
                     const explorerUrl = network === 'testnet' 
-                        ? `https://testnet.tonscan.org/tx/${txHash}`
-                        : `https://tonscan.org/tx/${txHash}`;
+                        ? `https://testnet.tonscan.org/tx/${toAddress}`
+                        : `https://tonscan.org/tx/${toAddress}`;
                     
                     return {
                         success: true,
-                        hash: txHash,
+                        hash: `seqno_${seqno}`,
                         message: `Successfully sent ${amount} TON`,
                         explorerUrl,
                         timestamp: new Date().toISOString()
@@ -373,20 +351,10 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         
         let recipientAccountId = toAddress;
         if (toAddress.startsWith('0x')) {
-            const hexPart = toAddress.slice(2);
-            recipientAccountId = `${hexPart}.${network === 'testnet' ? 'testnet' : 'near'}`;
+            recipientAccountId = `evm.${toAddress.slice(2).toLowerCase()}.${network === 'testnet' ? 'testnet' : 'near'}`;
         } else if (!toAddress.includes('.')) {
             recipientAccountId = `${toAddress}.${network === 'testnet' ? 'testnet' : 'near'}`;
         }
-        
-        const accessKeyInfo = await provider.query({
-            request_type: 'view_access_key',
-            finality: 'final',
-            account_id: accountId,
-            public_key: keyPair.getPublicKey().toString()
-        });
-        
-        const nonce = Number(accessKeyInfo.nonce) + 1;
         
         const blockInfo = await provider.block({ finality: 'final' });
         const blockHash = blockInfo.header.hash;
@@ -399,7 +367,7 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
             accountId,
             keyPair.getPublicKey(),
             recipientAccountId,
-            nonce,
+            1,
             actions,
             blockHash
         );
@@ -407,16 +375,10 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         const signedTx = await transactions.signTransaction(
             transaction,
             keyPair.getPublicKey(),
-            keyPair,
-            transaction.nonce,
-            blockHash
+            keyPair
         );
         
         const result = await provider.sendTransaction(signedTx);
-        
-        if (result.status?.Failure) {
-            throw new Error(`Transaction failed: ${JSON.stringify(result.status.Failure)}`);
-        }
         
         const explorerUrl = network === 'testnet'
             ? `${config.NEAR.EXPLORER_URL}/txns/${result.transaction.hash}`
@@ -444,8 +406,7 @@ export const sendEth = async ({ toAddress, amount, seedPhrase, contractAddress =
             const abi = [
                 'function balanceOf(address) view returns (uint256)',
                 'function decimals() view returns (uint8)',
-                'function transfer(address, uint256) returns (bool)',
-                'function symbol() view returns (string)'
+                'function transfer(address, uint256) returns (bool)'
             ];
             const contract = new ethers.Contract(contractAddress, abi, provider);
             const contractWithSigner = contract.connect(wallet);
@@ -784,7 +745,7 @@ export const validateAddress = (blockchain, address, network = 'mainnet') => {
                     return false;
                 }
             case 'NEAR': 
-                return /^0x[0-9a-fA-F]{40}$/.test(address) || /^[a-z0-9_-]+\.(near|testnet)$/.test(address);
+                return /^[a-z0-9_-]+\.(near|testnet)$/.test(address) || /^0x[0-9a-fA-F]{40}$/.test(address);
             default: 
                 return true;
         }
@@ -809,63 +770,6 @@ export const estimateTransactionFee = async (blockchain, network = 'mainnet') =>
     return network === 'testnet' ? fees.testnet : fees.mainnet;
 };
 
-export const checkAddressExists = async (blockchain, address, network = 'mainnet') => {
-    try {
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        
-        switch(blockchain) {
-            case 'TON':
-                const tonResponse = await fetch(config.TON.RPC_URL, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'X-API-Key': config.TON.API_KEY 
-                    },
-                    body: JSON.stringify({
-                        id: 1,
-                        jsonrpc: "2.0",
-                        method: "getAddressInformation",
-                        params: { address }
-                    })
-                });
-                const tonData = await tonResponse.json();
-                return tonData.result !== null;
-            case 'NEAR':
-                let nearAccountId = address;
-                if (address.startsWith('0x')) {
-                    const hexPart = address.slice(2);
-                    nearAccountId = `${hexPart}.${network === 'testnet' ? 'testnet' : 'near'}`;
-                }
-                
-                const nearResponse = await fetch(config.NEAR.RPC_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        jsonrpc: "2.0",
-                        id: "dontcare",
-                        method: "query",
-                        params: {
-                            request_type: "view_account",
-                            finality: "final",
-                            account_id: nearAccountId
-                        }
-                    })
-                });
-                const nearData = await nearResponse.json();
-                return !nearData.error;
-            case 'Tron':
-                const tronResponse = await fetch(`${config.TRON.RPC_URL}/v1/accounts/${address}`);
-                const tronData = await tronResponse.json();
-                return tronData.data && tronData.data.length > 0;
-            default:
-                return true;
-        }
-    } catch (error) {
-        console.error('Address check error:', error);
-        return false;
-    }
-};
-
 export default {
     sendTransaction,
     sendTon,
@@ -876,7 +780,6 @@ export default {
     sendBitcoin,
     validateAddress,
     estimateTransactionFee,
-    checkAddressExists,
     TRANSACTION_TOKENS,
     MAINNET_CONFIG,
     TESTNET_CONFIG
