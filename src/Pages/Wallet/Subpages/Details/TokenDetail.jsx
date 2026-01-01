@@ -198,6 +198,15 @@ const TokenDetail = () => {
                     });
                 }
                 break;
+            case '1Y':
+                for (let i = 11; i >= 0; i--) {
+                    const time = new Date(now - i * 30 * 24 * 60 * 60 * 1000);
+                    mockData.push({
+                        time: time.toLocaleDateString('en-US', { month: 'short' }),
+                        price: basePrice * (0.7 + Math.random() * 0.6)
+                    });
+                }
+                break;
             default:
                 mockData = [
                     { time: '09:00', price: basePrice },
@@ -305,7 +314,7 @@ const TokenDetail = () => {
                                     height: 80px;
                                     display: flex;
                                     align-items: center;
-                                    justify-content: center;
+                                    justifyContent: center;
                                     background: rgba(255, 215, 0, 0.2);
                                     border-radius: 50%;
                                     color: #FFD700;
@@ -338,7 +347,6 @@ const TokenDetail = () => {
                     <p className="usd-amount">${usdValue}</p>
                 </div>
                 
-                {/* Блок с кнопками действий */}
                 <div style={{
                     display: 'flex',
                     justifyContent: 'center',
@@ -465,10 +473,9 @@ const TokenDetail = () => {
                     </button>
                 </div>
                 
-                {/* Блок с графиком */}
                 <div className="chart-container" style={{
                     width: '100%',
-                    maxWidth: '400px', // Такая же ширина как у блока с кнопками
+                    maxWidth: '400px', // Уменьшенная ширина как в новой версии
                     marginTop: '25px',
                     background: 'rgba(255, 255, 255, 0.03)',
                     borderRadius: '15px',
@@ -479,11 +486,11 @@ const TokenDetail = () => {
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        marginBottom: '10px'
+                        marginBottom: '15px'
                     }}>
                         <h3 style={{
                             color: 'white',
-                            fontSize: '14px',
+                            fontSize: '16px',
                             fontWeight: '600',
                             margin: 0
                         }}>
@@ -491,22 +498,22 @@ const TokenDetail = () => {
                         </h3>
                         <div style={{
                             display: 'flex',
-                            gap: '6px',
+                            gap: '8px',
                             background: 'rgba(255, 255, 255, 0.05)',
-                            borderRadius: '6px',
-                            padding: '3px'
+                            borderRadius: '8px',
+                            padding: '4px'
                         }}>
-                            {['1D', '1W', '1M'].map((time) => (
+                            {['1D', '1W', '1M', '1Y'].map((time) => (
                                 <button
                                     key={time}
                                     onClick={() => handleTimeframeChange(time)}
                                     style={{
-                                        padding: '4px 8px',
-                                        borderRadius: '4px',
+                                        padding: '6px 12px',
+                                        borderRadius: '6px',
                                         border: 'none',
                                         background: timeframe === time ? 'rgba(255, 215, 0, 0.2)' : 'transparent',
                                         color: timeframe === time ? '#FFD700' : 'rgba(255, 255, 255, 0.6)',
-                                        fontSize: '10px',
+                                        fontSize: '12px',
                                         fontWeight: '600',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s ease'
@@ -520,7 +527,7 @@ const TokenDetail = () => {
                     
                     {isLoadingChart ? (
                         <div style={{
-                            height: '150px',
+                            height: '150px', // Уменьшенная высота как в новой версии
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -529,60 +536,57 @@ const TokenDetail = () => {
                             Loading chart...
                         </div>
                     ) : (
-                        <ResponsiveContainer width="100%" height={150}>
+                        <ResponsiveContainer width="100%" height={150}> {/* Уменьшена высота */}
                             <LineChart
                                 data={chartData}
-                                margin={{ top: 5, right: 5, left: 0, bottom: 5 }}
+                                margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
                             >
-                                <CartesianGrid strokeDasharray="2 2" stroke="rgba(255, 255, 255, 0.1)" />
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
                                 <XAxis 
                                     dataKey="time" 
                                     stroke="rgba(255, 255, 255, 0.5)"
-                                    fontSize={8}
-                                    tick={{ fill: 'rgba(255, 255, 255, 0.5)' }}
+                                    fontSize={10}
                                 />
                                 <YAxis 
                                     stroke="rgba(255, 255, 255, 0.5)"
-                                    fontSize={8}
+                                    fontSize={10}
                                     tickFormatter={(value) => `$${value.toFixed(2)}`}
-                                    tick={{ fill: 'rgba(255, 255, 255, 0.5)' }}
                                 />
                                 <Tooltip
                                     formatter={(value) => [`$${parseFloat(value).toFixed(4)}`, 'Price']}
                                     labelFormatter={(label) => `Time: ${label}`}
                                     contentStyle={{
-                                        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
                                         border: '1px solid rgba(255, 215, 0, 0.3)',
-                                        borderRadius: '6px',
-                                        fontSize: '11px'
+                                        borderRadius: '8px'
                                     }}
                                 />
                                 <Line
                                     type="monotone"
                                     dataKey="price"
                                     stroke="#FFD700"
-                                    strokeWidth={1.5}
+                                    strokeWidth={2}
                                     dot={false}
-                                    activeDot={{ r: 3, fill: '#FFD700' }}
+                                    activeDot={{ r: 4, fill: '#FFD700' }}
                                 />
                             </LineChart>
                         </ResponsiveContainer>
                     )}
                     
-                    {chartData.length > 0 && (
-                        <div style={{
-                            marginTop: '10px',
-                            fontSize: '11px',
-                            color: 'rgba(255, 255, 255, 0.5)',
-                            textAlign: 'center'
-                        }}>
+                    <div style={{
+                        marginTop: '15px',
+                        fontSize: '12px',
+                        color: 'rgba(255, 255, 255, 0.5)',
+                        textAlign: 'center'
+                    }}>
+                        {chartData.length > 0 && (
                             <p>
                                 Current: ${chartData[chartData.length - 1]?.price?.toFixed(4) || '0.00'} • 
                                 Change: {chartData.length > 1 ? 
                                     (((chartData[chartData.length - 1].price - chartData[0].price) / chartData[0].price * 100).toFixed(2)) : '0.00'}%
                             </p>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
             
