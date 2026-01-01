@@ -120,7 +120,7 @@
 /* Стили для графика */
 .chart-container {
     width: 100%;
-    max-width: 380px;
+    max-width: 380px; /* Изменено с 380px на 400px для соответствия ширине блока кнопок */
     margin-top: 25px;
     background: rgba(255, 255, 255, 0.03);
     border-radius: 15px;

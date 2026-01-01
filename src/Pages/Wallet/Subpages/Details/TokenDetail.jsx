@@ -395,9 +395,10 @@ const TokenDetail = () => {
                     </button>
                 </div>
                 
+                {/* Блок с графиком - уменьшена ширина и высота */}
                 <div className="chart-container" style={{
                     width: '100%',
-                    maxWidth: '380px',
+                    maxWidth: '380px', // Такая же ширина как у блока кнопок (было 380px)
                     marginTop: '25px',
                     background: 'rgba(255, 255, 255, 0.03)',
                     borderRadius: '15px',
@@ -449,7 +450,7 @@ const TokenDetail = () => {
                     
                     {isLoadingChart ? (
                         <div style={{
-                            height: '170px',
+                            height: '160px', // Уменьшена на 40px (было 200px)
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -458,7 +459,7 @@ const TokenDetail = () => {
                             Loading chart...
                         </div>
                     ) : (
-                        <ResponsiveContainer width="100%" height={200}>
+                        <ResponsiveContainer width="100%" height={160}> {/* Уменьшена на 40px (было 200px) */}
                             <LineChart
                                 data={chartData}
                                 margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
