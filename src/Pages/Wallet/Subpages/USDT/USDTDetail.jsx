@@ -80,7 +80,7 @@ const USDTDetail = () => {
                             onError={(e) => {
                                 e.target.style.display = 'none';
                                 const fallback = document.createElement('div');
-                                fallback.className = 'token-logo-fallback';
+                                fallback.className = 'token-logo-fallback-usdt';
                                 fallback.textContent = 'USDT';
                                 fallback.style.cssText = `
                                     width: 80px;

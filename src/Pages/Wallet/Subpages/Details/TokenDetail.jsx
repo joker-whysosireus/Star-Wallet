@@ -81,143 +81,65 @@ const TokenDetail = () => {
         }
     };
 
-    const getCoinGeckoId = (symbol) => {
-        const coinIds = {
-            'TON': 'the-open-network',
-            'ETH': 'ethereum',
-            'SOL': 'solana',
-            'BNB': 'binancecoin',
-            'TRX': 'tron',
-            'BTC': 'bitcoin',
-            'NEAR': 'near-protocol',
-            'USDT': 'tether'
-        };
-        return coinIds[symbol] || symbol.toLowerCase();
-    };
-
-    const getDaysFromTimeframe = (timeframe) => {
-        switch(timeframe) {
-            case '1D': return 1;
-            case '1W': return 7;
-            case '1M': return 30;
-            case '1Y': return 365;
-            default: return 1;
-        }
-    };
-
     const loadChartData = async (tokenSymbol, timeRange) => {
         setIsLoadingChart(true);
         try {
-            const coinId = getCoinGeckoId(tokenSymbol);
-            const days = getDaysFromTimeframe(timeRange);
+            let mockData = [];
+            const basePrice = await getMockPrice(tokenSymbol);
             
-            const response = await fetch(
-                `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=usd&days=${days}&interval=${days === 1 ? 'hourly' : 'daily'}`
-            );
-            
-            if (response.ok) {
-                const data = await response.json();
-                let formattedData = [];
-                
-                if (data.prices && data.prices.length > 0) {
-                    if (days === 1) {
-                        // Для 1 дня показываем почасовые данные
-                        formattedData = data.prices.slice(-24).map(([timestamp, price]) => ({
-                            time: new Date(timestamp).toLocaleTimeString('en-US', { 
-                                hour: '2-digit', 
-                                minute: '2-digit',
-                                hour12: false 
-                            }),
-                            price: price
-                        }));
-                    } else if (days <= 7) {
-                        // Для недели показываем ежедневные данные
-                        formattedData = data.prices.filter((_, index) => index % 24 === 0).map(([timestamp, price]) => ({
-                            time: new Date(timestamp).toLocaleDateString('en-US', { 
-                                weekday: 'short'
-                            }),
-                            price: price
-                        }));
-                    } else {
-                        // Для месяца и года показываем выборку
-                        const step = Math.max(1, Math.floor(data.prices.length / 10));
-                        formattedData = data.prices.filter((_, index) => index % step === 0).map(([timestamp, price]) => ({
-                            time: new Date(timestamp).toLocaleDateString('en-US', { 
-                                month: days <= 30 ? 'short' : 'numeric',
-                                day: days <= 30 ? 'numeric' : undefined
-                            }),
-                            price: price
-                        }));
+            switch(timeRange) {
+                case '1D':
+                    for (let i = 23; i >= 0; i--) {
+                        const time = new Date(Date.now() - i * 60 * 60 * 1000);
+                        mockData.push({
+                            time: time.getHours() + ':00',
+                            price: basePrice * (0.95 + Math.random() * 0.1)
+                        });
                     }
-                }
-                
-                setChartData(formattedData);
-            } else {
-                // Fallback к мок-данным если API не работает
-                const basePrice = await getMockPrice(tokenSymbol);
-                generateMockData(basePrice, timeRange);
+                    break;
+                case '1W':
+                    for (let i = 6; i >= 0; i--) {
+                        const time = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+                        mockData.push({
+                            time: time.toLocaleDateString('en-US', { weekday: 'short' }),
+                            price: basePrice * (0.9 + Math.random() * 0.2)
+                        });
+                    }
+                    break;
+                case '1M':
+                    for (let i = 9; i >= 0; i--) {
+                        const time = new Date(Date.now() - i * 3 * 24 * 60 * 60 * 1000);
+                        mockData.push({
+                            time: time.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                            price: basePrice * (0.8 + Math.random() * 0.4)
+                        });
+                    }
+                    break;
+                case '1Y':
+                    for (let i = 11; i >= 0; i--) {
+                        const time = new Date(Date.now() - i * 30 * 24 * 60 * 60 * 1000);
+                        mockData.push({
+                            time: time.toLocaleDateString('en-US', { month: 'short' }),
+                            price: basePrice * (0.7 + Math.random() * 0.6)
+                        });
+                    }
+                    break;
+                default:
+                    mockData = [
+                        { time: '09:00', price: basePrice },
+                        { time: '12:00', price: basePrice * 1.05 },
+                        { time: '15:00', price: basePrice * 0.98 },
+                        { time: '18:00', price: basePrice * 1.02 },
+                        { time: '21:00', price: basePrice * 1.01 }
+                    ];
             }
+            
+            setChartData(mockData);
         } catch (error) {
             console.error('Error loading chart data:', error);
-            const basePrice = await getMockPrice(tokenSymbol);
-            generateMockData(basePrice, timeRange);
         } finally {
             setIsLoadingChart(false);
         }
-    };
-
-    const generateMockData = (basePrice, timeRange) => {
-        let mockData = [];
-        const now = Date.now();
-        
-        switch(timeRange) {
-            case '1D':
-                for (let i = 23; i >= 0; i--) {
-                    const time = new Date(now - i * 60 * 60 * 1000);
-                    mockData.push({
-                        time: time.getHours().toString().padStart(2, '0') + ':00',
-                        price: basePrice * (0.95 + Math.random() * 0.1)
-                    });
-                }
-                break;
-            case '1W':
-                for (let i = 6; i >= 0; i--) {
-                    const time = new Date(now - i * 24 * 60 * 60 * 1000);
-                    mockData.push({
-                        time: time.toLocaleDateString('en-US', { weekday: 'short' }),
-                        price: basePrice * (0.9 + Math.random() * 0.2)
-                    });
-                }
-                break;
-            case '1M':
-                for (let i = 9; i >= 0; i--) {
-                    const time = new Date(now - i * 3 * 24 * 60 * 60 * 1000);
-                    mockData.push({
-                        time: time.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                        price: basePrice * (0.8 + Math.random() * 0.4)
-                    });
-                }
-                break;
-            case '1Y':
-                for (let i = 11; i >= 0; i--) {
-                    const time = new Date(now - i * 30 * 24 * 60 * 60 * 1000);
-                    mockData.push({
-                        time: time.toLocaleDateString('en-US', { month: 'short' }),
-                        price: basePrice * (0.7 + Math.random() * 0.6)
-                    });
-                }
-                break;
-            default:
-                mockData = [
-                    { time: '09:00', price: basePrice },
-                    { time: '12:00', price: basePrice * 1.05 },
-                    { time: '15:00', price: basePrice * 0.98 },
-                    { time: '18:00', price: basePrice * 1.02 },
-                    { time: '21:00', price: basePrice * 1.01 }
-                ];
-        }
-        
-        setChartData(mockData);
     };
 
     const getMockPrice = async (symbol) => {
@@ -475,7 +397,7 @@ const TokenDetail = () => {
                 
                 <div className="chart-container" style={{
                     width: '100%',
-                    maxWidth: '400px', // Уменьшенная ширина как в новой версии
+                    maxWidth: '400px',
                     marginTop: '25px',
                     background: 'rgba(255, 255, 255, 0.03)',
                     borderRadius: '15px',
@@ -527,7 +449,7 @@ const TokenDetail = () => {
                     
                     {isLoadingChart ? (
                         <div style={{
-                            height: '150px', // Уменьшенная высота как в новой версии
+                            height: '200px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -536,7 +458,7 @@ const TokenDetail = () => {
                             Loading chart...
                         </div>
                     ) : (
-                        <ResponsiveContainer width="100%" height={150}> {/* Уменьшена высота */}
+                        <ResponsiveContainer width="100%" height={200}>
                             <LineChart
                                 data={chartData}
                                 margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
