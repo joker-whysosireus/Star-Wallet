@@ -107,9 +107,7 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInLis
             'Tron': { color: '#ff0000', text: 'TRX' },
             'Bitcoin': { color: '#E49E00', text: 'BTC' },
             'NEAR': { color: '#0b4731ff', text: 'NEAR' },
-            'BSC': { color: '#bfcd43ff', text: 'BNB' },
-            'XRP': { color: '#23292f', text: 'XRP' },
-            'LTC': { color: '#bfbbbb', text: 'LTC' }
+            'BSC': { color: '#bfcd43ff', text: 'BNB' }
         };
         
         return badges[blockchain] || { color: '#666', text: blockchain };

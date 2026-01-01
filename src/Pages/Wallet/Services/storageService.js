@@ -8,7 +8,6 @@ import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import crypto from 'crypto';
 import { JsonRpcProvider } from '@near-js/providers';
-import * as xrpl from 'xrpl';
 import { Buffer } from 'buffer';
 import base58 from 'bs58';
 
@@ -50,17 +49,6 @@ const MAINNET_CONFIG = {
     BSC: { 
         RPC_URL: 'https://bsc-dataseed1.binance.org/',
         CHAIN_ID: 56
-    },
-    XRP: { 
-        RPC_URL: 'wss://xrplcluster.com',
-        NETWORK: 'mainnet',
-        EXPLORER_URL: 'https://xrpscan.com'
-    },
-    LTC: { 
-        NETWORK: 'litecoin',
-        MAINNET_API: 'https://api.blockcypher.com/v1/ltc/main',
-        BLOCKBOOK_API: 'https://ltc1.trezor.io/api',
-        BLOCKCHAIN_API: 'https://blockchain.info'
     }
 };
 
@@ -99,17 +87,6 @@ const TESTNET_CONFIG = {
     BSC: { 
         RPC_URL: 'https://data-seed-prebsc-1-s1.binance.org:8545/',
         CHAIN_ID: 97
-    },
-    XRP: { 
-        RPC_URL: 'wss://s.altnet.rippletest.net:51233',
-        NETWORK: 'testnet',
-        EXPLORER_URL: 'https://testnet.xrpscan.com'
-    },
-    LTC: {
-        NETWORK: 'litecoin-testnet',
-        TESTNET_API: 'https://api.blockcypher.com/v1/ltc/test3',
-        BLOCKBOOK_API: 'https://ltc-testnet.greyh.at/api',
-        BLOCKCHAIN_API: 'https://testnet.litecore.io/api'
     }
 };
 
@@ -210,22 +187,6 @@ export const TOKENS = {
         decimals: 24, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' 
-    },
-    XRP: { 
-        symbol: 'XRP', 
-        name: 'Ripple', 
-        blockchain: 'XRP', 
-        decimals: 6, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/ripple-xrp-logo.svg' 
-    },
-    LTC: { 
-        symbol: 'LTC', 
-        name: 'Litecoin', 
-        blockchain: 'LTC', 
-        decimals: 8, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' 
     }
 };
 
@@ -321,22 +282,6 @@ export const TESTNET_TOKENS = {
         decimals: 24, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' 
-    },
-    XRP: { 
-        symbol: 'XRP', 
-        name: 'Ripple', 
-        blockchain: 'XRP', 
-        decimals: 6, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/ripple-xrp-logo.svg' 
-    },
-    LTC: { 
-        symbol: 'LTC', 
-        name: 'Litecoin', 
-        blockchain: 'LTC', 
-        decimals: 8, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' 
     }
 };
 
@@ -353,16 +298,14 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
     try {
         if (!seedPhrase) throw new Error('Seed phrase is required');
 
-        const [tonAddress, ethAddress, solAddress, tronAddress, bitcoinAddress, bscAddress, nearAddress, xrpAddress, ltcAddress] = await Promise.all([
+        const [tonAddress, ethAddress, solAddress, tronAddress, bitcoinAddress, bscAddress, nearAddress] = await Promise.all([
             generateTonAddress(seedPhrase, network),
             generateEthereumAddress(seedPhrase, network),
             generateSolanaAddress(seedPhrase, network),
             generateTronAddress(seedPhrase, network),
             generateBitcoinAddress(seedPhrase, network),
             generateBSCAddress(seedPhrase, network),
-            generateNearAddress(seedPhrase, network),
-            generateXrpAddress(seedPhrase, network),
-            generateLtcAddress(seedPhrase, network)
+            generateNearAddress(seedPhrase, network)
         ]);
 
         const walletArray = [];
@@ -376,8 +319,6 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
         walletArray.push(createWallet(tokens.BTC, bitcoinAddress, network));
         walletArray.push(createWallet(tokens.BNB, bscAddress, network));
         walletArray.push(createWallet(tokens.NEAR, nearAddress, network));
-        walletArray.push(createWallet(tokens.XRP, xrpAddress, network));
-        walletArray.push(createWallet(tokens.LTC, ltcAddress, network));
         
         return walletArray;
     } catch (error) {
@@ -493,92 +434,6 @@ const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
         const wallet = ethers.HDNodeWallet.fromSeed(seedBuffer);
         const derivedWallet = wallet.derivePath("m/44'/60'/0'/0/0");
         return derivedWallet.address.toLowerCase();
-    }
-};
-
-const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
-    try {
-        console.log('Генерация XRP адреса из seed фразы...');
-        
-        if (!seedPhrase || !bip39.validateMnemonic(seedPhrase)) {
-            throw new Error('Некорректная seed-фраза');
-        }
-        
-        // Создаем детерминированный seed из фразы
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        
-        // Для XRP используем первые 16 байт
-        const xrpSeedBytes = seedBuffer.slice(0, 16);
-        const seedHex = xrpSeedBytes.toString('hex');
-        
-        // Создаем кошелек XRP из seed с использованием xrpl.js
-        const wallet = xrpl.Wallet.fromSeed(seedHex);
-        
-        console.log('✅ Сгенерирован уникальный XRP адрес:', wallet.classicAddress);
-        return wallet.classicAddress;
-        
-    } catch (error) {
-        console.error('Error generating XRP address with xrpl.js:', error);
-        
-        // Временный fallback для тестирования - генерируем случайный адрес
-        try {
-            const randomWallet = xrpl.Wallet.generate();
-            console.log('⚠️  Используем случайный XRP адрес из-за ошибки:', randomWallet.classicAddress);
-            return randomWallet.classicAddress;
-        } catch (fallbackError) {
-            console.error('Fallback также не сработал:', fallbackError);
-            throw new Error(`Не удалось сгенерировать XRP адрес: ${error.message}`);
-        }
-    }
-};
-
-const generateLtcAddress = async (seedPhrase, network = 'mainnet') => {
-    try {
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const root = bip32.fromSeed(seedBuffer);
-        
-        const path = network === 'testnet' ? "m/44'/1'/0'/0/0" : "m/44'/2'/0'/0/0";
-        const child = root.derivePath(path);
-        
-        let ltcNetwork;
-        if (network === 'testnet') {
-            ltcNetwork = {
-                messagePrefix: '\x19Litecoin Signed Message:\n',
-                bech32: 'tltc',
-                bip32: {
-                    public: 0x0436f6e1,
-                    private: 0x0436ef7d
-                },
-                pubKeyHash: 0x6f,
-                scriptHash: 0xc4,
-                wif: 0xef
-            };
-        } else {
-            ltcNetwork = {
-                messagePrefix: '\x19Litecoin Signed Message:\n',
-                bech32: 'ltc',
-                bip32: {
-                    public: 0x019da462,
-                    private: 0x019d9cfe
-                },
-                pubKeyHash: 0x30,
-                scriptHash: 0x32,
-                wif: 0xb0
-            };
-        }
-        
-        const { address } = bitcoin.payments.p2pkh({
-            pubkey: child.publicKey,
-            network: ltcNetwork
-        });
-        
-        console.log('✅ Сгенерирован LTC адрес:', address);
-        return address;
-    } catch (error) {
-        console.error('Error generating LTC address:', error);
-        return network === 'testnet' 
-            ? 'mtpV8RVwq3mg5F1Xb2Z4bn9zktv9VyRf4p' 
-            : 'Lg8h9Sw8HFgEThJaw2vRi7JjqG2uYfXb8Q';
     }
 };
 
@@ -1037,139 +892,25 @@ const getNearBalance = async (accountId, network = 'mainnet') => {
     }
 };
 
+// === НОВАЯ ФУНКЦИЯ: ПОЛУЧЕНИЕ БАЛАНСА BSC ДЛЯ MAINNET И TESTNET ===
 const getBNBBalance = async (address, network = 'mainnet') => {
     try {
+        // Выбираем конфигурацию в зависимости от сети
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        
+        // Создаем провайдер для BSC (EVM-совместимая сеть)
         const provider = new ethers.JsonRpcProvider(config.BSC.RPC_URL);
+        
+        // Получаем баланс BNB
         const balance = await provider.getBalance(address);
+        
+        // Конвертируем баланс в читаемый формат (BNB)
         return ethers.formatEther(balance);
     } catch (error) {
         console.error('BNB balance error:', error);
         return '0';
     }
 };
-
-// ================= ИСПРАВЛЕННЫЕ ФУНКЦИИ ТОЛЬКО ДЛЯ XRP И LTC =================
-
-// Исправленная функция для получения баланса XRP через прямой RPC
-const getXrpBalance = async (address, network = 'mainnet') => {
-    try {
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        
-        // Валидация адреса XRP
-        const xrpRegex = /^r[1-9A-HJ-NP-Za-km-z]{25,34}$/;
-        if (!xrpRegex.test(address)) {
-            console.error('Invalid XRP address format:', address);
-            return '0';
-        }
-        
-        console.log(`Получение баланса XRP для адреса: ${address} (${network})`);
-        
-        // Подключаемся к XRPL через WebSocket
-        const client = new xrpl.Client(config.XRP.RPC_URL);
-        
-        try {
-            await client.connect();
-            console.log(`✅ Подключено к XRPL ${network}`);
-            
-            // Запрашиваем информацию об аккаунте
-            const accountInfo = await client.request({
-                command: "account_info",
-                account: address,
-                ledger_index: "validated"
-            });
-            
-            // Получаем баланс в каплях (drops)
-            const balanceDrops = accountInfo.result.account_data?.Balance || "0";
-            
-            // Конвертируем капли в XRP (1 XRP = 1,000,000 drops)
-            const balanceXRP = parseInt(balanceDrops) / 1000000;
-            
-            console.log(`✅ XRP баланс: ${balanceXRP} XRP (${balanceDrops} капель)`);
-            
-            return balanceXRP.toString();
-            
-        } finally {
-            // Всегда отключаемся от клиента
-            await client.disconnect();
-        }
-        
-    } catch (error) {
-        console.error('XRP balance error:', error);
-        
-        // Обработка ошибки "аккаунт не найден"
-        if (error.message?.includes('actNotFound') || error.message?.includes('Account not found')) {
-            console.log('XRP аккаунт не найден, баланс = 0');
-            return '0';
-        }
-        
-        return '0';
-    }
-};
-
-// Исправленная функция для получения баланса LTC через Blockbook API
-const getLtcBalance = async (address, network = 'mainnet') => {
-    try {
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        
-        console.log(`Получение баланса LTC для адреса: ${address} (${network})`);
-        
-        // Используем Blockbook API как основной источник
-        const blockbookUrl = network === 'testnet' 
-            ? `${config.LTC.BLOCKBOOK_API}/v2/address/${address}`
-            : `${config.LTC.BLOCKBOOK_API}/v2/address/${address}`;
-        
-        console.log('Запрос к Blockbook API:', blockbookUrl);
-        
-        const response = await fetch(blockbookUrl);
-        
-        if (!response.ok) {
-            console.error(`Blockbook API error: ${response.status}`);
-            
-            // Fallback на BlockCypher API
-            try {
-                const blockcypherUrl = network === 'testnet' 
-                    ? `${config.LTC.TESTNET_API}/addrs/${address}/balance`
-                    : `${config.LTC.MAINNET_API}/addrs/${address}/balance`;
-                
-                console.log('Пробуем BlockCypher API как fallback:', blockcypherUrl);
-                const fallbackResponse = await fetch(blockcypherUrl);
-                
-                if (fallbackResponse.ok) {
-                    const fallbackData = await fallbackResponse.json();
-                    if (fallbackData.balance !== undefined) {
-                        const balanceLTC = fallbackData.balance / 100000000;
-                        console.log(`✅ LTC баланс через BlockCypher: ${balanceLTC} LTC`);
-                        return balanceLTC.toString();
-                    }
-                }
-            } catch (fallbackError) {
-                console.error('BlockCypher fallback также не сработал:', fallbackError);
-            }
-            
-            return '0';
-        }
-        
-        const data = await response.json();
-        
-        // Blockbook возвращает баланс в сатоши
-        if (data.balance !== undefined) {
-            const balanceSatoshi = parseInt(data.balance);
-            const balanceLTC = balanceSatoshi / 100000000;
-            console.log(`✅ LTC баланс через Blockbook: ${balanceLTC} LTC`);
-            return balanceLTC.toString();
-        }
-        
-        console.log('Баланс LTC не найден в ответе API');
-        return '0';
-        
-    } catch (error) {
-        console.error('LTC balance error:', error);
-        return '0';
-    }
-};
-
-// ============================================================================
 
 export const getRealBalances = async (wallets) => {
     if (!Array.isArray(wallets)) return wallets;
@@ -1209,13 +950,8 @@ export const getRealBalances = async (wallets) => {
                             balance = await getNearBalance(wallet.address, wallet.network);
                             break;
                         case 'BSC':
+                            // Используем новую функцию getBNBBalance для BSC
                             balance = await getBNBBalance(wallet.address, wallet.network);
-                            break;
-                        case 'XRP':
-                            balance = await getXrpBalance(wallet.address, wallet.network);
-                            break;
-                        case 'LTC':
-                            balance = await getLtcBalance(wallet.address, wallet.network);
                             break;
                     }
                     
@@ -1241,7 +977,7 @@ export const getRealBalances = async (wallets) => {
 
 export const getTokenPrices = async () => {
     try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ethereum,solana,binancecoin,tron,bitcoin,near-protocol,ripple,litecoin,tether&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true');
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ethereum,solana,binancecoin,tron,bitcoin,near-protocol,tether&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true');
         
         if (response.ok) {
             const data = await response.json();
@@ -1253,8 +989,6 @@ export const getTokenPrices = async () => {
                 'TRX': data.tron?.usd || 0.12,
                 'BTC': data.bitcoin?.usd || 68000.00,
                 'NEAR': data['near-protocol']?.usd || 8.50,
-                'XRP': data.ripple?.usd || 0.52,
-                'LTC': data.litecoin?.usd || 74.30,
                 'USDT': data.tether?.usd || 1.00,
                 lastUpdated: Date.now()
             };
@@ -1268,8 +1002,6 @@ export const getTokenPrices = async () => {
             'TRX': 0.12,
             'BTC': 68000.00,
             'NEAR': 8.50,
-            'XRP': 0.52,
-            'LTC': 74.30,
             'USDT': 1.00,
             lastUpdated: Date.now()
         };
@@ -1283,8 +1015,6 @@ export const getTokenPrices = async () => {
             'TRX': 0.12,
             'BTC': 68000.00,
             'NEAR': 8.50,
-            'XRP': 0.52,
-            'LTC': 74.30,
             'USDT': 1.00,
             lastUpdated: Date.now()
         };
@@ -1356,22 +1086,6 @@ export const validateAddress = async (blockchain, address) => {
                        nearNamedRegex.test(address) || 
                        nearEvmRegex.test(address) ||
                        ethers.isAddress(address);
-            case 'XRP':
-                const xrpRegex = /^r[1-9A-HJ-NP-Za-km-z]{25,34}$/;
-                if (!xrpRegex.test(address)) {
-                    return false;
-                }
-                const excludedChars = /[0OIl]/;
-                if (excludedChars.test(address)) {
-                    return false;
-                }
-                return true;
-            case 'LTC':
-                try {
-                    const ltcMainnetRegex = /^[LM3][a-km-zA-HJ-NP-Z1-9]{26,33}$/;
-                    const ltcTestnetRegex = /^[mn2Q][a-km-zA-HJ-NP-Z1-9]{26,33}$/;
-                    return ltcMainnetRegex.test(address) || ltcTestnetRegex.test(address);
-                } catch { return false; }
             default:
                 return true;
         }
@@ -1449,9 +1163,7 @@ export const estimateTransactionFee = async (blockchain) => {
         'Solana': '0.000005',
         'Tron': '0.1',
         'Bitcoin': '0.0001',
-        'NEAR': '0.01',
-        'XRP': '0.00001',
-        'LTC': '0.001'
+        'NEAR': '0.01'
     };
     
     return defaultFees[blockchain] || '0.01';
@@ -1471,8 +1183,6 @@ export const getTokenPricesFromRPC = async () => {
             'TRX': 0.12,
             'BTC': 68000.00,
             'NEAR': 8.50,
-            'XRP': 0.52,
-            'LTC': 74.30,
             'USDT': 1.00
         };
     }
@@ -1601,9 +1311,7 @@ export const getBlockchainIcon = (blockchain) => {
         'Tron': 'https://cryptologos.cc/logos/tron-trx-logo.png',
         'Bitcoin': 'https://cryptologos.cc/logos/bitcoin-btc-logo.png',
         'BSC': 'https://cryptologos.cc/logos/bnb-bnb-logo.png',
-        'NEAR': 'https://cryptologos.cc/logos/near-protocol-near-logo.svg',
-        'XRP': 'https://cryptologos.cc/logos/ripple-xrp-logo.svg',
-        'LTC': 'https://cryptologos.cc/logos/litecoin-ltc-logo.png'
+        'NEAR': 'https://cryptologos.cc/logos/near-protocol-near-logo.svg'
     };
     
     return icons[blockchain] || '';
