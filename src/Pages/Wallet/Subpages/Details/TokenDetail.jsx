@@ -7,6 +7,15 @@ import {
     getBalances,
     getTokenPrices 
 } from '../../Services/storageService';
+import {
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer
+} from 'recharts';
 import './TokenDetail.css';
 
 const TokenDetail = () => {
@@ -16,6 +25,9 @@ const TokenDetail = () => {
     
     const [wallet, setWallet] = useState(null);
     const [usdValue, setUsdValue] = useState('0.00');
+    const [chartData, setChartData] = useState([]);
+    const [timeframe, setTimeframe] = useState('1D');
+    const [isLoadingChart, setIsLoadingChart] = useState(false);
     const userData = location.state?.userData;
     const network = location.state?.network || 'mainnet';
     
@@ -25,6 +37,7 @@ const TokenDetail = () => {
         if (walletData) {
             setWallet(walletData);
             loadBalances(walletData);
+            loadChartData(walletData.symbol, timeframe);
         } else if (symbol) {
             let token = null;
             for (const key in TOKENS) {
@@ -37,7 +50,7 @@ const TokenDetail = () => {
             if (token) {
                 const mockWallet = {
                     ...token,
-                    address: 'TQCc68Mp5dZ2Lm9XrJARoqo2D4Xtye5gFkR',
+                    address: '',
                     balance: '0.00',
                     isActive: true,
                     network: network,
@@ -45,9 +58,10 @@ const TokenDetail = () => {
                 };
                 setWallet(mockWallet);
                 loadBalances(mockWallet);
+                loadChartData(symbol, timeframe);
             }
         }
-    }, [symbol, location.state]);
+    }, [symbol, location.state, timeframe]);
 
     const loadBalances = async (walletToUpdate) => {
         if (!walletToUpdate || !userData) return;
@@ -64,6 +78,86 @@ const TokenDetail = () => {
             }
         } catch (error) {
             console.error('Error loading balances:', error);
+        }
+    };
+
+    const loadChartData = async (tokenSymbol, timeRange) => {
+        setIsLoadingChart(true);
+        try {
+            let mockData = [];
+            const basePrice = await getMockPrice(tokenSymbol);
+            
+            switch(timeRange) {
+                case '1D':
+                    for (let i = 23; i >= 0; i--) {
+                        const time = new Date(Date.now() - i * 60 * 60 * 1000);
+                        mockData.push({
+                            time: time.getHours() + ':00',
+                            price: basePrice * (0.95 + Math.random() * 0.1)
+                        });
+                    }
+                    break;
+                case '1W':
+                    for (let i = 6; i >= 0; i--) {
+                        const time = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+                        mockData.push({
+                            time: time.toLocaleDateString('en-US', { weekday: 'short' }),
+                            price: basePrice * (0.9 + Math.random() * 0.2)
+                        });
+                    }
+                    break;
+                case '1M':
+                    for (let i = 9; i >= 0; i--) {
+                        const time = new Date(Date.now() - i * 3 * 24 * 60 * 60 * 1000);
+                        mockData.push({
+                            time: time.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                            price: basePrice * (0.8 + Math.random() * 0.4)
+                        });
+                    }
+                    break;
+                case '1Y':
+                    for (let i = 11; i >= 0; i--) {
+                        const time = new Date(Date.now() - i * 30 * 24 * 60 * 60 * 1000);
+                        mockData.push({
+                            time: time.toLocaleDateString('en-US', { month: 'short' }),
+                            price: basePrice * (0.7 + Math.random() * 0.6)
+                        });
+                    }
+                    break;
+                default:
+                    mockData = [
+                        { time: '09:00', price: basePrice },
+                        { time: '12:00', price: basePrice * 1.05 },
+                        { time: '15:00', price: basePrice * 0.98 },
+                        { time: '18:00', price: basePrice * 1.02 },
+                        { time: '21:00', price: basePrice * 1.01 }
+                    ];
+            }
+            
+            setChartData(mockData);
+        } catch (error) {
+            console.error('Error loading chart data:', error);
+        } finally {
+            setIsLoadingChart(false);
+        }
+    };
+
+    const getMockPrice = async (symbol) => {
+        try {
+            const prices = await getTokenPrices();
+            return prices[symbol] || 1;
+        } catch {
+            const defaultPrices = {
+                'TON': 6.24,
+                'ETH': 3500.00,
+                'SOL': 172.34,
+                'BNB': 600.00,
+                'TRX': 0.12,
+                'BTC': 68000.00,
+                'NEAR': 8.50,
+                'USDT': 1.00
+            };
+            return defaultPrices[symbol] || 1;
         }
     };
 
@@ -88,6 +182,13 @@ const TokenDetail = () => {
         };
         
         return badges[blockchain] || { color: '#666', text: blockchain };
+    };
+
+    const handleTimeframeChange = (newTimeframe) => {
+        setTimeframe(newTimeframe);
+        if (wallet) {
+            loadChartData(wallet.symbol, newTimeframe);
+        }
     };
 
     const badge = wallet ? getBlockchainBadge(wallet.blockchain, wallet.symbol) : null;
@@ -115,7 +216,7 @@ const TokenDetail = () => {
             <Header 
                 userData={userData} 
                 currentNetwork={network}
-                disableNetworkSwitch={true}
+                disableNetworkSwitch={false}
             />
             
             <div className="page-content">
@@ -135,7 +236,7 @@ const TokenDetail = () => {
                                     height: 80px;
                                     display: flex;
                                     align-items: center;
-                                    justify-content: center;
+                                    justifyContent: center;
                                     background: rgba(255, 215, 0, 0.2);
                                     border-radius: 50%;
                                     color: #FFD700;
@@ -292,6 +393,122 @@ const TokenDetail = () => {
                             fontWeight: '500'
                         }}>Swap</span>
                     </button>
+                </div>
+                
+                <div className="chart-container" style={{
+                    width: '100%',
+                    maxWidth: '400px',
+                    marginTop: '25px',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    borderRadius: '15px',
+                    padding: '15px',
+                    border: '1px solid rgba(255, 255, 255, 0.05)'
+                }}>
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '15px'
+                    }}>
+                        <h3 style={{
+                            color: 'white',
+                            fontSize: '16px',
+                            fontWeight: '600',
+                            margin: 0
+                        }}>
+                            Price Chart ({wallet.symbol})
+                        </h3>
+                        <div style={{
+                            display: 'flex',
+                            gap: '8px',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            borderRadius: '8px',
+                            padding: '4px'
+                        }}>
+                            {['1D', '1W', '1M', '1Y'].map((time) => (
+                                <button
+                                    key={time}
+                                    onClick={() => handleTimeframeChange(time)}
+                                    style={{
+                                        padding: '6px 12px',
+                                        borderRadius: '6px',
+                                        border: 'none',
+                                        background: timeframe === time ? 'rgba(255, 215, 0, 0.2)' : 'transparent',
+                                        color: timeframe === time ? '#FFD700' : 'rgba(255, 255, 255, 0.6)',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease'
+                                    }}
+                                >
+                                    {time}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    
+                    {isLoadingChart ? (
+                        <div style={{
+                            height: '200px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'rgba(255, 255, 255, 0.5)'
+                        }}>
+                            Loading chart...
+                        </div>
+                    ) : (
+                        <ResponsiveContainer width="100%" height={200}>
+                            <LineChart
+                                data={chartData}
+                                margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
+                                <XAxis 
+                                    dataKey="time" 
+                                    stroke="rgba(255, 255, 255, 0.5)"
+                                    fontSize={10}
+                                />
+                                <YAxis 
+                                    stroke="rgba(255, 255, 255, 0.5)"
+                                    fontSize={10}
+                                    tickFormatter={(value) => `$${value.toFixed(2)}`}
+                                />
+                                <Tooltip
+                                    formatter={(value) => [`$${parseFloat(value).toFixed(4)}`, 'Price']}
+                                    labelFormatter={(label) => `Time: ${label}`}
+                                    contentStyle={{
+                                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                        border: '1px solid rgba(255, 215, 0, 0.3)',
+                                        borderRadius: '8px'
+                                    }}
+                                />
+                                <Line
+                                    type="monotone"
+                                    dataKey="price"
+                                    stroke="#FFD700"
+                                    strokeWidth={2}
+                                    dot={false}
+                                    activeDot={{ r: 4, fill: '#FFD700' }}
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    )}
+                    
+                    <div style={{
+                        marginTop: '15px',
+                        fontSize: '12px',
+                        color: 'rgba(255, 255, 255, 0.5)',
+                        textAlign: 'center'
+                    }}>
+                        {chartData.length > 0 && (
+                            <p>
+                                Current: ${chartData[chartData.length - 1]?.price?.toFixed(4) || '0.00'} • 
+                                Change: {chartData.length > 1 ? 
+                                    (((chartData[chartData.length - 1].price - chartData[0].price) / chartData[0].price * 100).toFixed(2)) : '0.00'}%
+                            </p>
+                        )}
+                    </div>
                 </div>
             </div>
             

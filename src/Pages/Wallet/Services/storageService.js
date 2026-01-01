@@ -892,19 +892,11 @@ const getNearBalance = async (accountId, network = 'mainnet') => {
     }
 };
 
-// === НОВАЯ ФУНКЦИЯ: ПОЛУЧЕНИЕ БАЛАНСА BSC ДЛЯ MAINNET И TESTNET ===
 const getBNBBalance = async (address, network = 'mainnet') => {
     try {
-        // Выбираем конфигурацию в зависимости от сети
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        
-        // Создаем провайдер для BSC (EVM-совместимая сеть)
         const provider = new ethers.JsonRpcProvider(config.BSC.RPC_URL);
-        
-        // Получаем баланс BNB
         const balance = await provider.getBalance(address);
-        
-        // Конвертируем баланс в читаемый формат (BNB)
         return ethers.formatEther(balance);
     } catch (error) {
         console.error('BNB balance error:', error);
@@ -950,7 +942,6 @@ export const getRealBalances = async (wallets) => {
                             balance = await getNearBalance(wallet.address, wallet.network);
                             break;
                         case 'BSC':
-                            // Используем новую функцию getBNBBalance для BSC
                             balance = await getBNBBalance(wallet.address, wallet.network);
                             break;
                     }
@@ -1131,7 +1122,7 @@ export const revealSeedPhrase = async (userData) => {
 export const getBalances = getRealBalances;
 
 export const sendTransaction = async (transactionData) => {
-    const { blockchain, toAddress, amount, seedPhrase, memo, contractAddress } = transactionData;
+    const { blockchain, toAddress, amount, seedPhrase, memo, contractAddress, network = 'mainnet' } = transactionData;
     
     try {
         const { sendTransaction: sendTx } = await import('./blockchainService');
@@ -1142,7 +1133,8 @@ export const sendTransaction = async (transactionData) => {
             amount,
             seedPhrase,
             memo,
-            contractAddress
+            contractAddress,
+            network
         };
         
         return await sendTx(txParams);

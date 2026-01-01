@@ -28,7 +28,6 @@ const USDTDetail = () => {
             return;
         }
         
-        // Загружаем данные без отображения лоадера
         const loadData = async () => {
             try {
                 const tokens = await getUSDTTokensForDetail(userData, network);
@@ -69,7 +68,7 @@ const USDTDetail = () => {
             <Header 
                 userData={userData} 
                 currentNetwork={network}
-                disableNetworkSwitch={true}
+                disableNetworkSwitch={false}
             />
             <div className="page-content">
                 <div className="token-icon-container">

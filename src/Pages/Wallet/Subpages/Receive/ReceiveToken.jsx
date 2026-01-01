@@ -64,7 +64,7 @@ const ReceiveToken = () => {
             <Header 
                 userData={userData} 
                 currentNetwork={network}
-                disableNetworkSwitch={true}
+                disableNetworkSwitch={false}
             />
             
             <div className="page-content receive-page">

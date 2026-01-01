@@ -9,7 +9,6 @@ import * as ecc from 'tiny-secp256k1';
 import TronWeb from 'tronweb';
 import crypto from 'crypto';
 import { providers, KeyPair, keyStores, transactions, utils } from 'near-api-js';
-import * as xrpl from 'xrpl';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -42,36 +41,6 @@ const MAINNET_CONFIG = {
     BSC: {
         RPC_URL: 'https://bsc-dataseed.binance.org/',
         CHAIN_ID: 56
-    },
-    XRP: {
-        RPC_URL: 'wss://s1.ripple.com:51233',
-        EXPLORER_URL: 'https://xrpscan.com/tx/'
-    },
-    LTC: {
-        NETWORK: {
-            messagePrefix: '\x19Litecoin Signed Message:\n',
-            bech32: 'ltc',
-            bip32: {
-                public: 0x019da462,
-                private: 0x019d9cfe
-            },
-            pubKeyHash: 0x30,
-            scriptHash: 0x32,
-            wif: 0xb0
-        }
-    },
-    DOGE: {
-        NETWORK: {
-            messagePrefix: '\x19Dogecoin Signed Message:\n',
-            bech32: 'doge',
-            bip32: {
-                public: 0x02facafd,
-                private: 0x02fac398
-            },
-            pubKeyHash: 0x1e,
-            scriptHash: 0x16,
-            wif: 0x9e
-        }
     }
 };
 
@@ -104,36 +73,6 @@ const TESTNET_CONFIG = {
     BSC: {
         RPC_URL: 'https://data-seed-prebsc-1-s1.binance.org:8545/',
         CHAIN_ID: 97
-    },
-    XRP: {
-        RPC_URL: 'wss://s.altnet.rippletest.net:51233',
-        EXPLORER_URL: 'https://testnet.xrpl.org/transactions/'
-    },
-    LTC: {
-        NETWORK: {
-            messagePrefix: '\x19Litecoin Signed Message:\n',
-            bech32: 'tltc',
-            bip32: {
-                public: 0x0436ef7d,
-                private: 0x0436f6e1
-            },
-            pubKeyHash: 0x6f,
-            scriptHash: 0xc4,
-            wif: 0xef
-        }
-    },
-    DOGE: {
-        NETWORK: {
-            messagePrefix: '\x19Dogecoin Signed Message:\n',
-            bech32: 'tdge',
-            bip32: {
-                public: 0x0432a9a8,
-                private: 0x0432a243
-            },
-            pubKeyHash: 0x71,
-            scriptHash: 0xc4,
-            wif: 0xf1
-        }
     }
 };
 
@@ -195,41 +134,11 @@ const TRANSACTION_TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' 
     },
-    XRP: { 
-        symbol: 'XRP', 
-        name: 'Ripple', 
-        blockchain: 'XRP', 
-        decimals: 6, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/ripple-xrp-logo.svg' 
-    },
-    LTC: { 
-        symbol: 'LTC', 
-        name: 'Litecoin', 
-        blockchain: 'LTC', 
-        decimals: 8, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' 
-    },
-    DOGE: { 
-        symbol: 'DOGE', 
-        name: 'Dogecoin', 
-        blockchain: 'DOGE', 
-        decimals: 8, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/dogecoin-doge-logo.png' 
-    },
     USDT: { 
         symbol: 'USDT', 
         name: 'Tether', 
         decimals: 6, 
         logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
-    },
-    USDC: { 
-        symbol: 'USDC', 
-        name: 'USD Coin', 
-        decimals: 6, 
-        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png' 
     }
 };
 
@@ -302,27 +211,19 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
-        // Генерация seed из seed phrase
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const hash = crypto.createHash('sha256').update(seedBuffer).digest('hex');
         const hexAddress = hash.substring(0, 40);
         
-        // Создаем приватный ключ из seed
         const privateKey = `ed25519:${Buffer.from(seedBuffer.slice(0, 32)).toString('hex')}`;
         
-        // Создаем KeyPair
         const keyPair = KeyPair.fromString(privateKey);
-        
-        // Создаем keyStore
         const keyStore = new keyStores.InMemoryKeyStore();
         
-        // Создаем accountId
         const accountId = `${hexAddress}.${network === 'testnet' ? 'testnet' : 'near'}`;
         
-        // Сохраняем ключ в keyStore
         await keyStore.setKey(config.NEAR.NETWORK_ID, accountId, keyPair);
         
-        // Создаем provider
         const provider = new providers.JsonRpcProvider(config.NEAR.RPC_URL);
         
         return { 
@@ -338,54 +239,47 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-const getXrpWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
+// === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ BITCOIN ===
+const getBitcoinUTXOs = async (address, network = 'mainnet') => {
     try {
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const wallet = masterNode.derivePath("m/44'/144'/0'/0/0");
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const response = await fetch(`${config.BITCOIN.EXPLORER_URL}/address/${address}/utxo`);
         
-        const privateKey = wallet.privateKey.slice(2);
-        const xrpSeed = privateKey.substring(0, 29);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch UTXOs: ${response.status}`);
+        }
         
-        const xrplWallet = xrpl.Wallet.fromSeed(xrpSeed);
-        
-        return xrplWallet;
+        const utxos = await response.json();
+        return utxos.map(utxo => ({
+            txid: utxo.txid,
+            vout: utxo.vout,
+            value: utxo.value
+        }));
     } catch (error) {
-        console.error('Error getting XRP wallet from seed:', error);
+        console.error('Error getting Bitcoin UTXOs:', error);
         throw error;
     }
 };
 
-const getLtcWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
+const broadcastBitcoinTransaction = async (rawTx, network = 'mainnet') => {
     try {
-        const networkConfig = network === 'testnet' ? TESTNET_CONFIG.LTC.NETWORK : MAINNET_CONFIG.LTC.NETWORK;
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const root = bip32.fromSeed(seedBuffer, networkConfig);
-        const child = root.derivePath("m/44'/2'/0'/0/0");
-        const { address } = bitcoin.payments.p2wpkh({
-            pubkey: child.publicKey,
-            network: networkConfig
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const response = await fetch(`${config.BITCOIN.EXPLORER_URL}/tx`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain'
+            },
+            body: rawTx
         });
-        return { address, keyPair: child, privateKey: child.privateKey };
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Failed to broadcast transaction: ${response.status} - ${errorText}`);
+        }
+        
+        return await response.text();
     } catch (error) {
-        console.error('Error getting LTC wallet from seed:', error);
-        throw error;
-    }
-};
-
-const getDogeWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
-    try {
-        const networkConfig = network === 'testnet' ? TESTNET_CONFIG.DOGE.NETWORK : MAINNET_CONFIG.DOGE.NETWORK;
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const root = bip32.fromSeed(seedBuffer, networkConfig);
-        const child = root.derivePath("m/44'/3'/0'/0/0");
-        const { address } = bitcoin.payments.p2pkh({
-            pubkey: child.publicKey,
-            network: networkConfig
-        });
-        return { address, keyPair: child, privateKey: child.privateKey };
-    } catch (error) {
-        console.error('Error getting DOGE wallet from seed:', error);
+        console.error('Error broadcasting Bitcoin transaction:', error);
         throw error;
     }
 };
@@ -395,6 +289,7 @@ export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', net
     try {
         console.log(`[TON ${network}] Sending ${amount} TON to ${toAddress}`);
         const { wallet, keyPair } = await getTonWalletFromSeed(seedPhrase, network);
+        
         const seqno = await wallet.getSeqno();
         const amountInNano = toNano(amount);
 
@@ -413,39 +308,56 @@ export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', net
 
         await wallet.send(transfer);
 
-        for (let i = 0; i < 30; i++) {
+        let attempts = 0;
+        const maxAttempts = 30;
+        
+        while (attempts < maxAttempts) {
             await new Promise(resolve => setTimeout(resolve, 2000));
+            attempts++;
+            
             try {
                 const currentSeqno = await wallet.getSeqno();
                 if (currentSeqno > seqno) {
+                    const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+                    const response = await fetch(`${config.TON.RPC_URL}/getTransactions`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            address: toAddress,
+                            limit: 1
+                        })
+                    });
+                    
+                    let txHash = `seqno_${seqno}`;
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.result && data.result.length > 0) {
+                            txHash = data.result[0].hash;
+                        }
+                    }
+                    
                     const explorerUrl = network === 'testnet' 
-                        ? `https://testnet.tonscan.org/tx/${toAddress}`
-                        : `https://tonscan.org/tx/${toAddress}`;
+                        ? `https://testnet.tonscan.org/tx/${txHash}`
+                        : `https://tonscan.org/tx/${txHash}`;
                     
                     return {
                         success: true,
-                        hash: `seqno_${seqno}`,
+                        hash: txHash,
                         message: `Successfully sent ${amount} TON`,
                         explorerUrl,
                         timestamp: new Date().toISOString()
                     };
                 }
             } catch (error) {
+                console.warn(`Attempt ${attempts}: Error checking transaction status:`, error);
                 continue;
             }
         }
 
-        const explorerUrl = network === 'testnet'
-            ? `https://testnet.tonscan.org/address/${toAddress}`
-            : `https://tonscan.org/address/${toAddress}`;
+        throw new Error('Transaction confirmation timeout');
         
-        return {
-            success: true,
-            hash: `seqno_${seqno}`,
-            message: `Transaction sent (awaiting confirmation)`,
-            explorerUrl,
-            timestamp: new Date().toISOString()
-        };
     } catch (error) {
         console.error(`[TON ${network} ERROR]:`, error);
         throw new Error(`Failed to send TON: ${error.message}`);
@@ -459,38 +371,52 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         const { accountId, keyPair, keyStore, provider } = await getNearWalletFromSeed(seedPhrase, network);
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
-        // Преобразуем toAddress если это hex адрес
         let recipientAccountId = toAddress;
         if (toAddress.startsWith('0x')) {
             const hexPart = toAddress.slice(2);
             recipientAccountId = `${hexPart}.${network === 'testnet' ? 'testnet' : 'near'}`;
+        } else if (!toAddress.includes('.')) {
+            recipientAccountId = `${toAddress}.${network === 'testnet' ? 'testnet' : 'near'}`;
         }
         
-        // Создаем транзакцию
+        const accessKeyInfo = await provider.query({
+            request_type: 'view_access_key',
+            finality: 'final',
+            account_id: accountId,
+            public_key: keyPair.getPublicKey().toString()
+        });
+        
+        const nonce = Number(accessKeyInfo.nonce) + 1;
+        
+        const blockInfo = await provider.block({ finality: 'final' });
+        const blockHash = blockInfo.header.hash;
+        
         const actions = [
             transactions.transfer(utils.format.parseNearAmount(amount.toString()))
         ];
-        
-        const recentBlockHash = (await provider.block({ finality: 'final' })).header.hash;
         
         const transaction = transactions.createTransaction(
             accountId,
             keyPair.getPublicKey(),
             recipientAccountId,
-            1,
+            nonce,
             actions,
-            recentBlockHash
+            blockHash
         );
         
-        // Подписываем транзакцию
-        const signedTransaction = await transactions.signTransaction(
+        const signedTx = await transactions.signTransaction(
             transaction,
             keyPair.getPublicKey(),
-            keyPair
+            keyPair,
+            transaction.nonce,
+            blockHash
         );
         
-        // Отправляем транзакцию
-        const result = await provider.sendTransaction(signedTransaction);
+        const result = await provider.sendTransaction(signedTx);
+        
+        if (result.status?.Failure) {
+            throw new Error(`Transaction failed: ${JSON.stringify(result.status.Failure)}`);
+        }
         
         const explorerUrl = network === 'testnet'
             ? `${config.NEAR.EXPLORER_URL}/txns/${result.transaction.hash}`
@@ -569,14 +495,30 @@ export const sendEth = async ({ toAddress, amount, seedPhrase, contractAddress =
 export const sendSol = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
         const { keypair, connection } = await getSolWalletFromSeed(seedPhrase, network);
-        const transaction = new Transaction().add(
+        
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+        
+        const transaction = new Transaction({
+            feePayer: keypair.publicKey,
+            blockhash: blockhash,
+            lastValidBlockHeight: lastValidBlockHeight
+        }).add(
             SystemProgram.transfer({
                 fromPubkey: keypair.publicKey,
                 toPubkey: new PublicKey(toAddress),
                 lamports: Math.floor(amount * LAMPORTS_PER_SOL)
             })
         );
-        const signature = await sendAndConfirmTransaction(connection, transaction, [keypair]);
+        
+        transaction.sign(keypair);
+        
+        const signature = await connection.sendRawTransaction(transaction.serialize());
+        
+        await connection.confirmTransaction({
+            signature,
+            blockhash,
+            lastValidBlockHeight
+        }, 'confirmed');
         
         const explorerUrl = network === 'testnet'
             ? `https://explorer.solana.com/tx/${signature}?cluster=testnet`
@@ -650,16 +592,79 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
     try {
         console.log(`[BTC ${network}] Sending ${amount} BTC to ${toAddress}`);
         
-        // Здесь должна быть реальная логика отправки BTC
-        // Для примера возвращаем заглушку
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const networkConfig = config.BITCOIN.NETWORK;
+        
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const root = bip32.fromSeed(seedBuffer, networkConfig);
+        const child = root.derivePath("m/84'/0'/0'/0/0");
+        
+        const { address: fromAddress } = bitcoin.payments.p2wpkh({
+            pubkey: child.publicKey,
+            network: networkConfig
+        });
+        
+        const utxos = await getBitcoinUTXOs(fromAddress, network);
+        if (utxos.length === 0) {
+            throw new Error('No UTXOs found for address');
+        }
+        
+        const psbt = new bitcoin.Psbt({ network: networkConfig });
+        
+        let totalInput = 0;
+        for (const utxo of utxos.slice(0, 3)) {
+            psbt.addInput({
+                hash: utxo.txid,
+                index: utxo.vout,
+                witnessUtxo: {
+                    script: bitcoin.address.toOutputScript(fromAddress, networkConfig),
+                    value: utxo.value
+                }
+            });
+            totalInput += utxo.value;
+        }
+        
+        const amountInSatoshi = Math.floor(amount * 1e8);
+        
+        const estimatedSize = (utxos.length * 180) + 34 + 10;
+        const fee = estimatedSize * 1;
+        
+        if (totalInput < amountInSatoshi + fee) {
+            throw new Error('Insufficient balance');
+        }
+        
+        const change = totalInput - amountInSatoshi - fee;
+        
+        psbt.addOutput({
+            address: toAddress,
+            value: amountInSatoshi
+        });
+        
+        if (change > 546) {
+            psbt.addOutput({
+                address: fromAddress,
+                value: change
+            });
+        }
+        
+        for (let i = 0; i < utxos.slice(0, 3).length; i++) {
+            psbt.signInput(i, child);
+        }
+        
+        psbt.finalizeAllInputs();
+        
+        const tx = psbt.extractTransaction();
+        const rawTx = tx.toHex();
+        
+        const txid = await broadcastBitcoinTransaction(rawTx, network);
         
         const explorerUrl = network === 'testnet'
-            ? `https://blockstream.info/testnet/tx/btc_tx_${Date.now()}`
-            : `https://blockstream.info/tx/btc_tx_${Date.now()}`;
+            ? `https://blockstream.info/testnet/tx/${txid}`
+            : `https://blockstream.info/tx/${txid}`;
         
         return {
             success: true,
-            hash: `btc_tx_${Date.now()}`,
+            hash: txid,
             message: `Successfully sent ${amount} BTC`,
             explorerUrl,
             timestamp: new Date().toISOString()
@@ -667,113 +672,6 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
     } catch (error) {
         console.error(`[BTC ${network} ERROR]:`, error);
         throw new Error(`Failed to send BTC: ${error.message}`);
-    }
-};
-
-// === НОВЫЕ ФУНКЦИИ ОТПРАВКИ ДЛЯ XRP, LTC, DOGE ===
-export const sendXrp = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
-    try {
-        console.log(`[XRP ${network}] Sending ${amount} XRP to ${toAddress}`);
-        
-        const wallet = await getXrpWalletFromSeed(seedPhrase, network);
-        
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const client = new xrpl.Client(config.XRP.RPC_URL);
-        await client.connect();
-        
-        try {
-            const prepared = await client.autofill({
-                TransactionType: "Payment",
-                Account: wallet.address,
-                Amount: xrpl.xrpToDrops(amount.toString()),
-                Destination: toAddress,
-                Fee: "12"
-            });
-            
-            const signed = wallet.sign(prepared);
-            
-            const result = await client.submitAndWait(signed.tx_blob);
-            
-            await client.disconnect();
-            
-            if (result.result.meta.TransactionResult === "tesSUCCESS") {
-                const explorerUrl = network === 'testnet'
-                    ? `${config.XRP.EXPLORER_URL}${signed.hash}`
-                    : `${config.XRP.EXPLORER_URL}${signed.hash}`;
-                
-                return {
-                    success: true,
-                    hash: signed.hash,
-                    message: `Successfully sent ${amount} XRP`,
-                    explorerUrl,
-                    timestamp: new Date().toISOString()
-                };
-            } else {
-                throw new Error(`Transaction failed: ${result.result.meta.TransactionResult}`);
-            }
-        } catch (error) {
-            await client.disconnect();
-            throw error;
-        }
-    } catch (error) {
-        console.error(`[XRP ${network} ERROR]:`, error);
-        throw new Error(`Failed to send XRP: ${error.message}`);
-    }
-};
-
-export const sendLtc = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
-    try {
-        console.log(`[LTC ${network}] Sending ${amount} LTC to ${toAddress}`);
-        
-        // Получаем кошелек
-        const { address, keyPair } = await getLtcWalletFromSeed(seedPhrase, network);
-        console.log(`From address: ${address}, To address: ${toAddress}`);
-        
-        // Здесь должна быть реальная логика отправки LTC
-        // Для примера возвращаем заглушку
-        
-        const explorerUrl = network === 'testnet'
-            ? `https://blockstream.info/liquidtestnet/tx/ltc_tx_${Date.now()}`
-            : `https://blockstream.info/liquid/tx/ltc_tx_${Date.now()}`;
-        
-        return {
-            success: true,
-            hash: `ltc_tx_${Date.now()}`,
-            message: `Successfully sent ${amount} LTC from ${address} to ${toAddress}`,
-            explorerUrl,
-            timestamp: new Date().toISOString()
-        };
-    } catch (error) {
-        console.error(`[LTC ${network} ERROR]:`, error);
-        throw new Error(`Failed to send LTC: ${error.message}`);
-    }
-};
-
-export const sendDoge = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
-    try {
-        console.log(`[DOGE ${network}] Sending ${amount} DOGE to ${toAddress}`);
-        
-        // Получаем кошелек
-        const { address, keyPair } = await getDogeWalletFromSeed(seedPhrase, network);
-        console.log(`From address: ${address}, To address: ${toAddress}`);
-        
-        // Здесь должна быть реальная логика отправки DOGE
-        // Для примера возвращаем заглушку
-        
-        const explorerUrl = network === 'testnet'
-            ? `https://blockstream.info/testnet/tx/doge_tx_${Date.now()}`
-            : `https://blockstream.info/tx/doge_tx_${Date.now()}`;
-        
-        return {
-            success: true,
-            hash: `doge_tx_${Date.now()}`,
-            message: `Successfully sent ${amount} DOGE from ${address} to ${toAddress}`,
-            explorerUrl,
-            timestamp: new Date().toISOString()
-        };
-    } catch (error) {
-        console.error(`[DOGE ${network} ERROR]:`, error);
-        throw new Error(`Failed to send DOGE: ${error.message}`);
     }
 };
 
@@ -845,30 +743,6 @@ export const sendTransaction = async (params) => {
                     network
                 });
                 break;
-            case 'XRP':
-                result = await sendXrp({ 
-                    toAddress, 
-                    amount, 
-                    seedPhrase,
-                    network
-                });
-                break;
-            case 'LTC':
-                result = await sendLtc({ 
-                    toAddress, 
-                    amount, 
-                    seedPhrase,
-                    network
-                });
-                break;
-            case 'DOGE':
-                result = await sendDoge({ 
-                    toAddress, 
-                    amount, 
-                    seedPhrase,
-                    network
-                });
-                break;
             default:
                 throw new Error(`Unsupported blockchain: ${blockchain}`);
         }
@@ -911,24 +785,6 @@ export const validateAddress = (blockchain, address, network = 'mainnet') => {
                 }
             case 'NEAR': 
                 return /^0x[0-9a-fA-F]{40}$/.test(address) || /^[a-z0-9_-]+\.(near|testnet)$/.test(address);
-            case 'XRP':
-                return /^r[1-9A-HJ-NP-Za-km-z]{25,34}$/.test(address);
-            case 'LTC':
-                try {
-                    const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-                    bitcoin.address.toOutputScript(address, config.LTC.NETWORK);
-                    return true;
-                } catch {
-                    return false;
-                }
-            case 'DOGE':
-                try {
-                    const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-                    bitcoin.address.toOutputScript(address, config.DOGE.NETWORK);
-                    return true;
-                } catch {
-                    return false;
-                }
             default: 
                 return true;
         }
@@ -946,10 +802,7 @@ export const estimateTransactionFee = async (blockchain, network = 'mainnet') =>
         'Solana': { mainnet: '0.000005', testnet: '0.000001' },
         'Tron': { mainnet: '0.1', testnet: '0.01' },
         'Bitcoin': { mainnet: '0.0001', testnet: '0.00001' },
-        'NEAR': { mainnet: '0.01', testnet: '0.001' },
-        'XRP': { mainnet: '0.00001', testnet: '0.000001' },
-        'LTC': { mainnet: '0.001', testnet: '0.0001' },
-        'DOGE': { mainnet: '0.01', testnet: '0.001' }
+        'NEAR': { mainnet: '0.01', testnet: '0.001' }
     };
     
     const fees = defaultFees[blockchain] || { mainnet: '0.01', testnet: '0.001' };
@@ -1004,20 +857,6 @@ export const checkAddressExists = async (blockchain, address, network = 'mainnet
                 const tronResponse = await fetch(`${config.TRON.RPC_URL}/v1/accounts/${address}`);
                 const tronData = await tronResponse.json();
                 return tronData.data && tronData.data.length > 0;
-            case 'XRP':
-                try {
-                    const client = new xrpl.Client(config.XRP.RPC_URL);
-                    await client.connect();
-                    const accountInfo = await client.request({
-                        command: "account_info",
-                        account: address,
-                        ledger_index: "validated"
-                    });
-                    await client.disconnect();
-                    return accountInfo.result.account_data !== undefined;
-                } catch {
-                    return false;
-                }
             default:
                 return true;
         }
@@ -1035,9 +874,6 @@ export default {
     sendTron,
     sendNear,
     sendBitcoin,
-    sendXrp,
-    sendLtc,
-    sendDoge,
     validateAddress,
     estimateTransactionFee,
     checkAddressExists,

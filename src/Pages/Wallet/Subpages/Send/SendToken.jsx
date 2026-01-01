@@ -162,7 +162,7 @@ const SendToken = () => {
                 memo: comment,
                 privateKey: privateKey,
                 seedPhrase: userData.seed_phrases,
-                network: network // Добавляем параметр сети
+                network: network
             });
 
             if (result.success) {
@@ -255,10 +255,7 @@ const SendToken = () => {
             'Tron': { color: '#ff0000', bg: 'rgba(255, 0, 0, 0.1)' },
             'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)' },
             'NEAR': { color: '#0b4731', bg: 'rgba(11, 71, 49, 0.1)' },
-            'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)' },
-            'XRP': { color: '#23292f', bg: 'rgba(35, 41, 47, 0.1)' },
-            'LTC': { color: '#bfbbbb', bg: 'rgba(191, 187, 187, 0.1)' },
-            'DOGE': { color: '#c2a633', bg: 'rgba(194, 166, 51, 0.1)' }
+            'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)' }
         };
         
         return badges[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)' };
@@ -283,7 +280,7 @@ const SendToken = () => {
             <Header 
                 userData={userData} 
                 currentNetwork={network}
-                disableNetworkSwitch={true}
+                disableNetworkSwitch={false}
             />
             
             <div className="page-content send-page">
