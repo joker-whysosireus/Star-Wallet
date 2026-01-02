@@ -9,9 +9,8 @@ import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import crypto from 'crypto';
 import base58 from 'bs58';
-// Импорты для NEAR
-import { KeyPair, connect, Contract } from 'near-api-js';
-import { InMemoryKeyStore } from 'near-api-js/lib/key_stores';
+// ИСПРАВЛЕННЫЙ импорт near-api-js
+import { connect, keyStores, KeyPair, Contract } from 'near-api-js';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -78,7 +77,6 @@ const TESTNET_CONFIG = {
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const getConfig = (network) => network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
 
-// === Улучшенная функция для повторных попыток с задержкой (Exponential Backoff) ===
 async function callWithRetry(apiCall, maxRetries = 3, baseDelay = 1000) {
     let lastError;
     for (let i = 0; i < maxRetries; i++) {
@@ -86,25 +84,21 @@ async function callWithRetry(apiCall, maxRetries = 3, baseDelay = 1000) {
             return await apiCall();
         } catch (error) {
             lastError = error;
-            // Проверяем, является ли ошибка 429 (Too Many Requests)[citation:1][citation:8]
             if (error.message?.includes('429') || error.response?.status === 429) {
-                const delayMs = baseDelay * Math.pow(2, i); // Экспоненциальная задержка[citation:8]
+                const delayMs = baseDelay * Math.pow(2, i);
                 console.warn(`Rate limited (429). Retry ${i + 1}/${maxRetries} after ${delayMs}ms`);
                 await delay(delayMs);
             } else {
-                // Если ошибка не 429, пробрасываем её сразу
                 throw error;
             }
         }
     }
-    throw lastError; // Если все попытки исчерпаны
+    throw lastError;
 }
 
-// === TON (с защитой от rate limiting) ===
 export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', contractAddress = null, network = 'mainnet' }) => {
     try {
         const config = getConfig(network);
-        // Используем callWithRetry для защиты от ошибки 429[citation:8]
         const client = await callWithRetry(() => new TonClient({
             endpoint: config.TON.RPC_URL,
         }));
@@ -122,7 +116,7 @@ export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', con
             seqno,
             secretKey: keyPair.secretKey,
             messages: [internal({
-                value: toNano(amount.toString()), // Конвертируем TON в нанотоны
+                value: toNano(amount.toString()),
                 to: toAddress,
                 body: comment,
                 bounce: false
@@ -131,7 +125,6 @@ export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', con
 
         await callWithRetry(() => contract.send(transfer));
 
-        // Ожидание подтверждения
         let currentSeqno = seqno;
         for (let attempt = 0; attempt < 20; attempt++) {
             await delay(1500);
@@ -147,7 +140,7 @@ export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', con
         return {
             success: true,
             hash: txHash,
-            message: `Успешно отправлено ${amount} TON`,
+            message: `Successfully sent ${amount} TON`,
             explorerUrl,
             timestamp: new Date().toISOString(),
             seqno: currentSeqno
@@ -155,11 +148,10 @@ export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', con
 
     } catch (error) {
         console.error(`[TON ${network} ERROR]:`, error);
-        throw new Error(`Не удалось отправить TON: ${error.message}`);
+        throw new Error(`Failed to send TON: ${error.message}`);
     }
 };
 
-// === ETHEREUM (без изменений) ===
 const getEthWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -259,7 +251,6 @@ export const sendEth = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
-// === SOLANA (без изменений) ===
 const getSolWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -406,7 +397,6 @@ export const sendSol = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
-// === TRON (исправленная подпись) ===
 const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -439,7 +429,6 @@ const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// ИСПРАВЛЕННАЯ функция подписи TRON (гарантированно 64 байта)
 const signTronTransaction = (transaction, privateKeyHex) => {
     try {
         const privateKeyBuffer = Buffer.from(privateKeyHex, 'hex');
@@ -454,15 +443,11 @@ const signTronTransaction = (transaction, privateKeyHex) => {
         
         const signature = ecc.sign(secondHash, privateKeyBuffer);
         
-        // ГАРАНТИРУЕМ, что подпись имеет длину 64 байта
         let sigBuffer = Buffer.from(signature);
         if (sigBuffer.length !== 64) {
-            // Если библиотека вернула другую длину, преобразуем в 64 байта
-            // Это может быть 65-байтовая подпись с recovery id (0x1b/0x1c) в начале
             if (sigBuffer.length === 65) {
-                sigBuffer = sigBuffer.slice(1); // Убираем первый байт (recovery id)
+                sigBuffer = sigBuffer.slice(1);
             } else {
-                // Другие форматы: дополняем или обрезаем до 64 байт
                 const newSig = Buffer.alloc(64);
                 sigBuffer.copy(newSig, 0, 0, Math.min(sigBuffer.length, 64));
                 sigBuffer = newSig;
@@ -471,7 +456,7 @@ const signTronTransaction = (transaction, privateKeyHex) => {
         
         return {
             ...transaction,
-            signature: [sigBuffer.toString('hex')] // Возвращаем 64-байтовую hex-подпись
+            signature: [sigBuffer.toString('hex')]
         };
     } catch (error) {
         console.error('Error signing TRON transaction:', error);
@@ -487,7 +472,6 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
         const amountInSun = Math.floor(amount * 1_000_000);
         
         if (contractAddress) {
-            // TRC20 токен (USDT)
             const toAddressHex = toAddress.startsWith('T') 
                 ? base58.decode(toAddress).slice(1, 21).toString('hex')
                 : toAddress.slice(2);
@@ -555,7 +539,6 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
                 timestamp: new Date().toISOString()
             };
         } else {
-            // Нативный TRX
             const createResponse = await fetch(`${config.TRON.FULL_NODE}/wallet/createtransaction`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -620,7 +603,6 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
     }
 };
 
-// === BITCOIN (Исправлен формат witnessUtxo) ===
 export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
         console.log(`[BTC ${network}] Sending ${amount} BTC to ${toAddress}`);
@@ -669,17 +651,15 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
         
         const change = totalInput - amountInSatoshi - fee;
         
-        // ИСПРАВЛЕНИЕ: Правильный формат witnessUtxo - Buffer и BigInt
         for (const utxo of selectedUtxos) {
             const script = bitcoin.address.toOutputScript(fromAddress, networkConfig);
             
             psbt.addInput({
                 hash: utxo.txid,
                 index: utxo.vout,
-                // Ключевое исправление: script как Buffer, value как BigInt
                 witnessUtxo: {
-                    script: Buffer.from(script), // Гарантируем, что это Buffer
-                    value: BigInt(utxo.value)    // Гарантируем, что это BigInt
+                    script: Buffer.from(script),
+                    value: BigInt(utxo.value)
                 }
             });
         }
@@ -739,18 +719,16 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
     }
 };
 
-// === ПОЛНАЯ РЕАЛИЗАЦИЯ NEAR (нативный NEAR и токены NEP-141) ===
+// ИСПРАВЛЕННАЯ функция для NEAR с правильным импортом
 const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
         const wallet = masterNode.derivePath("m/44'/397'/0'/0'/0'");
         
-        // Конвертируем приватный ключ Ethereum-формата в ED25519 для NEAR
         const privateKeyHex = wallet.privateKey.slice(2);
         const keyPair = KeyPair.fromString(`ed25519:${Buffer.from(privateKeyHex, 'hex').toString('base64')}`);
         
-        // Генерируем NEAR account ID из публичного ключа
         const publicKey = keyPair.getPublicKey();
         const accountId = `${publicKey.toString().replace('ed25519:', '')}.${network === 'testnet' ? 'testnet' : 'near'}`;
         
@@ -768,8 +746,8 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
         const config = getConfig(network);
         const { keyPair, accountId } = await getNearWalletFromSeed(seedPhrase, network);
         
-        // Создаем подключение к NEAR
-        const keyStore = new InMemoryKeyStore();
+        // ИСПРАВЛЕННЫЙ импорт keyStores
+        const keyStore = new keyStores.InMemoryKeyStore();
         await keyStore.setKey(config.NEAR.NETWORK_ID, accountId, keyPair);
         
         const nearConnection = await connect({
@@ -781,7 +759,6 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
         const account = await nearConnection.account(accountId);
         
         if (contractAddress) {
-            // Отправка токена NEP-141 (аналог USDT в NEAR)
             const contract = new Contract(account, contractAddress, {
                 viewMethods: ['ft_balance_of', 'ft_metadata'],
                 changeMethods: ['ft_transfer'],
@@ -789,12 +766,11 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
             
             const amountInYocto = (BigInt(Math.floor(amount * 1e24))).toString();
             
-            // @ts-ignore
             const result = await contract.ft_transfer({
                 receiver_id: toAddress,
                 amount: amountInYocto,
                 memo: 'Transfer from Star Wallet'
-            }, '30000000000000', '1'); // 30 TGas, 1 yoctoNEAR приложенной суммы
+            }, '30000000000000', '1');
             
             const explorerUrl = network === 'testnet'
                 ? `https://explorer.testnet.near.org/transactions/${result.transaction.hash}`
@@ -808,7 +784,6 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
                 timestamp: new Date().toISOString()
             };
         } else {
-            // Отправка нативного NEAR
             const amountInYocto = (BigInt(Math.floor(amount * 1e24))).toString();
             
             const result = await account.sendMoney(
@@ -830,7 +805,6 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
         }
     } catch (error) {
         console.error(`[NEAR ${network} ERROR]:`, error);
-        // Улучшаем сообщение об ошибке
         if (error.message.includes('does not exist')) {
             throw new Error(`Account does not exist on NEAR ${network}. Please create it first.`);
         }
@@ -838,7 +812,6 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
     }
 };
 
-// === BSC (без изменений) ===
 const getBscWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -928,7 +901,6 @@ export const sendBsc = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
-// === УНИВЕРСАЛЬНАЯ ФУНКЦИЯ ===
 export const sendTransaction = async (params) => {
     const { blockchain, toAddress, amount, seedPhrase, memo, contractAddress, network = 'mainnet' } = params;
     

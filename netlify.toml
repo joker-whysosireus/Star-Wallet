@@ -3,8 +3,12 @@
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "18"
+  NODE_VERSION = "18.19.0"
   NPM_FLAGS = "--legacy-peer-deps"
+  
+# Явно указываем стабильный образ сборки
+[context.production.environment]
+  NPM_INSTALL_FLAGS = "--legacy-peer-deps"
 
 [[headers]]
   for = "/*.wasm"
