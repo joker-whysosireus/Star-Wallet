@@ -1,7 +1,7 @@
 import { mnemonicToWalletKey } from '@ton/crypto';
 import { WalletContractV4, TonClient, toNano, internal, fromNano, Cell, beginCell } from '@ton/ton';
-import { Connection, PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL, Keypair, sendAndConfirmTransaction } from '@solana/web3.js';
-import { Token, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '@solana/spl-token';
+import { Connection, PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL, Keypair } from '@solana/web3.js';
+import * as splToken from '@solana/spl-token';
 import { ethers } from 'ethers';
 import * as bip39 from 'bip39';
 import * as bitcoin from 'bitcoinjs-lib';
@@ -376,42 +376,45 @@ export const sendSol = async ({ toAddress, amount, seedPhrase, contractAddress =
         
         if (contractAddress) {
             // Отправка SPL токена (USDT)
-            const fromTokenAccount = await Token.getAssociatedTokenAddress(
-                ASSOCIATED_TOKEN_PROGRAM_ID,
-                TOKEN_PROGRAM_ID,
+            // Получаем associated token accounts
+            const fromTokenAccount = await splToken.getAssociatedTokenAddress(
                 new PublicKey(contractAddress),
-                keypair.publicKey
+                keypair.publicKey,
+                false,
+                splToken.TOKEN_PROGRAM_ID,
+                splToken.ASSOCIATED_TOKEN_PROGRAM_ID
             );
             
-            const toTokenAccount = await Token.getAssociatedTokenAddress(
-                ASSOCIATED_TOKEN_PROGRAM_ID,
-                TOKEN_PROGRAM_ID,
+            const toTokenAccount = await splToken.getAssociatedTokenAddress(
                 new PublicKey(contractAddress),
-                new PublicKey(toAddress)
+                new PublicKey(toAddress),
+                false,
+                splToken.TOKEN_PROGRAM_ID,
+                splToken.ASSOCIATED_TOKEN_PROGRAM_ID
             );
             
             // Получаем информацию о токене
-            const token = new Token(
-                connection,
-                new PublicKey(contractAddress),
-                TOKEN_PROGRAM_ID,
-                keypair
-            );
+            let decimals = 6; // По умолчанию для USDT на Solana
+            try {
+                const mintInfo = await splToken.getMint(connection, new PublicKey(contractAddress));
+                decimals = mintInfo.decimals;
+            } catch (e) {
+                console.warn('Could not get token decimals, using default 6');
+            }
             
-            const tokenInfo = await token.getMintInfo();
-            const decimals = tokenInfo.decimals;
             const amountInUnits = Math.floor(amount * Math.pow(10, decimals));
             
-            const transaction = new Transaction().add(
-                Token.createTransferInstruction(
-                    TOKEN_PROGRAM_ID,
-                    fromTokenAccount,
-                    toTokenAccount,
-                    keypair.publicKey,
-                    [],
-                    amountInUnits
-                )
+            // Создаем инструкцию перевода
+            const transferInstruction = splToken.createTransferInstruction(
+                fromTokenAccount,
+                toTokenAccount,
+                keypair.publicKey,
+                amountInUnits,
+                [],
+                splToken.TOKEN_PROGRAM_ID
             );
+            
+            const transaction = new Transaction().add(transferInstruction);
             
             const { blockhash } = await connection.getRecentBlockhash();
             transaction.recentBlockhash = blockhash;
@@ -822,7 +825,6 @@ const getNearKeyPairFromSeed = async (seedPhrase, network = 'mainnet') => {
 // Простая реализация подписи ed25519
 const signEd25519 = (message, privateKey) => {
     // Используем crypto для создания подписи ed25519
-    // В реальном приложении нужно использовать @noble/ed25519 или другую библиотеку
     const hmac = crypto.createHmac('sha512', privateKey);
     hmac.update(message);
     const signature = hmac.digest();
