@@ -65,13 +65,13 @@ const SendToken = () => {
         if (toAddress && token) {
             validateAddressAsync();
         }
-    }, [toAddress, token]);
+    }, [toAddress, token, network]);
     
     useEffect(() => {
         if (amount && token && toAddress && isAddressValid) {
             estimateFeeAsync();
         }
-    }, [amount, token, toAddress, isAddressValid]);
+    }, [amount, token, toAddress, isAddressValid, network]);
     
     useEffect(() => {
         if (amountInputRef.current === document.activeElement) {
@@ -101,7 +101,7 @@ const SendToken = () => {
         }
         
         try {
-            const isValid = await validateAddress(token.blockchain, toAddress);
+            const isValid = await validateAddress(token.blockchain, toAddress, network);
             setIsAddressValid(isValid);
         } catch (error) {
             console.error('Address validation error:', error);
@@ -111,7 +111,7 @@ const SendToken = () => {
     
     const estimateFeeAsync = async () => {
         try {
-            const fee = await estimateTransactionFee(token.blockchain);
+            const fee = await estimateTransactionFee(token.blockchain, network);
             setTransactionFee(fee);
         } catch (error) {
             console.error('Fee estimation error:', error);
@@ -263,7 +263,7 @@ const SendToken = () => {
             'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)', text: 'BNB' } 
         };
         
-        return badges[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)' };
+        return badges[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)', text: blockchain.substring(0, 4).toUpperCase() };
     };
     
     const handleQRButtonClick = () => {
@@ -371,7 +371,7 @@ const SendToken = () => {
                                         backgroundColor: badge.bg
                                     }}
                                 >
-                                    {token.blockchain}
+                                    {badge.text}
                                 </div>
                             </div>
                             <div className="balance-display">
