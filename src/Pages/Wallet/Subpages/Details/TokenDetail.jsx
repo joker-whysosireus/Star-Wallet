@@ -31,27 +31,6 @@ const TokenDetail = () => {
     const userData = location.state?.userData;
     const network = location.state?.network || 'mainnet';
     
-    // Функция для форматирования баланса (максимум 4 знака после запятой)
-    const formatBalanceDetail = (balanceStr) => {
-        if (!balanceStr || balanceStr === '0' || balanceStr === '0.00') return '0.0000';
-        
-        const balance = parseFloat(balanceStr);
-        if (isNaN(balance)) return '0.0000';
-        
-        // Разделяем целую и дробную части
-        const [integerPart, decimalPart] = balance.toString().split('.');
-        
-        if (!decimalPart) {
-            return `${integerPart}.0000`;
-        }
-        
-        // Ограничиваем до 4 знаков после запятой
-        const limitedDecimal = decimalPart.length > 4 ? decimalPart.substring(0, 4) : decimalPart;
-        
-        // Дополняем нулями до 4 знаков, если нужно
-        return `${integerPart}.${limitedDecimal.padEnd(4, '0')}`;
-    };
-    
     useEffect(() => {
         const walletData = location.state?.wallet || location.state;
         
@@ -72,7 +51,7 @@ const TokenDetail = () => {
                 const mockWallet = {
                     ...token,
                     address: '',
-                    balance: '0.0000',
+                    balance: '0.00',
                     isActive: true,
                     network: network,
                     logo: token.logo
@@ -193,16 +172,16 @@ const TokenDetail = () => {
         }
         
         const badges = {
-            'TON': { color: '#0088cc', text: 'TON' },
-            'Solana': { color: '#00ff88', text: 'SOL' },
-            'Ethereum': { color: '#8c8cff', text: 'ETH' },
-            'Tron': { color: '#ff0000', text: 'TRX' },
-            'Bitcoin': { color: '#E49E00', text: 'BTC' },
-            'NEAR': { color: '#0b4731ff', text: 'NEA' },
-            'BSC': { color: '#bfcd43ff', text: 'BNB' }
+            'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)', text: 'TON' },
+            'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)', text: 'SOL' },
+            'Ethereum': { color: '#8c8cff', bg: 'rgba(140, 140, 255, 0.1)', text: 'ETH' },
+            'Tron': { color: '#ff0000', bg: 'rgba(255, 0, 0, 0.1)', text: 'TRX' },
+            'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)', text: 'BTC' },
+            'NEAR': { color: '#0b4731', bg: 'rgba(11, 71, 49, 0.1)', text: 'NEAR' },
+            'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)', text: 'BNB' } 
         };
         
-        return badges[blockchain] || { color: '#666', text: blockchain.substring(0, 3).toUpperCase() };
+        return badges[blockchain] || { color: '#666', text: blockchain };
     };
 
     const handleTimeframeChange = (newTimeframe) => {
@@ -213,7 +192,6 @@ const TokenDetail = () => {
     };
 
     const badge = wallet ? getBlockchainBadge(wallet.blockchain, wallet.symbol) : null;
-    const formattedBalance = wallet ? formatBalanceDetail(wallet.balance) : '0.0000';
 
     if (!wallet) {
         return (
@@ -273,7 +251,7 @@ const TokenDetail = () => {
                 
                 <div className="token-balance-display">
                     <div className="token-amount-container">
-                        <p className="token-amount">{formattedBalance} {wallet.symbol}</p>
+                        <p className="token-amount">{wallet.balance || '0.00'} {wallet.symbol}</p>
                         {badge && (
                             <div 
                                 className="blockchain-badge" 
@@ -417,10 +395,10 @@ const TokenDetail = () => {
                     </button>
                 </div>
                 
-                {/* Блок с графиком */}
+                {/* Блок с графиком - уменьшена ширина и высота */}
                 <div className="chart-container" style={{
                     width: '90%',
-                    maxWidth: '350px',
+                    maxWidth: '350px', // Такая же ширина как у блока кнопок (было 380px)
                     marginTop: '25px',
                     background: 'rgba(255, 255, 255, 0.03)',
                     borderRadius: '15px',
@@ -472,7 +450,7 @@ const TokenDetail = () => {
                     
                     {isLoadingChart ? (
                         <div style={{
-                            height: '160px',
+                            height: '160px', // Уменьшена на 40px (было 200px)
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -481,7 +459,7 @@ const TokenDetail = () => {
                             Loading chart...
                         </div>
                     ) : (
-                        <ResponsiveContainer width="100%" height={160}>
+                        <ResponsiveContainer width="100%" height={160}> {/* Уменьшена на 40px (было 200px) */}
                             <LineChart
                                 data={chartData}
                                 margin={{ top: 5, right: 30, left: 0, bottom: 5 }}

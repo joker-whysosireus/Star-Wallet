@@ -98,16 +98,13 @@ const SelectToken = () => {
     
     const getBlockchainBadge = (blockchain) => {
         const badges = {
-            'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)' },
-            'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)' },
-            'Ethereum': { color: '#8c8cff', bg: 'rgba(140, 140, 255, 0.1)' },
-            'Tron': { color: '#ff0000', bg: 'rgba(255, 0, 0, 0.1)' },
-            'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)' },
-            'NEAR': { color: '#0b4731', bg: 'rgba(11, 71, 49, 0.1)' },
-            'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)' },
-            'XRP': { color: '#23292f', bg: 'rgba(35, 41, 47, 0.1)' },
-            'LTC': { color: '#bfbbbb', bg: 'rgba(191, 187, 187, 0.1)' },
-            'DOGE': { color: '#c2a633', bg: 'rgba(194, 166, 51, 0.1)' }
+            'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)', text: 'TON' },
+            'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)', text: 'SOL' },
+            'Ethereum': { color: '#8c8cff', bg: 'rgba(140, 140, 255, 0.1)', text: 'ETH' },
+            'Tron': { color: '#ff0000', bg: 'rgba(255, 0, 0, 0.1)', text: 'TRX' },
+            'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)', text: 'BTC' },
+            'NEAR': { color: '#0b4731', bg: 'rgba(11, 71, 49, 0.1)', text: 'NEAR' },
+            'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)', text: 'BNB' } 
         };
         
         return badges[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)' };
