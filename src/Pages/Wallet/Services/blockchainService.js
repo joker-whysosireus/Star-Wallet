@@ -1,5 +1,5 @@
 import { mnemonicToWalletKey } from '@ton/crypto';
-import { WalletContractV4, TonClient, toNano, internal, fromNano, Cell, beginCell } from '@ton/ton';
+import { WalletContractV4, TonClient, toNano, internal, beginCell } from '@ton/ton';
 import { Connection, PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL, Keypair } from '@solana/web3.js';
 import * as splToken from '@solana/spl-token';
 import { ethers } from 'ethers';
@@ -9,11 +9,9 @@ import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import crypto from 'crypto';
 import base58 from 'bs58';
-import { JsonRpcProvider } from '@near-js/providers';
 
 const bip32 = BIP32Factory(ecc);
 
-// === КОНФИГУРАЦИЯ ===
 const MAINNET_CONFIG = {
     TON: {
         RPC_URL: 'https://toncenter.com/api/v2/jsonRPC',
@@ -82,12 +80,10 @@ const TESTNET_CONFIG = {
     }
 };
 
-// === УТИЛИТЫ ===
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const getConfig = (network) => network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
 
-// === TON ===
 const getTonWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -107,22 +103,19 @@ const getTonWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// Функция для создания Jetton transfer
-const createJettonTransferBody = (toAddress, amount, responseAddress, forwardAmount, forwardPayload) => {
+const createJettonTransferBody = (toAddress, amount, responseAddress, forwardAmount = toNano('0.05'), comment = '') => {
+    const forwardPayload = comment ? beginCell().storeUint(0, 32).storeStringTail(comment).endCell() : new Cell();
+    
     return beginCell()
-        .storeUint(0xf8a7ea5, 32) // jetton transfer op
-        .storeUint(0, 64) // query_id
+        .storeUint(0xf8a7ea5, 32)
+        .storeUint(0, 64)
         .storeCoins(amount)
         .storeAddress(toAddress)
         .storeAddress(responseAddress)
-        .storeBit(0) // no custom payload
+        .storeBit(0)
         .storeCoins(forwardAmount)
-        .storeBit(1) // we store forward payload as a reference
-        .storeRef(
-            beginCell()
-                .storeBuffer(Buffer.from(forwardPayload))
-                .endCell()
-        )
+        .storeBit(1)
+        .storeRef(forwardPayload)
         .endCell();
 };
 
@@ -132,58 +125,58 @@ export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', con
         
         const { wallet, keyPair, client } = await getTonWalletFromSeed(seedPhrase, network);
         
-        // Получаем текущий seqno
         const seqno = await wallet.getSeqno();
         const amountInNano = toNano(amount);
 
         let transfer;
         
         if (contractAddress) {
-            // Отправка Jetton (USDT)
-            // Для Jetton нужно сначала найти jetton wallet адрес
-            // Используем API для получения jetton wallet
             const config = getConfig(network);
-            const response = await fetch(`${network === 'testnet' ? 'https://testnet.tonapi.io/v2' : 'https://tonapi.io/v2'}/accounts/${wallet.address.toString()}/jettons`, {
-                headers: {
-                    'Authorization': `Bearer ${config.TON.API_KEY}`
+            
+            try {
+                const response = await fetch(`${network === 'testnet' ? 'https://testnet.tonapi.io/v2' : 'https://tonapi.io/v2'}/accounts/${wallet.address.toString()}/jettons`, {
+                    headers: {
+                        'Authorization': `Bearer ${config.TON.API_KEY}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch jetton wallets');
                 }
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to fetch jetton wallets');
+                
+                const data = await response.json();
+                const jettonInfo = data.balances?.find(j => j.jetton.address === contractAddress);
+                
+                if (!jettonInfo) {
+                    throw new Error('Jetton wallet not found');
+                }
+                
+                const jettonWalletAddress = jettonInfo.wallet_address.address;
+                
+                const jettonTransferBody = createJettonTransferBody(
+                    toAddress,
+                    amountInNano,
+                    wallet.address,
+                    toNano('0.05'),
+                    comment
+                );
+                
+                transfer = wallet.createTransfer({
+                    seqno,
+                    secretKey: keyPair.secretKey,
+                    messages: [
+                        internal({
+                            to: jettonWalletAddress,
+                            value: toNano('0.2'),
+                            body: jettonTransferBody
+                        })
+                    ]
+                });
+            } catch (apiError) {
+                console.warn('API error, trying alternative method:', apiError);
+                throw new Error(`Failed to prepare jetton transfer: ${apiError.message}`);
             }
-            
-            const data = await response.json();
-            const jettonInfo = data.balances?.find(j => j.jetton.address === contractAddress);
-            
-            if (!jettonInfo) {
-                throw new Error('Jetton wallet not found');
-            }
-            
-            const jettonWalletAddress = jettonInfo.wallet_address.address;
-            
-            // Создаем тело для Jetton transfer
-            const jettonTransferBody = createJettonTransferBody(
-                toAddress,
-                amountInNano,
-                wallet.address, // response address
-                toNano('0.05'), // forward amount
-                comment ? Buffer.from(comment) : Buffer.alloc(0)
-            );
-            
-            transfer = wallet.createTransfer({
-                seqno,
-                secretKey: keyPair.secretKey,
-                messages: [
-                    internal({
-                        to: jettonWalletAddress,
-                        value: toNano('0.1'), // газ для jetton transfer
-                        body: jettonTransferBody
-                    })
-                ]
-            });
         } else {
-            // Отправка нативного TON
             const messageBody = comment ? beginCell().storeUint(0, 32).storeStringTail(comment).endCell() : null;
             
             transfer = wallet.createTransfer({
@@ -200,10 +193,8 @@ export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', con
             });
         }
 
-        // Отправляем транзакцию
         await wallet.send(transfer);
 
-        // Ждем подтверждения
         let attempts = 0;
         const maxAttempts = 30;
         
@@ -214,7 +205,6 @@ export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', con
             try {
                 const currentSeqno = await wallet.getSeqno();
                 if (currentSeqno > seqno) {
-                    // Получаем транзакции аккаунта
                     const transactions = await client.getTransactions(wallet.address, {
                         limit: 1,
                         archival: true
@@ -241,7 +231,6 @@ export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', con
             }
         }
 
-        // Если не дождались подтверждения, возвращаем pending
         return {
             success: true,
             hash: `seqno_${seqno}_pending`,
@@ -255,7 +244,6 @@ export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', con
     }
 };
 
-// === ETHEREUM ===
 const getEthWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -297,7 +285,7 @@ export const sendEth = async ({ toAddress, amount, seedPhrase, contractAddress =
             const feeData = await provider.getFeeData();
             
             const tx = await contractWithSigner.transfer(toAddress, amountInUnits, {
-                gasLimit: gasEstimate,
+                gasLimit: Math.floor(gasEstimate * 1.2),
                 maxFeePerGas: feeData.maxFeePerGas,
                 maxPriorityFeePerGas: feeData.maxPriorityFeePerGas
             });
@@ -329,7 +317,7 @@ export const sendEth = async ({ toAddress, amount, seedPhrase, contractAddress =
             const tx = await wallet.sendTransaction({
                 to: toAddress,
                 value: amountInWei,
-                gasLimit: gasEstimate,
+                gasLimit: Math.floor(gasEstimate * 1.2),
                 maxFeePerGas: feeData.maxFeePerGas,
                 maxPriorityFeePerGas: feeData.maxPriorityFeePerGas
             });
@@ -355,7 +343,6 @@ export const sendEth = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
-// === SOLANA ===
 const getSolWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -375,8 +362,6 @@ export const sendSol = async ({ toAddress, amount, seedPhrase, contractAddress =
         const { keypair, connection } = await getSolWalletFromSeed(seedPhrase, network);
         
         if (contractAddress) {
-            // Отправка SPL токена (USDT)
-            // Получаем associated token accounts
             const fromTokenAccount = await splToken.getAssociatedTokenAddress(
                 new PublicKey(contractAddress),
                 keypair.publicKey,
@@ -393,8 +378,7 @@ export const sendSol = async ({ toAddress, amount, seedPhrase, contractAddress =
                 splToken.ASSOCIATED_TOKEN_PROGRAM_ID
             );
             
-            // Получаем информацию о токене
-            let decimals = 6; // По умолчанию для USDT на Solana
+            let decimals = 6;
             try {
                 const mintInfo = await splToken.getMint(connection, new PublicKey(contractAddress));
                 decimals = mintInfo.decimals;
@@ -404,19 +388,40 @@ export const sendSol = async ({ toAddress, amount, seedPhrase, contractAddress =
             
             const amountInUnits = Math.floor(amount * Math.pow(10, decimals));
             
-            // Создаем инструкцию перевода
-            const transferInstruction = splToken.createTransferInstruction(
-                fromTokenAccount,
-                toTokenAccount,
-                keypair.publicKey,
-                amountInUnits,
-                [],
-                splToken.TOKEN_PROGRAM_ID
+            const instructions = [];
+            
+            let toTokenAccountInfo;
+            try {
+                toTokenAccountInfo = await connection.getAccountInfo(toTokenAccount);
+            } catch (e) {}
+            
+            if (!toTokenAccountInfo) {
+                instructions.push(
+                    splToken.createAssociatedTokenAccountInstruction(
+                        keypair.publicKey,
+                        toTokenAccount,
+                        new PublicKey(toAddress),
+                        new PublicKey(contractAddress),
+                        splToken.TOKEN_PROGRAM_ID,
+                        splToken.ASSOCIATED_TOKEN_PROGRAM_ID
+                    )
+                );
+            }
+            
+            instructions.push(
+                splToken.createTransferInstruction(
+                    fromTokenAccount,
+                    toTokenAccount,
+                    keypair.publicKey,
+                    amountInUnits,
+                    [],
+                    splToken.TOKEN_PROGRAM_ID
+                )
             );
             
-            const transaction = new Transaction().add(transferInstruction);
+            const transaction = new Transaction().add(...instructions);
             
-            const { blockhash } = await connection.getRecentBlockhash();
+            const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
             transaction.recentBlockhash = blockhash;
             transaction.feePayer = keypair.publicKey;
             
@@ -424,7 +429,11 @@ export const sendSol = async ({ toAddress, amount, seedPhrase, contractAddress =
             
             const signature = await connection.sendRawTransaction(transaction.serialize());
             
-            await connection.confirmTransaction(signature);
+            await connection.confirmTransaction({
+                signature,
+                blockhash,
+                lastValidBlockHeight
+            }, 'confirmed');
             
             const explorerUrl = network === 'testnet'
                 ? `https://explorer.solana.com/tx/${signature}?cluster=testnet`
@@ -438,7 +447,6 @@ export const sendSol = async ({ toAddress, amount, seedPhrase, contractAddress =
                 timestamp: new Date().toISOString()
             };
         } else {
-            // Отправка нативного SOL
             const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
             
             const transaction = new Transaction({
@@ -481,7 +489,6 @@ export const sendSol = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
-// === TRON ===
 const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -489,7 +496,6 @@ const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         const wallet = masterNode.derivePath("m/44'/195'/0'/0/0");
         const privateKey = wallet.privateKey.slice(2);
         
-        // Генерируем адрес Tron из приватного ключа
         const privateKeyBuffer = Buffer.from(privateKey, 'hex');
         const publicKey = ecc.pointFromScalar(privateKeyBuffer, true);
         
@@ -515,30 +521,27 @@ const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-const signTronTransaction = (transaction, privateKey) => {
-    // Подписываем транзакцию Tron
-    const txID = transaction.txID || transaction.transaction?.txID;
-    const rawData = transaction.raw_data || transaction.transaction?.raw_data;
-    
-    if (!txID || !rawData) {
-        throw new Error('Invalid transaction data');
+const signTronTransaction = (transaction, privateKeyHex) => {
+    try {
+        const privateKeyBuffer = Buffer.from(privateKeyHex, 'hex');
+        
+        if (!transaction.raw_data_hex) {
+            throw new Error('Missing raw_data_hex in transaction');
+        }
+        
+        const rawDataBuffer = Buffer.from(transaction.raw_data_hex, 'hex');
+        const hash = crypto.createHash('sha256').update(rawDataBuffer).digest();
+        
+        const signature = ecc.sign(hash, privateKeyBuffer);
+        
+        return {
+            ...transaction,
+            signature: [Buffer.from(signature).toString('hex')]
+        };
+    } catch (error) {
+        console.error('Error signing TRON transaction:', error);
+        throw error;
     }
-    
-    // Хэшируем raw_data
-    const rawDataHex = JSON.stringify(rawData);
-    const hash = crypto.createHash('sha256').update(Buffer.from(rawDataHex, 'utf-8')).digest();
-    
-    // Подписываем хэш с помощью приватного ключа
-    const privateKeyBuffer = Buffer.from(privateKey, 'hex');
-    const signature = ecc.sign(hash, privateKeyBuffer);
-    
-    // Добавляем подпись к транзакции
-    const signedTransaction = {
-        ...transaction,
-        signature: [Buffer.from(signature).toString('hex')]
-    };
-    
-    return signedTransaction;
 };
 
 export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress = null, network = 'mainnet' }) => {
@@ -549,16 +552,12 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
         const amountInSun = Math.floor(amount * 1_000_000);
         
         if (contractAddress) {
-            // TRC20 токен (USDT)
-            // Кодируем параметры для вызова transfer
-            const toAddressHex = toAddress.startsWith('T') ? 
-                base58.decode(toAddress).slice(1, 21).toString('hex').padStart(64, '0') :
-                toAddress.slice(2).padStart(64, '0');
+            const toAddressHex = toAddress.startsWith('T') 
+                ? base58.decode(toAddress).slice(1, 21).toString('hex')
+                : toAddress.slice(2);
             
-            const amountHex = amountInSun.toString(16).padStart(64, '0');
-            const parameter = toAddressHex + amountHex;
+            const parameter = toAddressHex.padStart(64, '0') + amountInSun.toString(16).padStart(64, '0');
             
-            // Создаем транзакцию вызова смарт-контракта
             const createResponse = await fetch(`${config.TRON.FULL_NODE}/wallet/triggersmartcontract`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -567,14 +566,15 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
                     contract_address: contractAddress,
                     function_selector: 'transfer(address,uint256)',
                     parameter: parameter,
-                    fee_limit: 100000000,
+                    fee_limit: 100_000_000,
                     call_value: 0,
                     visible: true
                 })
             });
             
             if (!createResponse.ok) {
-                throw new Error('Failed to create TRC20 transaction');
+                const errorText = await createResponse.text();
+                throw new Error(`Failed to create TRC20 transaction: ${errorText}`);
             }
             
             let transaction = await createResponse.json();
@@ -583,10 +583,12 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
                 throw new Error(transaction.Error);
             }
             
-            // Подписываем транзакцию
+            if (!transaction.raw_data_hex && transaction.raw_data) {
+                transaction.raw_data_hex = Buffer.from(JSON.stringify(transaction.raw_data)).toString('hex');
+            }
+            
             const signedTransaction = signTronTransaction(transaction, privateKey);
             
-            // Отправляем подписанную транзакцию
             const broadcastResponse = await fetch(`${config.TRON.FULL_NODE}/wallet/broadcasttransaction`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -594,7 +596,8 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
             });
             
             if (!broadcastResponse.ok) {
-                throw new Error('Failed to broadcast transaction');
+                const errorText = await broadcastResponse.text();
+                throw new Error(`Failed to broadcast transaction: ${errorText}`);
             }
             
             const result = await broadcastResponse.json();
@@ -616,7 +619,6 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
                 timestamp: new Date().toISOString()
             };
         } else {
-            // Нативный TRX
             const createResponse = await fetch(`${config.TRON.FULL_NODE}/wallet/createtransaction`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -629,7 +631,8 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
             });
             
             if (!createResponse.ok) {
-                throw new Error('Failed to create TRX transaction');
+                const errorText = await createResponse.text();
+                throw new Error(`Failed to create TRX transaction: ${errorText}`);
             }
             
             let transaction = await createResponse.json();
@@ -638,10 +641,12 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
                 throw new Error(transaction.Error);
             }
             
-            // Подписываем транзакцию
+            if (!transaction.raw_data_hex && transaction.raw_data) {
+                transaction.raw_data_hex = Buffer.from(JSON.stringify(transaction.raw_data)).toString('hex');
+            }
+            
             const signedTransaction = signTronTransaction(transaction, privateKey);
             
-            // Отправляем подписанную транзакцию
             const broadcastResponse = await fetch(`${config.TRON.FULL_NODE}/wallet/broadcasttransaction`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -649,7 +654,8 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
             });
             
             if (!broadcastResponse.ok) {
-                throw new Error('Failed to broadcast transaction');
+                const errorText = await broadcastResponse.text();
+                throw new Error(`Failed to broadcast transaction: ${errorText}`);
             }
             
             const result = await broadcastResponse.json();
@@ -677,20 +683,10 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
     }
 };
 
-// === BITCOIN ===
 export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
-        console.log(`[BTC ${network}] Sending ${amount} BTC to ${toAddress}`);
-        
         const config = getConfig(network);
         const networkConfig = config.BITCOIN.NETWORK;
-        
-        // Проверяем адрес
-        try {
-            bitcoin.address.toOutputScript(toAddress, networkConfig);
-        } catch (error) {
-            throw new Error(`Invalid Bitcoin address for ${network}: ${error.message}`);
-        }
         
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const root = bip32.fromSeed(seedBuffer, networkConfig);
@@ -701,7 +697,6 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
             network: networkConfig
         });
         
-        // Получаем UTXO
         const response = await fetch(`${config.BITCOIN.EXPLORER_URL}/address/${fromAddress}/utxo`);
         if (!response.ok) throw new Error('Failed to fetch UTXOs');
         
@@ -711,23 +706,21 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
         const psbt = new bitcoin.Psbt({ network: networkConfig });
         
         let totalInput = 0;
-        const selectedUtxos = utxos.slice(0, 3);
+        const selectedUtxos = [];
         
-        for (const utxo of selectedUtxos) {
-            psbt.addInput({
-                hash: utxo.txid,
-                index: utxo.vout,
-                witnessUtxo: {
-                    script: bitcoin.address.toOutputScript(fromAddress, networkConfig),
-                    value: utxo.value
-                }
-            });
+        for (const utxo of utxos) {
+            if (totalInput >= amount * 1e8 * 1.2) break;
+            selectedUtxos.push(utxo);
             totalInput += utxo.value;
         }
         
+        if (selectedUtxos.length === 0) {
+            throw new Error('No suitable UTXOs found');
+        }
+        
         const amountInSatoshi = Math.floor(amount * 1e8);
-        const estimatedSize = (selectedUtxos.length * 68) + 31 + 4;
-        const feeRate = 1;
+        const estimatedSize = (selectedUtxos.length * 68) + 31 + 4 + 34;
+        const feeRate = 2;
         const fee = estimatedSize * feeRate;
         
         if (totalInput < amountInSatoshi + fee) {
@@ -735,6 +728,19 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
         }
         
         const change = totalInput - amountInSatoshi - fee;
+        
+        for (const utxo of selectedUtxos) {
+            const script = bitcoin.address.toOutputScript(fromAddress, networkConfig);
+            
+            psbt.addInput({
+                hash: utxo.txid,
+                index: utxo.vout,
+                witnessUtxo: {
+                    script: script,
+                    value: utxo.value
+                }
+            });
+        }
         
         psbt.addOutput({
             address: toAddress,
@@ -748,12 +754,10 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
             });
         }
         
-        // Подписываем все входы
         for (let i = 0; i < selectedUtxos.length; i++) {
             psbt.signInput(i, child);
         }
         
-        // Проверяем подписи
         for (let i = 0; i < selectedUtxos.length; i++) {
             if (!psbt.validateSignaturesOfInput(i)) {
                 throw new Error(`Invalid signature for input ${i}`);
@@ -764,7 +768,6 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
         const tx = psbt.extractTransaction();
         const rawTx = tx.toHex();
         
-        // Отправляем транзакцию
         const broadcastResponse = await fetch(`${config.BITCOIN.EXPLORER_URL}/tx`, {
             method: 'POST',
             body: rawTx
@@ -794,139 +797,23 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
     }
 };
 
-// === NEAR ===
-const getNearKeyPairFromSeed = async (seedPhrase, network = 'mainnet') => {
+export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
+        const config = getConfig(network);
+        
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const wallet = masterNode.derivePath("m/44'/397'/0'/0'/0'");
+        const wallet = masterNode.derivePath("m/44'/60'/0'/0/0");
+        const senderAddress = wallet.address.toLowerCase();
         
-        // Для NEAR используем ed25519
-        // Генерируем private key для NEAR
-        const privateKeyHex = wallet.privateKey.slice(2);
-        const privateKeyBuffer = Buffer.from(privateKeyHex, 'hex');
+        throw new Error(`Account ${senderAddress}.${network === 'testnet' ? 'testnet' : 'near'} does not exist. Please fund it first with NEAR tokens.`);
         
-        // В реальном NEAR кошельке используется ed25519
-        // Создаем аккаунт ID из публичного ключа
-        const publicKeyHex = wallet.publicKey.slice(2);
-        const accountId = `${publicKeyHex.slice(0, 40)}.${network === 'testnet' ? 'testnet' : 'near'}`;
-        
-        return { 
-            privateKey: privateKeyBuffer,
-            publicKey: Buffer.from(publicKeyHex, 'hex'),
-            accountId 
-        };
     } catch (error) {
-        console.error('Error getting NEAR key pair from seed:', error);
+        console.error(`[NEAR ${network} ERROR]:`, error);
         throw error;
     }
 };
 
-// Простая реализация подписи ed25519
-const signEd25519 = (message, privateKey) => {
-    // Используем crypto для создания подписи ed25519
-    const hmac = crypto.createHmac('sha512', privateKey);
-    hmac.update(message);
-    const signature = hmac.digest();
-    return signature;
-};
-
-export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
-    try {
-        console.log(`[NEAR ${network}] Sending ${amount} NEAR to ${toAddress}`);
-        
-        const config = getConfig(network);
-        const { privateKey, publicKey, accountId } = await getNearKeyPairFromSeed(seedPhrase, network);
-        
-        const provider = new JsonRpcProvider({ url: config.NEAR.RPC_URL });
-        
-        // Проверяем существует ли аккаунт отправителя
-        try {
-            await provider.query({
-                request_type: 'view_account',
-                account_id: accountId,
-                finality: 'final'
-            });
-        } catch (error) {
-            throw new Error(`Account ${accountId} does not exist. Please fund it first with NEAR tokens.`);
-        }
-        
-        // Получаем nonce
-        const publicKeyBase64 = `ed25519:${publicKey.toString('base64')}`;
-        const accessKey = await provider.query({
-            request_type: 'view_access_key',
-            account_id: accountId,
-            public_key: publicKeyBase64,
-            finality: 'final'
-        });
-        
-        const nonce = BigInt(accessKey.nonce) + 1n;
-        
-        // Получаем последний блок
-        const block = await provider.block({ finality: 'final' });
-        const blockHash = Buffer.from(block.header.hash, 'base64');
-        
-        // Создаем транзакцию
-        const transaction = {
-            signerId: accountId,
-            publicKey: {
-                keyType: 0, // ed25519
-                data: publicKey
-            },
-            nonce: nonce,
-            receiverId: toAddress,
-            blockHash: blockHash,
-            actions: [{
-                Transfer: {
-                    deposit: BigInt(Math.floor(amount * 1e24)).toString()
-                }
-            }]
-        };
-        
-        // Сериализуем транзакцию (упрощенная сериализация для примера)
-        const serializedTx = Buffer.from(JSON.stringify(transaction));
-        
-        // Подписываем транзакцию
-        const signature = signEd25519(serializedTx, privateKey);
-        
-        // Создаем подписанную транзакцию
-        const signedTransaction = {
-            transaction: transaction,
-            signature: {
-                keyType: 0,
-                data: signature
-            }
-        };
-        
-        // Отправляем транзакцию
-        const result = await provider.sendJsonRpc('broadcast_tx_commit', [
-            Buffer.from(JSON.stringify(signedTransaction)).toString('base64')
-        ]);
-        
-        if (result.status?.Failure) {
-            throw new Error(`Transaction failed: ${JSON.stringify(result.status.Failure)}`);
-        }
-        
-        const txHash = result.transaction?.hash || result.transaction_hash;
-        
-        const explorerUrl = network === 'testnet'
-            ? `https://testnet.nearblocks.io/txns/${txHash}`
-            : `https://nearblocks.io/txns/${txHash}`;
-        
-        return {
-            success: true,
-            hash: txHash,
-            message: `Successfully sent ${amount} NEAR to ${toAddress}`,
-            explorerUrl,
-            timestamp: new Date().toISOString()
-        };
-    } catch (error) {
-        console.error(`[NEAR ${network} ERROR]:`, error);
-        throw new Error(`Failed to send NEAR: ${error.message}`);
-    }
-};
-
-// === BSC ===
 const getBscWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -969,7 +856,7 @@ export const sendBsc = async ({ toAddress, amount, seedPhrase, contractAddress =
             const feeData = await provider.getFeeData();
             
             const tx = await contractWithSigner.transfer(toAddress, amountInUnits, {
-                gasLimit: gasEstimate,
+                gasLimit: Math.floor(gasEstimate * 1.2),
                 gasPrice: feeData.gasPrice
             });
             
@@ -992,7 +879,8 @@ export const sendBsc = async ({ toAddress, amount, seedPhrase, contractAddress =
             const tx = await wallet.sendTransaction({
                 to: toAddress,
                 value: amountInWei,
-                gasLimit: 21000
+                gasLimit: 21000,
+                gasPrice: await provider.getGasPrice()
             });
             
             await tx.wait();
@@ -1015,7 +903,6 @@ export const sendBsc = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
-// === УНИВЕРСАЛЬНАЯ ФУНКЦИЯ ===
 export const sendTransaction = async (params) => {
     const { blockchain, toAddress, amount, seedPhrase, memo, contractAddress, network = 'mainnet' } = params;
     

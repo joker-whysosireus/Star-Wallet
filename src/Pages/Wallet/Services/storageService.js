@@ -1044,7 +1044,6 @@ export const getTotalUSDTBalance = async (userData, network = 'mainnet') => {
     }
 };
 
-// 🔧 ИСПРАВЛЕННАЯ ВАЛИДАЦИЯ АДРЕСОВ
 export const validateAddress = async (blockchain, address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
