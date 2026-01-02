@@ -31,6 +31,27 @@ const TokenDetail = () => {
     const userData = location.state?.userData;
     const network = location.state?.network || 'mainnet';
     
+    // Функция для форматирования баланса (максимум 4 знака после запятой)
+    const formatBalanceDetail = (balanceStr) => {
+        if (!balanceStr || balanceStr === '0' || balanceStr === '0.00') return '0.0000';
+        
+        const balance = parseFloat(balanceStr);
+        if (isNaN(balance)) return '0.0000';
+        
+        // Разделяем целую и дробную части
+        const [integerPart, decimalPart] = balance.toString().split('.');
+        
+        if (!decimalPart) {
+            return `${integerPart}.0000`;
+        }
+        
+        // Ограничиваем до 4 знаков после запятой
+        const limitedDecimal = decimalPart.length > 4 ? decimalPart.substring(0, 4) : decimalPart;
+        
+        // Дополняем нулями до 4 знаков, если нужно
+        return `${integerPart}.${limitedDecimal.padEnd(4, '0')}`;
+    };
+    
     useEffect(() => {
         const walletData = location.state?.wallet || location.state;
         
@@ -51,7 +72,7 @@ const TokenDetail = () => {
                 const mockWallet = {
                     ...token,
                     address: '',
-                    balance: '0.00',
+                    balance: '0.0000',
                     isActive: true,
                     network: network,
                     logo: token.logo
@@ -177,11 +198,11 @@ const TokenDetail = () => {
             'Ethereum': { color: '#8c8cff', text: 'ETH' },
             'Tron': { color: '#ff0000', text: 'TRX' },
             'Bitcoin': { color: '#E49E00', text: 'BTC' },
-            'NEAR': { color: '#0b4731ff', text: 'NEAR' },
+            'NEAR': { color: '#0b4731ff', text: 'NEA' },
             'BSC': { color: '#bfcd43ff', text: 'BNB' }
         };
         
-        return badges[blockchain] || { color: '#666', text: blockchain };
+        return badges[blockchain] || { color: '#666', text: blockchain.substring(0, 3).toUpperCase() };
     };
 
     const handleTimeframeChange = (newTimeframe) => {
@@ -192,6 +213,7 @@ const TokenDetail = () => {
     };
 
     const badge = wallet ? getBlockchainBadge(wallet.blockchain, wallet.symbol) : null;
+    const formattedBalance = wallet ? formatBalanceDetail(wallet.balance) : '0.0000';
 
     if (!wallet) {
         return (
@@ -251,7 +273,7 @@ const TokenDetail = () => {
                 
                 <div className="token-balance-display">
                     <div className="token-amount-container">
-                        <p className="token-amount">{wallet.balance || '0.00'} {wallet.symbol}</p>
+                        <p className="token-amount">{formattedBalance} {wallet.symbol}</p>
                         {badge && (
                             <div 
                                 className="blockchain-badge" 
@@ -395,10 +417,10 @@ const TokenDetail = () => {
                     </button>
                 </div>
                 
-                {/* Блок с графиком - уменьшена ширина и высота */}
+                {/* Блок с графиком */}
                 <div className="chart-container" style={{
                     width: '90%',
-                    maxWidth: '350px', // Такая же ширина как у блока кнопок (было 380px)
+                    maxWidth: '350px',
                     marginTop: '25px',
                     background: 'rgba(255, 255, 255, 0.03)',
                     borderRadius: '15px',
@@ -450,7 +472,7 @@ const TokenDetail = () => {
                     
                     {isLoadingChart ? (
                         <div style={{
-                            height: '160px', // Уменьшена на 40px (было 200px)
+                            height: '160px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -459,7 +481,7 @@ const TokenDetail = () => {
                             Loading chart...
                         </div>
                     ) : (
-                        <ResponsiveContainer width="100%" height={160}> {/* Уменьшена на 40px (было 200px) */}
+                        <ResponsiveContainer width="100%" height={160}>
                             <LineChart
                                 data={chartData}
                                 margin={{ top: 5, right: 30, left: 0, bottom: 5 }}

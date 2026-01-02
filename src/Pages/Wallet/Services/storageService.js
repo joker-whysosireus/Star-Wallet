@@ -2,7 +2,6 @@ import { mnemonicToWalletKey } from '@ton/crypto';
 import { WalletContractV4, TonClient, Address } from '@ton/ton';
 import { Keypair, Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { ethers } from 'ethers';
-import * as bitcoin from 'bitcoinjs-lib';
 import * as bip39 from 'bip39';
 import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
@@ -10,10 +9,10 @@ import crypto from 'crypto';
 import { JsonRpcProvider } from '@near-js/providers';
 import { Buffer } from 'buffer';
 import base58 from 'bs58';
+import * as bitcoin from 'bitcoinjs-lib';
 
 const bip32 = BIP32Factory(ecc);
 
-// === КОНФИГУРАЦИЯ ===
 const MAINNET_CONFIG = {
     TON: { 
         RPC_URL: 'https://toncenter.com/api/v2/jsonRPC',
@@ -38,8 +37,7 @@ const MAINNET_CONFIG = {
     },
     BITCOIN: { 
         EXPLORER_API: 'https://blockstream.info/api',
-        NETWORK: bitcoin.networks.bitcoin,
-        CHAIN: 'mainnet'
+        NETWORK: bitcoin.networks.bitcoin
     },
     NEAR: { 
         RPC_URL: 'https://rpc.mainnet.near.org',
@@ -76,8 +74,7 @@ const TESTNET_CONFIG = {
     },
     BITCOIN: { 
         EXPLORER_API: 'https://blockstream.info/testnet/api',
-        NETWORK: bitcoin.networks.testnet,
-        CHAIN: 'testnet'
+        NETWORK: bitcoin.networks.testnet
     },
     NEAR: { 
         RPC_URL: 'https://rpc.testnet.near.org',
@@ -1047,36 +1044,64 @@ export const getTotalUSDTBalance = async (userData, network = 'mainnet') => {
     }
 };
 
-export const validateAddress = async (blockchain, address) => {
+// 🔧 ИСПРАВЛЕННАЯ ВАЛИДАЦИЯ АДРЕСОВ
+export const validateAddress = async (blockchain, address, network = 'mainnet') => {
     try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        
         switch(blockchain) {
             case 'TON':
                 const tonRegex = /^(?:-1|0):[0-9a-fA-F]{64}$|^[A-Za-z0-9_-]{48}$/;
                 return tonRegex.test(address);
+                
             case 'Ethereum':
             case 'BSC':
                 return ethers.isAddress(address);
+                
             case 'Solana':
                 try {
                     new PublicKey(address);
                     return true;
-                } catch { return false; }
+                } catch { 
+                    return false; 
+                }
+                
             case 'Tron':
                 const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$|^41[0-9a-fA-F]{40}$/;
-                return tronRegex.test(address);
+                if (!tronRegex.test(address)) return false;
+                
+                try {
+                    const response = await fetch(`${config.TRON.RPC_URL}/wallet/validateaddress`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ address })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        return data.result || data.message === 'SUCCESS';
+                    }
+                    return true;
+                } catch {
+                    return true;
+                }
+                
             case 'Bitcoin':
                 try {
-                    bitcoin.address.toOutputScript(address, bitcoin.networks.bitcoin);
+                    const networkConfig = network === 'testnet' 
+                        ? bitcoin.networks.testnet 
+                        : bitcoin.networks.bitcoin;
+                    bitcoin.address.toOutputScript(address, networkConfig);
                     return true;
-                } catch { return false; }
+                } catch { 
+                    return false; 
+                }
+                
             case 'NEAR':
-                const nearImplicitRegex = /^[0-9a-f]{64}$/;
-                const nearNamedRegex = /^[a-z0-9_-]+(\.[a-z0-9_-]+)*\.(near|testnet)$/;
+                const nearRegex = /^[a-z0-9_-]+(\.[a-z0-9_-]+)*\.(near|testnet)$/;
                 const nearEvmRegex = /^0x[0-9a-fA-F]{40}$/;
-                return nearImplicitRegex.test(address) || 
-                       nearNamedRegex.test(address) || 
-                       nearEvmRegex.test(address) ||
-                       ethers.isAddress(address);
+                return nearRegex.test(address) || nearEvmRegex.test(address);
+                
             default:
                 return true;
         }
@@ -1147,7 +1172,7 @@ export const sendTransaction = async (transactionData) => {
     }
 };
 
-export const estimateTransactionFee = async (blockchain) => {
+export const estimateTransactionFee = async (blockchain, network = 'mainnet') => {
     const defaultFees = {
         'TON': '0.05',
         'Ethereum': '0.001',

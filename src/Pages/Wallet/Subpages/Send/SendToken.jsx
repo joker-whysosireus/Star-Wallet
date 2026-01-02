@@ -101,7 +101,7 @@ const SendToken = () => {
         }
         
         try {
-            const isValid = await validateAddress(token.blockchain, toAddress);
+            const isValid = await validateAddress(token.blockchain, toAddress, network);
             setIsAddressValid(isValid);
         } catch (error) {
             console.error('Address validation error:', error);
@@ -111,7 +111,7 @@ const SendToken = () => {
     
     const estimateFeeAsync = async () => {
         try {
-            const fee = await estimateTransactionFee(token.blockchain);
+            const fee = await estimateTransactionFee(token.blockchain, network);
             setTransactionFee(fee);
         } catch (error) {
             console.error('Fee estimation error:', error);
@@ -254,16 +254,17 @@ const SendToken = () => {
     
     const getBlockchainBadge = (blockchain) => {
         const badges = {
-            'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)' },
-            'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)' },
-            'Ethereum': { color: '#8c8cff', bg: 'rgba(140, 140, 255, 0.1)' },
-            'Tron': { color: '#ff0000', bg: 'rgba(255, 0, 0, 0.1)' },
-            'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)' },
-            'NEAR': { color: '#0b4731', bg: 'rgba(11, 71, 49, 0.1)' },
-            'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)' }
+            'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)', short: 'TON' },
+            'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)', short: 'SOL' },
+            'Ethereum': { color: '#8c8cff', bg: 'rgba(140, 140, 255, 0.1)', short: 'ETH' },
+            'Tron': { color: '#ff0000', bg: 'rgba(255, 0, 0, 0.1)', short: 'TRX' },
+            'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)', short: 'BTC' },
+            'NEAR': { color: '#0b4731', bg: 'rgba(11, 71, 49, 0.1)', short: 'NEA' },
+            'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)', short: 'BNB' }
         };
         
-        return badges[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)' };
+        const defaultBadge = { color: '#666', bg: 'rgba(102, 102, 102, 0.1)', short: blockchain.substring(0, 3).toUpperCase() };
+        return badges[blockchain] || defaultBadge;
     };
     
     const handleQRButtonClick = () => {
@@ -351,14 +352,14 @@ const SendToken = () => {
                                         className="amount-underline"
                                     ></div>
                                 </div>
-                                <div className="token-icon-large">
+                                <div className="token-icon-small">
                                     <img 
                                         src={token.logo} 
                                         alt={token.symbol}
                                         onError={(e) => {
                                             e.target.style.display = 'none';
                                             const fallback = document.createElement('div');
-                                            fallback.className = 'token-icon-fallback-large';
+                                            fallback.className = 'token-icon-fallback-small';
                                             fallback.textContent = token.symbol.substring(0, 2);
                                             e.target.parentNode.appendChild(fallback);
                                         }}
@@ -371,7 +372,7 @@ const SendToken = () => {
                                         backgroundColor: badge.bg
                                     }}
                                 >
-                                    {token.blockchain}
+                                    {badge.short}
                                 </div>
                             </div>
                             <div className="balance-display">
