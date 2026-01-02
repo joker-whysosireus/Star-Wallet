@@ -1,3 +1,4 @@
+// blockchainService.js - полный исправленный код
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { TonClient, WalletContractV4, internal, toNano } from '@ton/ton';
 import { Connection, PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL, Keypair } from '@solana/web3.js';
@@ -9,7 +10,6 @@ import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import crypto from 'crypto';
 import base58 from 'bs58';
-// ИСПРАВЛЕННЫЙ импорт near-api-js
 import { connect, keyStores, KeyPair, Contract } from 'near-api-js';
 
 const bip32 = BIP32Factory(ecc);
@@ -96,6 +96,7 @@ async function callWithRetry(apiCall, maxRetries = 3, baseDelay = 1000) {
     throw lastError;
 }
 
+// ========== TON ==========
 export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', contractAddress = null, network = 'mainnet' }) => {
     try {
         const config = getConfig(network);
@@ -152,6 +153,7 @@ export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', con
     }
 };
 
+// ========== ETHEREUM ==========
 const getEthWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -251,6 +253,7 @@ export const sendEth = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
+// ========== SOLANA ==========
 const getSolWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -397,6 +400,7 @@ export const sendSol = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
+// ========== TRON ==========
 const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -429,6 +433,7 @@ const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
+// ИСПРАВЛЕННАЯ функция подписи TRON
 const signTronTransaction = (transaction, privateKeyHex) => {
     try {
         const privateKeyBuffer = Buffer.from(privateKeyHex, 'hex');
@@ -444,14 +449,14 @@ const signTronTransaction = (transaction, privateKeyHex) => {
         const signature = ecc.sign(secondHash, privateKeyBuffer);
         
         let sigBuffer = Buffer.from(signature);
+        // Удаляем recovery byte если подпись 65 байт
+        if (sigBuffer.length === 65) {
+            sigBuffer = sigBuffer.subarray(1);
+        }
+        
+        // Гарантируем длину 64 байта
         if (sigBuffer.length !== 64) {
-            if (sigBuffer.length === 65) {
-                sigBuffer = sigBuffer.slice(1);
-            } else {
-                const newSig = Buffer.alloc(64);
-                sigBuffer.copy(newSig, 0, 0, Math.min(sigBuffer.length, 64));
-                sigBuffer = newSig;
-            }
+            throw new Error(`Invalid signature length: ${sigBuffer.length}, expected 64`);
         }
         
         return {
@@ -472,6 +477,7 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
         const amountInSun = Math.floor(amount * 1_000_000);
         
         if (contractAddress) {
+            // TRC20 токен (USDT)
             const toAddressHex = toAddress.startsWith('T') 
                 ? base58.decode(toAddress).slice(1, 21).toString('hex')
                 : toAddress.slice(2);
@@ -539,6 +545,7 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
                 timestamp: new Date().toISOString()
             };
         } else {
+            // Нативный TRX
             const createResponse = await fetch(`${config.TRON.FULL_NODE}/wallet/createtransaction`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -603,6 +610,7 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
     }
 };
 
+// ========== BITCOIN ==========
 export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
         console.log(`[BTC ${network}] Sending ${amount} BTC to ${toAddress}`);
@@ -664,15 +672,16 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
             });
         }
         
+        // ИСПРАВЛЕНИЕ: Используем Number() для значений
         psbt.addOutput({
             address: toAddress,
-            value: amountInSatoshi
+            value: Number(amountInSatoshi)  // Явное преобразование к Number
         });
         
         if (change > 546) {
             psbt.addOutput({
                 address: fromAddress,
-                value: change
+                value: Number(change)  // Явное преобразование к Number
             });
         }
         
@@ -719,18 +728,31 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
     }
 };
 
-// ИСПРАВЛЕННАЯ функция для NEAR с правильным импортом
+// ========== NEAR ==========
 const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const wallet = masterNode.derivePath("m/44'/397'/0'/0'/0'");
+        const seedString = seedBuffer.toString('hex');
         
-        const privateKeyHex = wallet.privateKey.slice(2);
-        const keyPair = KeyPair.fromString(`ed25519:${Buffer.from(privateKeyHex, 'hex').toString('base64')}`);
+        // Генерация ключа ed25519 для NEAR
+        const derivedSeed = crypto.createHmac('sha512', 'ed25519 seed')
+            .update(Buffer.from(seedString, 'hex'))
+            .digest();
         
-        const publicKey = keyPair.getPublicKey();
-        const accountId = `${publicKey.toString().replace('ed25519:', '')}.${network === 'testnet' ? 'testnet' : 'near'}`;
+        const privateKey = derivedSeed.slice(0, 32);
+        const keyPair = KeyPair.fromString('ed25519:' + Buffer.from(privateKey).toString('base64'));
+        
+        // Генерация валидного accountId для NEAR
+        const publicKeyBase58 = base58.encode(Buffer.from(keyPair.getPublicKey().data));
+        const accountPrefix = network === 'testnet' ? 'testnet' : 'near';
+        const accountId = `wallet.${publicKeyBase58.slice(0, 16)}.${accountPrefix}`;
+        
+        // Валидация accountId - только разрешенные символы Base58
+        const validChars = /^[1-9A-HJ-NP-Za-km-z]+$/;
+        const accountName = accountId.split('.')[1];
+        if (!validChars.test(accountName)) {
+            throw new Error(`Invalid account name generated: ${accountName}`);
+        }
         
         return { keyPair, accountId };
     } catch (error) {
@@ -746,7 +768,12 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
         const config = getConfig(network);
         const { keyPair, accountId } = await getNearWalletFromSeed(seedPhrase, network);
         
-        // ИСПРАВЛЕННЫЙ импорт keyStores
+        // Проверка формата адреса получателя
+        const validNearAddress = /^[a-z0-9_-]+\.(near|testnet)$/;
+        if (!validNearAddress.test(toAddress)) {
+            throw new Error(`Invalid NEAR address format: ${toAddress}`);
+        }
+        
         const keyStore = new keyStores.InMemoryKeyStore();
         await keyStore.setKey(config.NEAR.NETWORK_ID, accountId, keyPair);
         
@@ -812,6 +839,7 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
     }
 };
 
+// ========== BSC ==========
 const getBscWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -901,6 +929,7 @@ export const sendBsc = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
+// ========== УНИВЕРСАЛЬНАЯ ФУНКЦИЯ ==========
 export const sendTransaction = async (params) => {
     const { blockchain, toAddress, amount, seedPhrase, memo, contractAddress, network = 'mainnet' } = params;
     
@@ -985,6 +1014,7 @@ export const sendTransaction = async (params) => {
     }
 };
 
+// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 export const validateAddress = (blockchain, address, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -1038,6 +1068,7 @@ export const estimateTransactionFee = async (blockchain, network = 'mainnet') =>
     return network === 'testnet' ? fees.testnet : fees.mainnet;
 };
 
+// ========== ЭКСПОРТ ==========
 export default {
     sendTransaction,
     sendTon,
