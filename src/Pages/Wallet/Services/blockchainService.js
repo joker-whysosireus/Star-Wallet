@@ -9,6 +9,7 @@ import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import crypto from 'crypto';
 import base58 from 'bs58';
+import sha256 from 'js-sha256';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -33,7 +34,10 @@ const MAINNET_CONFIG = {
     },
     NEAR: {
         RPC_URL: 'https://rpc.mainnet.near.org',
-        NETWORK_ID: 'mainnet'
+        NETWORK_ID: 'mainnet',
+        WALLET_URL: 'https://wallet.mainnet.near.org',
+        HELPER_URL: 'https://helper.mainnet.near.org',
+        EXPLORER_URL: 'https://explorer.mainnet.near.org'
     },
     BSC: {
         RPC_URL: 'https://bsc-dataseed.binance.org/',
@@ -62,7 +66,10 @@ const TESTNET_CONFIG = {
     },
     NEAR: {
         RPC_URL: 'https://rpc.testnet.near.org',
-        NETWORK_ID: 'testnet'
+        NETWORK_ID: 'testnet',
+        WALLET_URL: 'https://wallet.testnet.near.org',
+        HELPER_URL: 'https://helper.testnet.near.org',
+        EXPLORER_URL: 'https://explorer.testnet.near.org'
     },
     BSC: {
         RPC_URL: 'https://data-seed-prebsc-1-s1.binance.org:8545/',
@@ -91,73 +98,6 @@ async function callWithRetry(apiCall, maxRetries = 3, baseDelay = 1000) {
     }
     throw lastError;
 }
-
-// Вспомогательная функция для получения адреса отправителя на основе seed-фразы
-const getSenderAddress = async (blockchain, seedPhrase, network = 'mainnet') => {
-    try {
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        
-        switch(blockchain) {
-            case 'TON':
-                const keyPair = await mnemonicToPrivateKey(seedPhrase.split(' '));
-                const wallet = WalletContractV4.create({ 
-                    publicKey: keyPair.publicKey, 
-                    workchain: 0 
-                });
-                return wallet.address.toString();
-                
-            case 'Ethereum':
-            case 'BSC':
-                const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-                const ethWallet = masterNode.derivePath("m/44'/60'/0'/0/0");
-                return ethWallet.address;
-                
-            case 'Solana':
-                const seedArray = new Uint8Array(seedBuffer.subarray(0, 32));
-                const keypair = Keypair.fromSeed(seedArray);
-                return keypair.publicKey.toBase58();
-                
-            case 'Tron':
-                const tronMasterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-                const tronWallet = tronMasterNode.derivePath("m/44'/195'/0'/0/0");
-                const privateKeyHex = tronWallet.privateKey.substring(2);
-                const privateKeyBuffer = Buffer.from(privateKeyHex, 'hex');
-                const publicKey = ecc.pointFromScalar(privateKeyBuffer, true);
-                const keccakHash = crypto.createHash('sha256').update(publicKey).digest();
-                const addressBytes = keccakHash.subarray(keccakHash.length - 20);
-                const addressWithPrefix = Buffer.concat([Buffer.from([0x41]), addressBytes]);
-                const hash1 = crypto.createHash('sha256').update(addressWithPrefix).digest();
-                const hash2 = crypto.createHash('sha256').update(hash1).digest();
-                const checksum = hash2.subarray(0, 4);
-                const addressWithChecksum = Buffer.concat([addressWithPrefix, checksum]);
-                return base58.encode(addressWithChecksum);
-                
-            case 'Bitcoin':
-                const networkConfig = network === 'testnet' 
-                    ? TESTNET_CONFIG.BITCOIN.NETWORK 
-                    : MAINNET_CONFIG.BITCOIN.NETWORK;
-                const root = bip32.fromSeed(seedBuffer, networkConfig);
-                const child = root.derivePath("m/84'/0'/0'/0/0");
-                const { address } = bitcoin.payments.p2wpkh({ 
-                    pubkey: child.publicKey, 
-                    network: networkConfig 
-                });
-                return address;
-                
-            case 'NEAR':
-                // Для NEAR используем тот же путь, что и в storageService
-                const nearMasterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-                const nearWallet = nearMasterNode.derivePath("m/44'/60'/0'/0/0");
-                return nearWallet.address.toLowerCase();
-                
-            default:
-                throw new Error(`Unsupported blockchain: ${blockchain}`);
-        }
-    } catch (error) {
-        console.error(`Error getting sender address for ${blockchain}:`, error);
-        throw error;
-    }
-};
 
 // ========== TON ==========
 export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', contractAddress = null, network = 'mainnet' }) => {
@@ -523,7 +463,7 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, network = 'mainn
     }
 };
 
-// ========== NEAR ========== (ПО ПРИМЕРУ "send-tokens-easy.js")
+// ========== NEAR ========== (ПО ПРИМЕРУ "send-tokens-easy.js" с использованием адресов из storageService)
 export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
         console.log(`[NEAR ${network}] Sending ${amount} NEAR to ${toAddress}`);
@@ -534,27 +474,33 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         const nearAPI = await import('near-api-js');
         const { connect, KeyPair, keyStores, utils } = nearAPI;
         
-        // Получаем адрес отправителя из seed-фразы (как в storageService)
-        const senderAddress = await getSenderAddress('NEAR', seedPhrase, network);
-        console.log(`Sender address for NEAR: ${senderAddress}`);
-        
-        // ВАЖНО: В NEAR используется accountId, а не просто адрес
-        // Преобразуем EVM-адрес в accountId для NEAR
-        const senderAccountId = senderAddress.startsWith('0x') 
-            ? `${senderAddress.substring(2)}.${network === 'testnet' ? 'testnet' : 'near'}` 
-            : `${senderAddress}.${network === 'testnet' ? 'testnet' : 'near'}`;
-            
-        // Получаем receiver accountId из ввода пользователя
-        const receiverAccountId = toAddress;
-        
-        // Конвертация суммы в yoctoNEAR
-        const amountInYocto = utils.format.parseNearAmount(amount.toString());
-
-        // Генерация приватного ключа из seed фразы
+        // Генерация адреса отправителя из seed-фразы (как в storageService)
+        // В storageService для NEAR используется generateEthereumAddress
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const hdNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
         const wallet = hdNode.derivePath("m/44'/60'/0'/0/0");
+        const senderAddress = wallet.address.toLowerCase();
         
+        // В NEAR используется accountId, а не EVM-адрес
+        // Преобразуем EVM-адрес в формат accountId для NEAR
+        // Убираем '0x' префикс и добавляем суффикс сети
+        const senderAccountId = senderAddress.startsWith('0x') 
+            ? `${senderAddress.substring(2)}.${network === 'testnet' ? 'testnet' : 'near'}`
+            : `${senderAddress}.${network === 'testnet' ? 'testnet' : 'near'}`;
+        
+        // Получатель - это адрес, введенный пользователем в поле ввода
+        // Проверяем формат и при необходимости преобразуем
+        let receiverAccountId = toAddress;
+        if (!toAddress.includes('.')) {
+            // Если адрес не содержит точку, вероятно это EVM-адрес
+            receiverAccountId = toAddress.startsWith('0x')
+                ? `${toAddress.substring(2)}.${network === 'testnet' ? 'testnet' : 'near'}`
+                : `${toAddress}.${network === 'testnet' ? 'testnet' : 'near'}`;
+        }
+
+        // Конвертация суммы в yoctoNEAR
+        const amountInYocto = utils.format.parseNearAmount(amount.toString());
+
         // Создание приватного ключа в формате NEAR (ed25519)
         // ВАЖНО: Используем тот же метод, что и в storageService для совместимости
         const privateKey = `ed25519:${Buffer.from(wallet.privateKey.slice(2), 'hex').toString('base64')}`;
@@ -571,18 +517,18 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
                 networkId: config.NEAR.NETWORK_ID,
                 keyStore,
                 nodeUrl: config.NEAR.RPC_URL,
-                walletUrl: `https://wallet.${config.NEAR.NETWORK_ID}.near.org`,
-                helperUrl: `https://helper.${config.NEAR.NETWORK_ID}.near.org`,
-                explorerUrl: `https://explorer.${config.NEAR.NETWORK_ID}.near.org`
+                walletUrl: config.NEAR.WALLET_URL,
+                helperUrl: config.NEAR.HELPER_URL,
+                explorerUrl: config.NEAR.EXPLORER_URL
             };
 
             // Подключаемся к NEAR
             const near = await connect(nearConfig);
             
-            // Создаем объект аккаунта отправителя
-            const senderAccount = await near.account(senderAccountId);
-
             try {
+                // Создаем объект аккаунта отправителя
+                const senderAccount = await near.account(senderAccountId);
+                
                 console.log(`Sending ${utils.format.formatNearAmount(amountInYocto)}Ⓝ from ${senderAccountId} to ${receiverAccountId}...`);
                 
                 // Отправляем транзакцию - ТОЧНО как в примере
@@ -947,8 +893,9 @@ export const validateAddress = (blockchain, address, network = 'mainnet') => {
                     return false;
                 }
             case 'NEAR': 
-                // Формат: account.near или account.testnet
-                return /^[a-z0-9_-]+(\.[a-z0-9_-]+)*\.(near|testnet)$/.test(address);
+                // Формат: account.near или account.testnet, или EVM-адрес
+                return /^[a-z0-9_-]+(\.[a-z0-9_-]+)*\.(near|testnet)$/.test(address) || 
+                       /^0x[0-9a-fA-F]{40}$/.test(address);
             default: 
                 return true;
         }
@@ -986,6 +933,5 @@ export default {
     validateAddress,
     estimateTransactionFee,
     MAINNET_CONFIG,
-    TESTNET_CONFIG,
-    getSenderAddress
+    TESTNET_CONFIG
 };
