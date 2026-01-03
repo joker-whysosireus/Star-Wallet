@@ -54,17 +54,19 @@ const SelectToken = () => {
     };
     
     const handleTokenClick = (wallet) => {
+        // ИСПРАВЛЕНИЕ: Для USDT всегда переходим на страницу деталей USDT
+        if (wallet.symbol === 'USDT') {
+            navigate('/usdt-detail', { 
+                state: { 
+                    userData: userData,
+                    network: network
+                } 
+            });
+            return;
+        }
+        
+        // Для остальных токенов - стандартная логика
         if (mode === 'send') {
-            if (wallet.symbol === 'USDT') {
-                navigate('/usdt-detail', { 
-                    state: { 
-                        userData: userData,
-                        network: network
-                    } 
-                });
-                return;
-            }
-            
             navigate('/send', { 
                 state: { 
                     wallet: wallet,
