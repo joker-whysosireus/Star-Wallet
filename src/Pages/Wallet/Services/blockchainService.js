@@ -34,7 +34,8 @@ const MAINNET_CONFIG = {
     },
     NEAR: {
         RPC_URL: 'https://rpc.mainnet.near.org',
-        NETWORK_ID: 'mainnet'
+        NETWORK_ID: 'mainnet',
+        EVM_RPC_URL: 'https://mainnet.aurora.dev'
     },
     BSC: {
         RPC_URL: 'https://bsc-dataseed.binance.org/',
@@ -63,7 +64,8 @@ const TESTNET_CONFIG = {
     },
     NEAR: {
         RPC_URL: 'https://rpc.testnet.near.org',
-        NETWORK_ID: 'testnet'
+        NETWORK_ID: 'testnet',
+        EVM_RPC_URL: 'https://testnet.aurora.dev'
     },
     BSC: {
         RPC_URL: 'https://data-seed-prebsc-1-s1.binance.org:8545/',
@@ -397,7 +399,7 @@ export const sendSol = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
-// ========== TRON ========== (ИСПРАВЛЕНО - использует TronWeb)
+// ========== TRON ========== (Исправлено - правильная инициализация TronWeb)
 export const sendTron = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
         const config = getConfig(network);
@@ -408,7 +410,7 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, network = 'mainn
         const wallet = masterNode.derivePath("m/44'/195'/0'/0/0");
         const privateKey = wallet.privateKey.slice(2); // Без '0x'
 
-        // Инициализация TronWeb
+        // Инициализация TronWeb с правильным синтаксисом
         const tronWeb = new TronWeb({
             fullHost: config.TRON.FULL_NODE,
             privateKey: privateKey
@@ -455,7 +457,7 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, network = 'mainn
     }
 };
 
-// ========== BITCOIN ========== (ИСПРАВЛЕНО - BigInt для значения)
+// ========== BITCOIN ========== (Исправлено - правильный формат PSBT)
 export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
         console.log(`[BTC ${network}] Sending ${amount} BTC to ${toAddress}`);
@@ -504,7 +506,7 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
         
         const change = totalInput - amountInSatoshi - fee;
         
-        // ИСПРАВЛЕНИЕ: Используем BigInt для значения
+        // Исправлено: правильный формат для witnessUtxo
         for (const utxo of selectedUtxos) {
             const script = bitcoin.address.toOutputScript(fromAddress, networkConfig);
             
@@ -513,11 +515,12 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
                 index: utxo.vout,
                 witnessUtxo: {
                     script: Buffer.from(script),
-                    value: BigInt(utxo.value) // Ключевое исправление: BigInt
+                    value: utxo.value // Исправлено: число, а не BigInt
                 }
             });
         }
         
+        // Исправлено: правильные типы значений для outputs
         psbt.addOutput({
             address: toAddress,
             value: amountInSatoshi
@@ -546,6 +549,9 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
         
         const broadcastResponse = await fetch(`${config.BITCOIN.EXPLORER_URL}/tx`, {
             method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain'
+            },
             body: rawTx
         });
         
@@ -573,7 +579,7 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
     }
 };
 
-// ========== NEAR ========== (ИСПРАВЛЕНО - EVM формат адресов)
+// ========== NEAR ========== (Исправлено - используем Aurora RPC для EVM-совместимости)
 export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
         console.log(`[NEAR ${network}] Sending ${amount} NEAR to ${toAddress}`);
@@ -584,36 +590,46 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const hdNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
         const evmWallet = hdNode.derivePath("m/44'/60'/0'/0/0");
-        const fromAddress = evmWallet.address.toLowerCase(); // Адрес отправителя
+        const fromAddress = evmWallet.address.toLowerCase();
         
-        // Проверка формата адреса получателя (должен быть 0x...)
+        // Проверка формата адреса получателя
         let recipientAddress = toAddress;
         if (!toAddress.startsWith('0x')) {
             throw new Error('NEAR recipient address must start with 0x (EVM format)');
         }
         recipientAddress = recipientAddress.toLowerCase();
         
-        // Подготовка провайдера и подписанта
-        const provider = new ethers.JsonRpcProvider(config.NEAR.RPC_URL);
+        // Используем Aurora RPC для EVM-совместимости
+        const auroraRpcUrl = config.NEAR.EVM_RPC_URL;
+        const provider = new ethers.JsonRpcProvider(auroraRpcUrl);
         const signer = new ethers.Wallet(evmWallet.privateKey, provider);
         
-        // Получение баланса перед отправкой
+        // Получение баланса
         const balance = await provider.getBalance(fromAddress);
         const balanceInNEAR = ethers.formatEther(balance);
         
-        console.log(`Sender balance: ${balanceInNEAR} NEAR`);
+        console.log(`Sender balance: ${balanceInNEAR} ETH (Aurora)`);
         
         const amountInWei = ethers.parseEther(amount.toString());
         
         if (balance < amountInWei) {
-            throw new Error(`Insufficient NEAR balance. Need: ${amount} NEAR, Have: ${balanceInNEAR} NEAR`);
+            throw new Error(`Insufficient balance. Need: ${amount} ETH, Have: ${balanceInNEAR} ETH`);
         }
         
-        // Отправка нативной NEAR через прямой трансфер
+        // Оценка газа
+        const gasPrice = await provider.getGasPrice();
+        const gasEstimate = await provider.estimateGas({
+            from: fromAddress,
+            to: recipientAddress,
+            value: amountInWei
+        });
+        
+        // Отправка нативной транзакции через Aurora
         const tx = await signer.sendTransaction({
             to: recipientAddress,
             value: amountInWei,
-            gasLimit: 100000 // Достаточный лимит газа для трансфера
+            gasLimit: gasEstimate,
+            gasPrice: gasPrice
         });
         
         console.log(`Transaction sent: ${tx.hash}`);
@@ -622,13 +638,13 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         const receipt = await tx.wait();
         
         const explorerUrl = network === 'testnet'
-            ? `https://explorer.testnet.near.org/transactions/${receipt.hash}`
-            : `https://explorer.near.org/transactions/${receipt.hash}`;
+            ? `https://explorer.testnet.aurora.dev/tx/${receipt.hash}`
+            : `https://explorer.aurora.dev/tx/${receipt.hash}`;
         
         return {
             success: true,
             hash: receipt.hash,
-            message: `Successfully sent ${amount} NEAR via EVM`,
+            message: `Successfully sent ${amount} ETH via Aurora`,
             explorerUrl,
             timestamp: new Date().toISOString()
         };
@@ -636,15 +652,14 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
     } catch (error) {
         console.error(`[NEAR ${network} ERROR]:`, error);
         
-        // Более понятные сообщения об ошибках
         if (error.message.includes('insufficient funds')) {
-            throw new Error('Insufficient NEAR balance for transaction and gas');
+            throw new Error('Insufficient balance for transaction and gas');
         }
         if (error.message.includes('nonce')) {
             throw new Error('Transaction nonce error. Please try again.');
         }
         
-        throw new Error(`Failed to send NEAR: ${error.message}`);
+        throw new Error(`Failed to send via Aurora: ${error.message}`);
     }
 };
 
