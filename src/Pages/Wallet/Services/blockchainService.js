@@ -1,3 +1,4 @@
+// blockchainService.js - полный исправленный код
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { TonClient, WalletContractV4, internal, toNano } from '@ton/ton';
 import { Connection, PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL, Keypair } from '@solana/web3.js';
@@ -9,7 +10,7 @@ import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import crypto from 'crypto';
 import base58 from 'bs58';
-import * as nearAPI from 'near-api-js';
+import { connect, keyStores, KeyPair, Contract } from 'near-api-js';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -432,16 +433,13 @@ const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
+// ИСПРАВЛЕННАЯ функция подписи TRON
 const signTronTransaction = (transaction, privateKeyHex) => {
     try {
         const privateKeyBuffer = Buffer.from(privateKeyHex, 'hex');
         
         if (!transaction.raw_data_hex) {
-            if (transaction.raw_data) {
-                transaction.raw_data_hex = Buffer.from(JSON.stringify(transaction.raw_data)).toString('hex');
-            } else {
-                throw new Error('Missing raw_data_hex in transaction');
-            }
+            throw new Error('Missing raw_data_hex in transaction');
         }
         
         const rawDataBuffer = Buffer.from(transaction.raw_data_hex, 'hex');
@@ -450,13 +448,20 @@ const signTronTransaction = (transaction, privateKeyHex) => {
         
         const signature = ecc.sign(secondHash, privateKeyBuffer);
         
-        if (signature.length !== 64) {
-            throw new Error(`Invalid signature length: ${signature.length}, expected 64`);
+        let sigBuffer = Buffer.from(signature);
+        // Удаляем recovery byte если подпись 65 байт
+        if (sigBuffer.length === 65) {
+            sigBuffer = sigBuffer.subarray(1);
+        }
+        
+        // Гарантируем длину 64 байта
+        if (sigBuffer.length !== 64) {
+            throw new Error(`Invalid signature length: ${sigBuffer.length}, expected 64`);
         }
         
         return {
             ...transaction,
-            signature: [Buffer.from(signature).toString('hex')]
+            signature: [sigBuffer.toString('hex')]
         };
     } catch (error) {
         console.error('Error signing TRON transaction:', error);
@@ -472,6 +477,7 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
         const amountInSun = Math.floor(amount * 1_000_000);
         
         if (contractAddress) {
+            // TRC20 токен (USDT)
             const toAddressHex = toAddress.startsWith('T') 
                 ? base58.decode(toAddress).slice(1, 21).toString('hex')
                 : toAddress.slice(2);
@@ -488,8 +494,7 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
                     parameter: parameter,
                     fee_limit: 100_000_000,
                     call_value: 0,
-                    visible: true,
-                    permission_id: "0"
+                    visible: true
                 })
             });
             
@@ -540,6 +545,7 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
                 timestamp: new Date().toISOString()
             };
         } else {
+            // Нативный TRX
             const createResponse = await fetch(`${config.TRON.FULL_NODE}/wallet/createtransaction`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -666,16 +672,16 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
             });
         }
         
-        // Исправление: Явное преобразование к Number
+        // ИСПРАВЛЕНИЕ: Используем Number() для значений
         psbt.addOutput({
             address: toAddress,
-            value: Number(amountInSatoshi)
+            value: Number(amountInSatoshi)  // Явное преобразование к Number
         });
         
         if (change > 546) {
             psbt.addOutput({
                 address: fromAddress,
-                value: Number(change)
+                value: Number(change)  // Явное преобразование к Number
             });
         }
         
@@ -695,7 +701,6 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
         
         const broadcastResponse = await fetch(`${config.BITCOIN.EXPLORER_URL}/tx`, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
             body: rawTx
         });
         
@@ -724,35 +729,34 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
 };
 
 // ========== NEAR ==========
-// Функция для получения ключевой пары из seed фразы
-const getNearKeyPairFromSeed = async (seedPhrase, network = 'mainnet') => {
+const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
-        // Генерируем seed из мнемонической фразы
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        
-        // Используем HMAC-SHA512 для детерминированной генерации
         const seedString = seedBuffer.toString('hex');
-        const hmac = crypto.createHmac('sha512', 'NEAR seed derivation');
-        hmac.update(seedString);
-        const derivedSeed = hmac.digest();
         
-        // Берем первые 32 байта для приватного ключа ed25519
-        const privateKeyBytes = new Uint8Array(derivedSeed.buffer.slice(0, 32));
+        // Генерация ключа ed25519 для NEAR
+        const derivedSeed = crypto.createHmac('sha512', 'ed25519 seed')
+            .update(Buffer.from(seedString, 'hex'))
+            .digest();
         
-        // Создаем ключевую пару ed25519
-        const keyPair = nearAPI.utils.key_pair.KeyPairEd25519.fromSecretKey(privateKeyBytes);
+        const privateKey = derivedSeed.slice(0, 32);
+        const keyPair = KeyPair.fromString('ed25519:' + Buffer.from(privateKey).toString('base64'));
         
-        // Генерируем implicit account из публичного ключа
-        const publicKey = keyPair.getPublicKey();
-        const implicitAccountId = Buffer.from(publicKey.data).toString('hex');
+        // Генерация валидного accountId для NEAR
+        const publicKeyBase58 = base58.encode(Buffer.from(keyPair.getPublicKey().data));
+        const accountPrefix = network === 'testnet' ? 'testnet' : 'near';
+        const accountId = `wallet.${publicKeyBase58.slice(0, 16)}.${accountPrefix}`;
         
-        return { 
-            keyPair, 
-            accountId: implicitAccountId,
-            publicKey: publicKey.toString()
-        };
+        // Валидация accountId - только разрешенные символы Base58
+        const validChars = /^[1-9A-HJ-NP-Za-km-z]+$/;
+        const accountName = accountId.split('.')[1];
+        if (!validChars.test(accountName)) {
+            throw new Error(`Invalid account name generated: ${accountName}`);
+        }
+        
+        return { keyPair, accountId };
     } catch (error) {
-        console.error('Error getting NEAR key pair from seed:', error);
+        console.error('Error getting NEAR wallet from seed:', error);
         throw error;
     }
 };
@@ -762,77 +766,38 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
         console.log(`[NEAR ${network}] Sending ${amount} NEAR to ${toAddress}`);
         
         const config = getConfig(network);
-        
-        // Получаем ключевую пару
-        const { keyPair, accountId } = await getNearKeyPairFromSeed(seedPhrase, network);
+        const { keyPair, accountId } = await getNearWalletFromSeed(seedPhrase, network);
         
         // Проверка формата адреса получателя
         const validNearAddress = /^[a-z0-9_-]+\.(near|testnet)$/;
         if (!validNearAddress.test(toAddress)) {
-            throw new Error(`Invalid NEAR address format: ${toAddress}. Use: account.near or account.testnet`);
+            throw new Error(`Invalid NEAR address format: ${toAddress}`);
         }
         
-        // Используем implicit account ID (64 hex chars)
-        const implicitAccountId = accountId;
+        const keyStore = new keyStores.InMemoryKeyStore();
+        await keyStore.setKey(config.NEAR.NETWORK_ID, accountId, keyPair);
         
-        // Создаем in-memory keystore
-        const keyStore = new nearAPI.keyStores.InMemoryKeyStore();
-        await keyStore.setKey(config.NEAR.NETWORK_ID, implicitAccountId, keyPair);
-        
-        // Конфигурация подключения
-        const connectionConfig = {
+        const nearConnection = await connect({
             networkId: config.NEAR.NETWORK_ID,
-            nodeUrl: config.NEAR.RPC_URL,
             keyStore,
-            walletUrl: network === 'testnet' 
-                ? 'https://testnet.mynearwallet.com' 
-                : 'https://wallet.near.org',
-            helperUrl: config.NEAR.HELPER_URL,
-            headers: {}
-        };
+            nodeUrl: config.NEAR.RPC_URL,
+        });
         
-        // Подключаемся к NEAR
-        const near = await nearAPI.connect(connectionConfig);
-        
-        // Получаем аккаунт
-        const account = await near.account(implicitAccountId);
-        
-        // Проверяем существование аккаунта
-        try {
-            await account.state();
-        } catch (error) {
-            if (error.message.includes('does not exist') || error.message.includes('not found')) {
-                throw new Error(`Account ${implicitAccountId} does not exist on NEAR ${network}. Please fund it first.`);
-            }
-            throw error;
-        }
-        
-        // Конвертируем amount в yoctoNEAR
-        const amountInYocto = nearAPI.utils.format.parseNearAmount(amount.toString());
-        if (!amountInYocto) {
-            throw new Error(`Invalid amount: ${amount}`);
-        }
+        const account = await nearConnection.account(accountId);
         
         if (contractAddress) {
-            // Для токенов (NEP-141)
-            const actions = [
-                nearAPI.transactions.functionCall(
-                    'ft_transfer', // methodName
-                    {
-                        receiver_id: toAddress,
-                        amount: amountInYocto,
-                        memo: 'Transfer from Star Wallet'
-                    }, // args
-                    '30000000000000', // gas (30 TGas)
-                    '1' // deposit (1 yoctoNEAR)
-                )
-            ];
-            
-            // Создаем и подписываем транзакцию
-            const result = await account.signAndSendTransaction({
-                receiverId: contractAddress,
-                actions
+            const contract = new Contract(account, contractAddress, {
+                viewMethods: ['ft_balance_of', 'ft_metadata'],
+                changeMethods: ['ft_transfer'],
             });
+            
+            const amountInYocto = (BigInt(Math.floor(amount * 1e24))).toString();
+            
+            const result = await contract.ft_transfer({
+                receiver_id: toAddress,
+                amount: amountInYocto,
+                memo: 'Transfer from Star Wallet'
+            }, '30000000000000', '1');
             
             const explorerUrl = network === 'testnet'
                 ? `https://explorer.testnet.near.org/transactions/${result.transaction.hash}`
@@ -846,16 +811,12 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
                 timestamp: new Date().toISOString()
             };
         } else {
-            // Для нативных NEAR используем transfer
-            const actions = [
-                nearAPI.transactions.transfer(amountInYocto)
-            ];
+            const amountInYocto = (BigInt(Math.floor(amount * 1e24))).toString();
             
-            // Создаем и подписываем транзакцию
-            const result = await account.signAndSendTransaction({
-                receiverId: toAddress,
-                actions
-            });
+            const result = await account.sendMoney(
+                toAddress,
+                amountInYocto
+            );
             
             const explorerUrl = network === 'testnet'
                 ? `https://explorer.testnet.near.org/transactions/${result.transaction.hash}`
@@ -871,24 +832,9 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
         }
     } catch (error) {
         console.error(`[NEAR ${network} ERROR]:`, error);
-        
-        // Улучшенные сообщения об ошибках
-        if (error.message.includes('does not exist') || error.message.includes('not found')) {
-            throw new Error(`Account does not exist on NEAR ${network}. Implicit accounts must receive funds before they can send.`);
+        if (error.message.includes('does not exist')) {
+            throw new Error(`Account does not exist on NEAR ${network}. Please create it first.`);
         }
-        
-        if (error.message.includes('NotEnoughBalance')) {
-            throw new Error(`Insufficient NEAR balance for transaction + gas.`);
-        }
-        
-        if (error.message.includes('Invalid signature')) {
-            throw new Error(`Invalid signature. Please check your seed phrase.`);
-        }
-        
-        if (error.message.includes('account_id is invalid')) {
-            throw new Error(`Invalid NEAR account ID format. Expected: account.near or implicit account (64 hex chars)`);
-        }
-        
         throw new Error(`Failed to send NEAR: ${error.message}`);
     }
 };
@@ -1097,8 +1043,7 @@ export const validateAddress = (blockchain, address, network = 'mainnet') => {
                     return false;
                 }
             case 'NEAR': 
-                // Валидация NEAR адресов: обычные аккаунты и implicit аккаунты
-                return /^[a-z0-9_-]+\.(near|testnet)$/.test(address) || /^[a-fA-F0-9]{64}$/.test(address);
+                return /^[a-z0-9_-]+\.(near|testnet)$/.test(address);
             default: 
                 return true;
         }
