@@ -1,14 +1,42 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  functions = "netlify/functions"  # явно указываем папку функций
 
 [build.environment]
   NODE_VERSION = "18.19.0"
   NPM_FLAGS = "--legacy-peer-deps"
+  CI = false  # отключаем CI режим для более гибкой сборки
   
-# Явно указываем стабильный образ сборки
-[context.production.environment]
-  NPM_INSTALL_FLAGS = "--legacy-peer-deps"
+# Для продакшн окружения
+[context.production]
+  command = "npm run build"
+  publish = "dist"
+  
+  [context.production.environment]
+    NODE_VERSION = "18.19.0"
+    NPM_FLAGS = "--legacy-peer-deps"
+    NODE_OPTIONS = "--max-old-space-size=4096"  # увеличиваем память
+    CI = false
+
+# Для ветки develop или preview
+[context.deploy-preview]
+  command = "npm run build"
+  publish = "dist"
+  
+  [context.deploy-preview.environment]
+    NODE_VERSION = "18.19.0"
+    NPM_FLAGS = "--legacy-peer-deps"
+    CI = false
+
+# Настройки обработки запросов
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
 
 [[headers]]
   for = "/*.wasm"
@@ -16,6 +44,30 @@
     Content-Type = "application/wasm"
 
 [[redirects]]
+  from = "/app/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Отключаем обработку для статических файлов
+[[redirects]]
+  from = "/static/*"
+  to = "/static/:splat"
+  status = 200
+  force = false
+
+[[redirects]]
+  from = "/assets/*"
+  to = "/assets/:splat"
+  status = 200
+  force = false
+
+# Настройки для работы с CORS (если нужно API)
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
