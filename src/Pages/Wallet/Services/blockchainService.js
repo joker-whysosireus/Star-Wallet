@@ -9,7 +9,7 @@ import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import crypto from 'crypto';
 import base58 from 'bs58';
-import { connect, keyStores, utils } from 'near-api-js';
+import * as nearAPI from 'near-api-js';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -488,7 +488,8 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
                     parameter: parameter,
                     fee_limit: 100_000_000,
                     call_value: 0,
-                    visible: true
+                    visible: true,
+                    permission_id: "0"
                 })
             });
             
@@ -665,6 +666,7 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
             });
         }
         
+        // Исправление: Явное преобразование к Number
         psbt.addOutput({
             address: toAddress,
             value: Number(amountInSatoshi)
@@ -722,29 +724,26 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
 };
 
 // ========== NEAR ==========
-// Функция getNearWalletFromSeed теперь должна использовать тот же алгоритм, что и generateNearAddress
-// Но так как мы не можем импортировать ее, я оставлю здесь заглушку
-const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
+// Функция для получения ключевой пары из seed фразы
+const getNearKeyPairFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
-        // ВНИМАНИЕ: Эта функция должна быть синхронизирована с generateNearAddress из storageService.js
-        // Поскольку generateNearAddress работает правильно, мы используем ее логику здесь
-        // Но так как мы не можем импортировать, предположим, что она возвращает корректный accountId
-        
-        // Временное решение: используем seed фразу для генерации детерминированного ключа
+        // Генерируем seed из мнемонической фразы
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        
+        // Используем HMAC-SHA512 для детерминированной генерации
         const seedString = seedBuffer.toString('hex');
         const hmac = crypto.createHmac('sha512', 'NEAR seed derivation');
         hmac.update(seedString);
         const derivedSeed = hmac.digest();
         
-        // Создаем ключевую пару ed25519
-        const { KeyPair } = await import('near-api-js');
-        const keyPair = KeyPair.fromRandom('ed25519');
+        // Берем первые 32 байта для приватного ключа ed25519
+        const privateKeyBytes = new Uint8Array(derivedSeed.buffer.slice(0, 32));
         
-        // Получаем публичный ключ
-        const publicKey = keyPair.getPublicKey();
+        // Создаем ключевую пару ed25519
+        const keyPair = nearAPI.utils.key_pair.KeyPairEd25519.fromSecretKey(privateKeyBytes);
         
         // Генерируем implicit account из публичного ключа
+        const publicKey = keyPair.getPublicKey();
         const implicitAccountId = Buffer.from(publicKey.data).toString('hex');
         
         return { 
@@ -753,7 +752,7 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
             publicKey: publicKey.toString()
         };
     } catch (error) {
-        console.error('Error getting NEAR wallet from seed:', error);
+        console.error('Error getting NEAR key pair from seed:', error);
         throw error;
     }
 };
@@ -764,54 +763,75 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
         
         const config = getConfig(network);
         
-        // ВАЖНО: Здесь должна быть синхронизация с generateNearAddress из storageService.js
-        // Поскольку вы сказали, что generateNearAddress работает корректно,
-        // предполагаем, что она генерирует правильный accountId
+        // Получаем ключевую пару
+        const { keyPair, accountId } = await getNearKeyPairFromSeed(seedPhrase, network);
         
-        // Создаем keyStore
-        const keyStore = new keyStores.InMemoryKeyStore();
+        // Проверка формата адреса получателя
+        const validNearAddress = /^[a-z0-9_-]+\.(near|testnet)$/;
+        if (!validNearAddress.test(toAddress)) {
+            throw new Error(`Invalid NEAR address format: ${toAddress}. Use: account.near or account.testnet`);
+        }
         
-        // Получаем wallet из seed (используем тот же алгоритм, что и в storageService.js)
-        const { keyPair, accountId } = await getNearWalletFromSeed(seedPhrase, network);
+        // Используем implicit account ID (64 hex chars)
+        const implicitAccountId = accountId;
         
-        // Используем implicit account в формате '0x...'
-        const implicitAccountId = `0x${accountId}`;
-        
+        // Создаем in-memory keystore
+        const keyStore = new nearAPI.keyStores.InMemoryKeyStore();
         await keyStore.setKey(config.NEAR.NETWORK_ID, implicitAccountId, keyPair);
         
-        const nearConnection = await connect({
+        // Конфигурация подключения
+        const connectionConfig = {
             networkId: config.NEAR.NETWORK_ID,
-            keyStore,
             nodeUrl: config.NEAR.RPC_URL,
-        });
+            keyStore,
+            walletUrl: network === 'testnet' 
+                ? 'https://testnet.mynearwallet.com' 
+                : 'https://wallet.near.org',
+            helperUrl: config.NEAR.HELPER_URL,
+            headers: {}
+        };
         
-        // Получаем account
-        const account = await nearConnection.account(implicitAccountId);
+        // Подключаемся к NEAR
+        const near = await nearAPI.connect(connectionConfig);
         
-        // Проверяем, существует ли аккаунт
+        // Получаем аккаунт
+        const account = await near.account(implicitAccountId);
+        
+        // Проверяем существование аккаунта
         try {
             await account.state();
         } catch (error) {
-            if (error.message.includes('does not exist')) {
+            if (error.message.includes('does not exist') || error.message.includes('not found')) {
                 throw new Error(`Account ${implicitAccountId} does not exist on NEAR ${network}. Please fund it first.`);
             }
             throw error;
         }
         
+        // Конвертируем amount в yoctoNEAR
+        const amountInYocto = nearAPI.utils.format.parseNearAmount(amount.toString());
+        if (!amountInYocto) {
+            throw new Error(`Invalid amount: ${amount}`);
+        }
+        
         if (contractAddress) {
-            // Для контрактов используем functionCall
-            const amountInYocto = utils.format.parseNearAmount(amount.toString());
+            // Для токенов (NEP-141)
+            const actions = [
+                nearAPI.transactions.functionCall(
+                    'ft_transfer', // methodName
+                    {
+                        receiver_id: toAddress,
+                        amount: amountInYocto,
+                        memo: 'Transfer from Star Wallet'
+                    }, // args
+                    '30000000000000', // gas (30 TGas)
+                    '1' // deposit (1 yoctoNEAR)
+                )
+            ];
             
-            const result = await account.functionCall({
-                contractId: contractAddress,
-                methodName: 'ft_transfer',
-                args: {
-                    receiver_id: toAddress,
-                    amount: amountInYocto,
-                    memo: 'Transfer from Star Wallet'
-                },
-                gas: '30000000000000',
-                attachedDeposit: '1'
+            // Создаем и подписываем транзакцию
+            const result = await account.signAndSendTransaction({
+                receiverId: contractAddress,
+                actions
             });
             
             const explorerUrl = network === 'testnet'
@@ -826,13 +846,16 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
                 timestamp: new Date().toISOString()
             };
         } else {
-            // Для нативных NEAR используем sendMoney
-            const amountInYocto = utils.format.parseNearAmount(amount.toString());
+            // Для нативных NEAR используем transfer
+            const actions = [
+                nearAPI.transactions.transfer(amountInYocto)
+            ];
             
-            const result = await account.sendMoney(
-                toAddress,
-                amountInYocto
-            );
+            // Создаем и подписываем транзакцию
+            const result = await account.signAndSendTransaction({
+                receiverId: toAddress,
+                actions
+            });
             
             const explorerUrl = network === 'testnet'
                 ? `https://explorer.testnet.near.org/transactions/${result.transaction.hash}`
@@ -850,12 +873,12 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
         console.error(`[NEAR ${network} ERROR]:`, error);
         
         // Улучшенные сообщения об ошибках
-        if (error.message.includes('does not exist')) {
-            throw new Error(`Account does not exist on NEAR ${network}. Please create and fund it first.`);
+        if (error.message.includes('does not exist') || error.message.includes('not found')) {
+            throw new Error(`Account does not exist on NEAR ${network}. Implicit accounts must receive funds before they can send.`);
         }
         
         if (error.message.includes('NotEnoughBalance')) {
-            throw new Error(`Insufficient NEAR balance for transaction.`);
+            throw new Error(`Insufficient NEAR balance for transaction + gas.`);
         }
         
         if (error.message.includes('Invalid signature')) {
