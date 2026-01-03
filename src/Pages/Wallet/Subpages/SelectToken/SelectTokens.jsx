@@ -4,8 +4,7 @@ import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
 import { 
     getAllTokens,
-    getBalances,
-    getTokenPrices
+    getBalances
 } from '../../Services/storageService';
 import './SelectToken.css';
 
@@ -56,6 +55,16 @@ const SelectToken = () => {
     
     const handleTokenClick = (wallet) => {
         if (mode === 'send') {
+            if (wallet.symbol === 'USDT') {
+                navigate('/usdt-detail', { 
+                    state: { 
+                        userData: userData,
+                        network: network
+                    } 
+                });
+                return;
+            }
+            
             navigate('/send', { 
                 state: { 
                     wallet: wallet,
@@ -96,7 +105,15 @@ const SelectToken = () => {
         return 'Select Token';
     };
     
-    const getBlockchainBadge = (blockchain) => {
+    const getBlockchainBadge = (blockchain, symbol) => {
+        if (symbol === 'USDT') {
+            return { 
+                color: '#26A17B', 
+                bg: 'rgba(38, 161, 123, 0.1)', 
+                text: 'USDT' 
+            };
+        }
+        
         const badges = {
             'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)', text: 'TON' },
             'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)', text: 'SOL' },
@@ -107,7 +124,7 @@ const SelectToken = () => {
             'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)', text: 'BNB' } 
         };
         
-        return badges[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)' };
+        return badges[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)', text: blockchain };
     };
     
     if (!mode || !userData) {
@@ -165,7 +182,7 @@ const SelectToken = () => {
                         ))
                     ) : filteredWallets.length > 0 ? (
                         filteredWallets.map((wallet) => {
-                            const badge = getBlockchainBadge(wallet.blockchain);
+                            const badge = getBlockchainBadge(wallet.blockchain, wallet.symbol);
                             return (
                                 <div 
                                     key={wallet.id} 
@@ -194,7 +211,7 @@ const SelectToken = () => {
                                             backgroundColor: badge.bg
                                         }}
                                     >
-                                        {wallet.blockchain}
+                                        {badge.text}
                                     </div>
                                 </div>
                             );
