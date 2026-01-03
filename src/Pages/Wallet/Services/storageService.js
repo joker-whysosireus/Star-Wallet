@@ -10,11 +10,8 @@ import { JsonRpcProvider } from '@near-js/providers';
 import { Buffer } from 'buffer';
 import base58 from 'bs58';
 import * as bitcoin from 'bitcoinjs-lib';
-import TronWeb from 'tronweb';
-import * as nearAPI from 'near-api-js';
 
 const bip32 = BIP32Factory(ecc);
-const { KeyPair, keyStores, connect, utils } = nearAPI;
 
 const MAINNET_CONFIG = {
     TON: { 
@@ -793,15 +790,27 @@ const getSPLBalance = async (address, tokenAddress, network = 'mainnet') => {
 const getTronBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const baseUrl = config.TRON.RPC_URL;
         
-        // Создаем объект TronWeb
-        const tronWeb = new TronWeb({
-            fullHost: config.TRON.FULL_NODE
+        const response = await fetch(`${baseUrl}/wallet/getaccount`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                address: address.startsWith('T') ? address : undefined,
+                address_hex: address.startsWith('41') ? address : undefined,
+                visible: address.startsWith('T')
+            })
         });
+
+        if (!response.ok) return '0';
         
-        // Получаем баланс
-        const balance = await tronWeb.trx.getBalance(address);
-        return (balance / 1000000).toFixed(6); // Конвертируем из SUN в TRX
+        const data = await response.json();
+        
+        if (data.balance !== undefined) {
+            const balanceTRX = (parseInt(data.balance) / 1_000_000).toFixed(6);
+            return balanceTRX;
+        }
+        return '0';
     } catch (error) {
         console.error('TRON balance error:', error);
         return '0';
@@ -811,22 +820,29 @@ const getTronBalance = async (address, network = 'mainnet') => {
 const getTRC20Balance = async (address, contractAddress, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const baseUrl = config.TRON.RPC_URL;
         
-        const tronWeb = new TronWeb({
-            fullHost: config.TRON.FULL_NODE
+        const response = await fetch(`${baseUrl}/wallet/triggerconstantcontract`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                owner_address: address,
+                contract_address: contractAddress,
+                function_selector: 'balanceOf(address)',
+                parameter: address.replace('T', '').padStart(64, '0')
+            })
         });
+
+        if (!response.ok) return '0';
         
-        const contract = await tronWeb.contract().at(contractAddress);
-        const balance = await contract.balanceOf(address).call();
+        const data = await response.json();
         
-        let decimals = 6;
-        try {
-            decimals = await contract.decimals().call();
-        } catch (e) {
-            console.warn('Could not get decimals, using default 6');
+        if (data.constant_result && data.constant_result.length > 0) {
+            const balanceHex = data.constant_result[0];
+            const balance = parseInt(balanceHex, 16);
+            return (balance / 1_000_000).toString();
         }
-        
-        return (balance / Math.pow(10, decimals)).toString();
+        return '0';
     } catch (error) {
         console.error('TRC20 balance error:', error);
         return '0';
@@ -1054,17 +1070,26 @@ export const validateAddress = async (blockchain, address, network = 'mainnet') 
                 if (!tronRegex.test(address)) return false;
                 
                 try {
-                    const tronWeb = new TronWeb({
-                        fullHost: config.TRON.FULL_NODE
+                    const response = await fetch(`${config.TRON.RPC_URL}/wallet/validateaddress`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ address })
                     });
-                    return tronWeb.isAddress(address);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        return data.result || data.message === 'SUCCESS';
+                    }
+                    return true;
                 } catch {
                     return true;
                 }
                 
             case 'Bitcoin':
                 try {
-                    const networkConfig = config.BITCOIN.NETWORK;
+                    const networkConfig = network === 'testnet' 
+                        ? bitcoin.networks.testnet 
+                        : bitcoin.networks.bitcoin;
                     bitcoin.address.toOutputScript(address, networkConfig);
                     return true;
                 } catch { 
@@ -1074,8 +1099,7 @@ export const validateAddress = async (blockchain, address, network = 'mainnet') 
             case 'NEAR':
                 const nearRegex = /^[a-z0-9_-]+(\.[a-z0-9_-]+)*\.(near|testnet)$/;
                 const nearEvmRegex = /^0x[0-9a-fA-F]{40}$/;
-                const nearHexRegex = /^[0-9a-fA-F]{64}$/;
-                return nearRegex.test(address) || nearEvmRegex.test(address) || nearHexRegex.test(address);
+                return nearRegex.test(address) || nearEvmRegex.test(address);
                 
             default:
                 return true;
