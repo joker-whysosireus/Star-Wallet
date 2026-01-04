@@ -1,4 +1,4 @@
-// blockchainService.js - ИСПРАВЛЕННАЯ ВЕРСИЯ 2.0
+// blockchainService.js - ИСПРАВЛЕННАЯ ВЕРСИЯ БЕЗ УДАЛЕНИЯ ИМПОРТА TRONWEB
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { TonClient, WalletContractV4, internal, toNano } from '@ton/ton';
 import { Connection, PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL, Keypair } from '@solana/web3.js';
@@ -9,11 +9,12 @@ import * as ecc from 'tiny-secp256k1';
 import { BIP32Factory } from 'bip32';
 import * as bitcoin from 'bitcoinjs-lib';
 import * as nearAPI from 'near-api-js';
+import TronWeb from 'tronweb'; // Импорт оставляем, но будем использовать по-другому
 
 // Инициализация bip32 с криптографией
 const bip32 = BIP32Factory(ecc);
 
-// Конфигурация сетей (обновлено согласно документации TRON)
+// Конфигурация сетей
 const MAINNET_CONFIG = {
     TON: {
         RPC_URL: 'https://toncenter.com/api/v2/jsonRPC',
@@ -30,7 +31,6 @@ const MAINNET_CONFIG = {
         CHAIN_ID: 56
     },
     TRON: {
-        // Согласно документации TRON: https://developers.tron.network/reference/select-network
         FULL_NODE: 'https://api.trongrid.io',
         SOLIDITY_NODE: 'https://api.trongrid.io',
         EVENT_SERVER: 'https://api.trongrid.io',
@@ -63,7 +63,6 @@ const TESTNET_CONFIG = {
         CHAIN_ID: 97
     },
     TRON: {
-        // Shasta Testnet согласно документации
         FULL_NODE: 'https://api.shasta.trongrid.io',
         SOLIDITY_NODE: 'https://api.shasta.trongrid.io',
         EVENT_SERVER: 'https://api.shasta.trongrid.io',
@@ -103,7 +102,7 @@ async function callWithRetry(apiCall, maxRetries = 3, baseDelay = 1000) {
     throw lastError;
 }
 
-// ========== TON (работает, не меняем) ==========
+// ========== TON ==========
 export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', contractAddress = null, network = 'mainnet' }) => {
     try {
         const config = getConfig(network);
@@ -160,7 +159,7 @@ export const sendTon = async ({ toAddress, amount, seedPhrase, comment = '', con
     }
 };
 
-// ========== ETHEREUM (работает, не меняем) ==========
+// ========== ETHEREUM ==========
 const getEthWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -260,7 +259,7 @@ export const sendEth = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
-// ========== SOLANA (работает, не меняем) ==========
+// ========== SOLANA ==========
 const getSolWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -407,7 +406,7 @@ export const sendSol = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
-// ========== BSC (работает, не меняем) ==========
+// ========== BSC ==========
 const getBscWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -498,6 +497,9 @@ export const sendBsc = async ({ toAddress, amount, seedPhrase, contractAddress =
 };
 
 // ========== TRON (ИСПРАВЛЕННАЯ ВЕРСИЯ) ==========
+// ВАЖНО: TronWeb может быть CommonJS модулем, поэтому используем его осторожно
+let TronWebInstance = null;
+
 const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -508,12 +510,19 @@ const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         const wallet = masterNode.derivePath("m/44'/195'/0'/0/0");
         const privateKeyHex = wallet.privateKey.substring(2); // Убираем "0x"
         
-        // Динамический импорт TronWeb для решения проблемы с ES-модулями
-        const TronWebModule = await import('tronweb');
-        const TronWeb = TronWebModule.default || TronWebModule;
+        // Используем TronWeb безопасно
+        if (!TronWebInstance && typeof TronWeb !== 'undefined') {
+            TronWebInstance = TronWeb;
+        }
         
-        // Инициализируем TronWeb согласно документации
-        const tronWeb = new TronWeb({
+        if (!TronWebInstance) {
+            // Пробуем динамический импорт как запасной вариант
+            const TronWebModule = await import('tronweb');
+            TronWebInstance = TronWebModule.default || TronWebModule;
+        }
+        
+        // Инициализируем TronWeb
+        const tronWeb = new TronWebInstance({
             fullHost: config.TRON.FULL_NODE,
             headers: { 
                 "TRON-PRO-API-KEY": config.TRON.API_KEY,
@@ -684,27 +693,19 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
         
         // 3. Рассчитываем общий баланс и добавляем inputs
         let totalInput = 0;
-        const selectedUtxos = [];
         
         for (const utxo of utxos) {
             // Получаем полную транзакцию для получения скрипта выхода
-            const txResponse = await fetch(`${config.BITCOIN.EXPLORER_API}/tx/${utxo.txid}`);
-            if (!txResponse.ok) continue;
+            const txHexResponse = await fetch(`${config.BITCOIN.EXPLORER_API}/tx/${utxo.txid}/hex`);
+            if (!txHexResponse.ok) continue;
             
-            const tx = await txResponse.json();
-            const txHex = await fetch(`${config.BITCOIN.EXPLORER_API}/tx/${utxo.txid}/hex`).then(r => r.text());
+            const txHex = await txHexResponse.text();
             const rawTx = bitcoin.Transaction.fromHex(txHex);
             
             // Получаем выход (output) по индексу vout
             const output = rawTx.outs[utxo.vout];
             
-            // Создаем скрипт для P2WPKH
-            const p2wpkh = bitcoin.payments.p2wpkh({
-                pubkey: keyPair.publicKey,
-                network: btcNetwork
-            });
-            
-            // Подготавливаем witnessUtxo с правильными типами данных
+            // Создаем witnessUtxo с правильными типами данных
             const witnessUtxo = {
                 script: output.script,
                 value: utxo.value
@@ -718,7 +719,6 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
             });
             
             totalInput += utxo.value;
-            selectedUtxos.push(utxo);
             
             // Проверяем, достаточно ли средств
             const amountSats = Math.floor(amount * 100_000_000);
@@ -731,7 +731,7 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
         
         const amountSats = Math.floor(amount * 100_000_000);
         const feeRate = 1; // сатоши за байт
-        const estimatedTxSize = selectedUtxos.length * 68 + 2 * 31 + 10; // Приблизительный размер
+        const estimatedTxSize = utxos.length * 68 + 2 * 31 + 10; // Приблизительный размер
         const fee = Math.ceil(estimatedTxSize * feeRate);
         
         console.log(`Total input: ${totalInput} sats, Amount: ${amountSats} sats, Fee: ${fee} sats`);
@@ -740,39 +740,35 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
             throw new Error(`Insufficient balance. Available: ${totalInput / 100_000_000} BTC, Needed: ${amount} BTC + fee`);
         }
         
-        // 4. Добавляем output для получателя (исправлено: значение должно быть числом)
-        psbt.addOutput({
-            address: toAddress,
-            value: amountSats
-        });
+        // 4. Добавляем output для получателя
+        try {
+            psbt.addOutput({
+                address: toAddress,
+                value: amountSats
+            });
+        } catch (error) {
+            throw new Error(`Error adding output for recipient: ${error.message}`);
+        }
         
         // 5. Добавляем change output (сдача)
         const change = totalInput - amountSats - fee;
         if (change > 1000) { // Добавляем change только если он значительный
-            psbt.addOutput({
-                address: senderAddress,
-                value: change
-            });
+            try {
+                psbt.addOutput({
+                    address: senderAddress,
+                    value: change
+                });
+            } catch (error) {
+                throw new Error(`Error adding change output: ${error.message}`);
+            }
         }
         
         // 6. Подписываем все inputs
-        selectedUtxos.forEach((_, index) => {
-            psbt.signInput(index, keyPair);
-        });
-        
-        // 7. Проверяем подписи и финализируем
-        let allSigned = true;
-        selectedUtxos.forEach((_, index) => {
-            if (!psbt.validateSignaturesOfInput(index)) {
-                console.warn(`Input ${index} signature validation failed`);
-                allSigned = false;
-            }
-        });
-        
-        if (!allSigned) {
-            throw new Error('Not all inputs are properly signed');
+        for (let i = 0; i < psbt.txInputs.length; i++) {
+            psbt.signInput(i, keyPair);
         }
         
+        // 7. Финализируем
         psbt.finalizeAllInputs();
         
         // 8. Извлекаем и отправляем транзакцию
@@ -784,6 +780,9 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
         // Отправляем транзакцию
         const broadcastResponse = await fetch(`${config.BITCOIN.EXPLORER_API}/tx`, {
             method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain'
+            },
             body: txHex
         });
         
@@ -800,7 +799,7 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
         
         return {
             success: true,
-            hash: txid,
+            hash: txid.trim(),
             message: `Successfully sent ${amount} BTC`,
             explorerUrl,
             timestamp: new Date().toISOString()
@@ -823,8 +822,7 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         const wallet = masterNode.derivePath("m/44'/60'/0'/0/0");
         const evmAddress = wallet.address.toLowerCase(); // "0x..." формат
         
-        // Для NEAR EVM используем обычный EVM адрес без .testnet/.near
-        // Аккаунт будет иметь вид "0x..." (hex-строка)
+        // Для NEAR EVM используем обычный EVM адрес
         const accountId = evmAddress;
         
         const nearConfig = {
@@ -841,20 +839,19 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         let account;
         try {
             account = await near.account(accountId);
-            // Проверяем, существует ли аккаунт, запрашивая его состояние
-            const state = await account.state();
-            console.log(`NEAR account ${accountId} exists with balance: ${state.amount}`);
+            // Проверяем, существует ли аккаунт
+            await account.state();
+            console.log(`NEAR account ${accountId} exists`);
         } catch (error) {
-            // Если аккаунт не существует, создаем объект для информации
+            // Если аккаунт не существует
             console.warn(`NEAR account ${accountId} does not exist or cannot be accessed.`);
-            console.warn(`To activate this account, send at least 0.1 NEAR to: ${accountId}`);
             account = null;
         }
         
         return { 
             near, 
             account,
-            accountId // EVM адрес в формате "0x..."
+            accountId
         };
         
     } catch (error) {
@@ -866,7 +863,7 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
 export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
         const config = getConfig(network);
-        const { near, account, accountId } = await getNearWalletFromSeed(seedPhrase, network);
+        const { account, accountId } = await getNearWalletFromSeed(seedPhrase, network);
         
         // Проверяем, существует ли аккаунт отправителя
         if (!account) {
@@ -874,7 +871,6 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         }
         
         // Определяем адрес получателя
-        // Используем адрес как есть, без добавления .testnet/.near
         const recipientAddress = toAddress;
         
         console.log(`Attempting to send ${amount} NEAR from ${accountId} to ${recipientAddress}`);
@@ -884,7 +880,7 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         const senderBalance = nearAPI.utils.format.formatNearAmount(senderState.amount);
         console.log(`Sender balance: ${senderBalance} NEAR`);
         
-        // Конвертируем amount в yoctoNEAR (1 NEAR = 10^24 yoctoNEAR)
+        // Конвертируем amount в yoctoNEAR
         const amountInYocto = nearAPI.utils.format.parseNearAmount(amount.toString());
         
         if (!amountInYocto) {
@@ -900,7 +896,7 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         console.log(`Sending ${amount} NEAR (${amountInYocto} yoctoNEAR)...`);
         
         const result = await account.sendMoney(
-            recipientAddress, // Отправляем напрямую на адрес получателя
+            recipientAddress,
             amountInYocto
         );
         
@@ -921,9 +917,8 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
     } catch (error) {
         console.error(`[NEAR ${network} ERROR]:`, error);
         
-        // Более информативные сообщения об ошибках
         if (error.message.includes('does not exist')) {
-            throw new Error(`Account does not exist. Please ensure the sender account (${accountId}) has been activated by sending at least 0.1 NEAR to it first.`);
+            throw new Error(`Account does not exist. Please ensure the sender account has been activated by sending some NEAR to it first.`);
         }
         
         if (error.message.includes('insufficient balance')) {
@@ -1037,7 +1032,6 @@ export const validateAddress = (blockchain, address, network = 'mainnet') => {
                     return false; 
                 }
             case 'Tron':
-                // Tron адреса начинаются с T (mainnet: 'T', testnet: 'T' для Shasta)
                 const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
                 return tronRegex.test(address);
             case 'Bitcoin':
@@ -1049,7 +1043,6 @@ export const validateAddress = (blockchain, address, network = 'mainnet') => {
                     return false; 
                 }
             case 'NEAR':
-                // Для NEAR принимаем как EVM адреса (0x...), так и обычные NEAR аккаунты
                 const nearAccountRegex = /^[a-z0-9_-]+(\.[a-z0-9_-]+)*\.(near|testnet)$/;
                 const evmAddressRegex = /^0x[0-9a-fA-F]{40}$/;
                 return nearAccountRegex.test(address) || evmAddressRegex.test(address);
