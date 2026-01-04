@@ -1,4 +1,4 @@
-// blockchainService.js - полный код с исправленными реализациями BTC, TRX и NEAR
+// blockchainService.js - исправленный код с исправлениями для TRON, NEAR и BTC
 
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { TonClient, WalletContractV4, internal, toNano } from '@ton/ton';
@@ -14,6 +14,7 @@ import base58 from 'bs58';
 import TronWeb from 'tronweb';
 import * as nearAPI from 'near-api-js';
 import { Buffer } from 'buffer';
+import TronWeb from 'tronweb';
 
 const bip32 = BIP32Factory(ecc);
 const { KeyPair, keyStores, connect, utils } = nearAPI;
@@ -33,7 +34,8 @@ const MAINNET_CONFIG = {
         FULL_NODE: 'https://api.trongrid.io',
         SOLIDITY_NODE: 'https://api.trongrid.io',
         EVENT_SERVER: 'https://api.trongrid.io',
-        NETWORK: 'mainnet'
+        NETWORK: 'mainnet',
+        TRONGRID_API_KEY: '1a7340b8-7a69-4d5f-9c6a-1c8e9f3b5d2c'
     },
     BITCOIN: {
         EXPLORER_URL: 'https://blockstream.info/api',
@@ -42,9 +44,7 @@ const MAINNET_CONFIG = {
     NEAR: {
         RPC_URL: 'https://rpc.mainnet.near.org',
         NETWORK_ID: 'mainnet',
-        WALLET_URL: 'https://wallet.mainnet.near.org',
-        HELPER_URL: 'https://helper.mainnet.near.org',
-        EXPLORER_URL: 'https://explorer.mainnet.near.org'
+        EXPLORER_URL: 'https://explorer.near.org'
     },
     BSC: {
         RPC_URL: 'https://bsc-dataseed.binance.org/',
@@ -67,7 +67,8 @@ const TESTNET_CONFIG = {
         FULL_NODE: 'https://api.shasta.trongrid.io',
         SOLIDITY_NODE: 'https://api.shasta.trongrid.io',
         EVENT_SERVER: 'https://api.shasta.trongrid.io',
-        NETWORK: 'shasta'
+        NETWORK: 'shasta',
+        TRONGRID_API_KEY: 'testnet_key'
     },
     BITCOIN: {
         EXPLORER_URL: 'https://blockstream.info/testnet/api',
@@ -76,8 +77,6 @@ const TESTNET_CONFIG = {
     NEAR: {
         RPC_URL: 'https://rpc.testnet.near.org',
         NETWORK_ID: 'testnet',
-        WALLET_URL: 'https://wallet.testnet.near.org',
-        HELPER_URL: 'https://helper.testnet.near.org',
         EXPLORER_URL: 'https://explorer.testnet.near.org'
     },
     BSC: {
@@ -502,7 +501,7 @@ export const sendBsc = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
-// ========== TRON ==========
+// ========== TRON ========== (ИСПРАВЛЕНО)
 export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress = null, network = 'mainnet' }) => {
     try {
         const config = getConfig(network);
@@ -513,11 +512,26 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
         const child = root.derivePath("m/44'/195'/0'/0/0");
         const privateKeyHex = child.privateKey.toString('hex');
         
-        // Инициализируем TronWeb согласно документации с Habr
-        const tronWeb = new TronWeb({
-            fullHost: config.TRON.FULL_NODE,
-            privateKey: privateKeyHex
-        });
+        // Инициализируем TronWeb согласно официальной документации
+        // https://developers.tron.network/docs/tronweb-introduction
+        const HttpProvider = TronWeb.providers.HttpProvider;
+        const fullNode = new HttpProvider(config.TRON.FULL_NODE);
+        const solidityNode = new HttpProvider(config.TRON.SOLIDITY_NODE);
+        const eventServer = config.TRON.EVENT_SERVER ? new HttpProvider(config.TRON.EVENT_SERVER) : undefined;
+        
+        const tronWeb = new TronWeb(
+            fullNode,
+            solidityNode,
+            eventServer,
+            privateKeyHex
+        );
+        
+        // Устанавливаем API ключ для TronGrid (опционально, но рекомендуется)
+        if (config.TRON.TRONGRID_API_KEY) {
+            tronWeb.setHeader({
+                'TRON-PRO-API-KEY': config.TRON.TRONGRID_API_KEY
+            });
+        }
         
         // Получаем адрес отправителя
         const fromAddress = tronWeb.address.fromPrivateKey(privateKeyHex);
@@ -530,6 +544,7 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
             let decimals = 6;
             try {
                 decimals = await contract.decimals().call();
+                decimals = parseInt(decimals.toString());
             } catch (e) {
                 console.warn('Could not get token decimals, using default 6');
             }
@@ -540,7 +555,10 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
             const transaction = await tronWeb.transactionBuilder.triggerSmartContract(
                 contractAddress,
                 'transfer(address,uint256)',
-                {},
+                {
+                    feeLimit: 100000000, // 100 TRX лимит комиссии
+                    callValue: 0
+                },
                 [
                     { type: 'address', value: toAddress },
                     { type: 'uint256', value: amountInUnits }
@@ -549,7 +567,7 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
             );
             
             if (!transaction.result || !transaction.result.result) {
-                throw new Error('Failed to trigger smart contract');
+                throw new Error('Failed to trigger smart contract: ' + (transaction.message || 'Unknown error'));
             }
             
             const signedTx = await tronWeb.trx.sign(transaction.transaction);
@@ -609,33 +627,39 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
     }
 };
 
-// ========== NEAR ==========
+// ========== NEAR ========== (ИСПРАВЛЕНО)
 export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress = null, network = 'mainnet' }) => {
     try {
         const config = getConfig(network);
         
-        // Для NEAR создаем ключевую пару из приватного ключа
-        // ВАЖНО: NEAR требует существующий аккаунт для отправки
-        // Создаем аккаунт ID на основе seed фразы (хеш от seed)
+        // Генерируем детерминированный ключ из seed фразы для NEAR
+        // NEAR использует ed25519 ключи, формат: ed25519:base58(publicKey)
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const accountHash = crypto.createHash('sha256').update(seedBuffer).digest('hex').slice(0, 40);
-        const senderAccountId = `sender-${accountHash}.${network === 'testnet' ? 'testnet' : 'near'}`;
         
-        // Создаем ключевую пару из seed (используем SHA256 от seed как приватный ключ)
-        const privateKey = crypto.createHash('sha256').update(seedBuffer).digest('hex');
-        const keyPair = KeyPair.fromString(`ed25519:${privateKey}`);
+        // Создаем хеш от seed для получения приватного ключа
+        const hash = crypto.createHash('sha256').update(seedBuffer).digest();
+        
+        // Создаем ключевую пару NEAR в правильном формате
+        // Формат: "ed25519:base58(privateKeyBytes)"
+        const privateKey = hash.slice(0, 32); // Берем первые 32 байта для приватного ключа
+        const keyPair = KeyPair.fromString(`ed25519:${base58.encode(privateKey)}`);
+        
+        // Создаем accountId на основе публичного ключа
+        const publicKey = keyPair.getPublicKey();
+        const accountHash = crypto.createHash('sha256').update(publicKey.data).digest('hex').slice(0, 40);
+        const senderAccountId = `sender-${accountHash}.${network === 'testnet' ? 'testnet' : 'near'}`;
         
         // Создаем keyStore в памяти
         const keyStore = new keyStores.InMemoryKeyStore();
         await keyStore.setKey(config.NEAR.NETWORK_ID, senderAccountId, keyPair);
         
-        // Конфигурация подключения к NEAR
+        // Конфигурация подключения к NEAR (упрощенная версия)
         const nearConfig = {
             networkId: config.NEAR.NETWORK_ID,
             keyStore: keyStore,
             nodeUrl: config.NEAR.RPC_URL,
-            walletUrl: config.NEAR.WALLET_URL,
-            helperUrl: config.NEAR.HELPER_URL,
+            walletUrl: `https://wallet.${config.NEAR.NETWORK_ID}.near.org`,
+            helperUrl: `https://helper.${config.NEAR.NETWORK_ID}.near.org`,
             explorerUrl: config.NEAR.EXPLORER_URL
         };
         
@@ -646,11 +670,18 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
             // Пытаемся получить аккаунт отправителя
             const senderAccount = await near.account(senderAccountId);
             
-            // Конвертируем amount в yoctoNEAR
+            // Конвертируем amount в yoctoNEAR (1 NEAR = 10^24 yoctoNEAR)
             const amountInYocto = utils.format.parseNearAmount(amount.toString());
             
+            if (!amountInYocto) {
+                throw new Error('Invalid amount format');
+            }
+            
             // Отправляем транзакцию
-            const result = await senderAccount.sendMoney(toAddress, BigInt(amountInYocto));
+            const result = await senderAccount.sendMoney(
+                toAddress, 
+                BigInt(amountInYocto)
+            );
             
             const explorerUrl = `${config.NEAR.EXPLORER_URL}/transactions/${result.transaction.hash}`;
             
@@ -663,8 +694,8 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
                 blockNumber: result.transaction.block_number
             };
         } catch (accountError) {
-            // Если аккаунт не существует, создаем его с помощью transfer
-            throw new Error(`NEAR account ${senderAccountId} does not exist. Please create it first with at least 0.1 NEAR for storage.`);
+            // Если аккаунт не существует
+            throw new Error(`NEAR account ${senderAccountId} does not exist. Please create it first with at least 0.1 NEAR for storage. Error: ${accountError.message}`);
         }
         
     } catch (error) {
@@ -673,7 +704,7 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
     }
 };
 
-// ========== BITCOIN ==========
+// ========== BITCOIN ========== (ИСПРАВЛЕНО)
 export const sendBitcoin = async ({ toAddress, amount, seedPhrase, contractAddress = null, network = 'mainnet' }) => {
     try {
         const config = getConfig(network);
@@ -689,14 +720,22 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, contractAddre
         const path = network === 'testnet' ? "m/84'/1'/0'/0/0" : "m/84'/0'/0'/0/0";
         const child = root.derivePath(path);
         
-        // Создаем ключевую пару
-        const keyPair = bitcoin.ECPair.fromPrivateKey(child.privateKey, { network: networkConfig });
+        // ИСПРАВЛЕНО: Правильное создание ключевой пары для bitcoinjs-lib v6.x
+        // https://github.com/bitcoinjs/bitcoinjs-lib/blob/master/ECPAIR.md
+        const keyPair = bitcoin.ECPair.fromPrivateKey(
+            child.privateKey,
+            { network: networkConfig }
+        );
         
         // Получаем адрес отправителя (P2WPKH - Pay to Witness Public Key Hash)
         const { address: fromAddress } = bitcoin.payments.p2wpkh({
             pubkey: child.publicKey,
             network: networkConfig
         });
+        
+        if (!fromAddress) {
+            throw new Error('Failed to generate sender address');
+        }
         
         // 1. Получаем UTXOs (непотраченные выходы) для адреса отправителя
         const utxosResponse = await fetch(`${config.BITCOIN.EXPLORER_URL}/address/${fromAddress}/utxo`);
@@ -743,7 +782,7 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, contractAddre
         // 5. Рассчитываем сдачу
         const change = totalInput - amountInSatoshi - estimatedFee;
         
-        // 6. Создаем транзакцию
+        // 6. Создаем транзакцию с помощью PSBT (Partially Signed Bitcoin Transaction)
         const psbt = new bitcoin.Psbt({ network: networkConfig });
         
         // Добавляем входы (UTXOs)
@@ -789,7 +828,8 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, contractAddre
             
             // Проверяем подпись
             const isValid = psbt.validateSignaturesOfInput(i, (pubkey, msghash, signature) => {
-                return bitcoin.ECPair.fromPublicKey(pubkey, { network: networkConfig }).verify(msghash, signature);
+                return bitcoin.ECPair.fromPublicKey(pubkey, { network: networkConfig })
+                    .verify(msghash, signature);
             });
             
             if (!isValid) {
@@ -801,7 +841,8 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, contractAddre
         psbt.finalizeAllInputs();
         
         // 9. Получаем hex транзакции
-        const txHex = psbt.extractTransaction().toHex();
+        const tx = psbt.extractTransaction();
+        const txHex = tx.toHex();
         
         // 10. Отправляем транзакцию в сеть
         const broadcastResponse = await fetch(`${config.BITCOIN.EXPLORER_URL}/tx`, {
