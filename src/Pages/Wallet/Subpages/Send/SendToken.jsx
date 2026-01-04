@@ -141,29 +141,14 @@ const SendToken = () => {
         setSendSuccess(false);
 
         try {
-            let privateKey = userData.private_key;
-            
-            if (!privateKey && userData.seed_phrases && 
-                (token.blockchain === 'Ethereum' || token.blockchain === 'BSC')) {
-                const { ethers } = await import('ethers');
-                const { mnemonicToSeedSync } = await import('bip39');
-                
-                const seed = mnemonicToSeedSync(userData.seed_phrases);
-                const hdNode = ethers.HDNodeWallet.fromSeed(seed);
-                const ethWallet = hdNode.derivePath("m/44'/60'/0'/0/0");
-                privateKey = ethWallet.privateKey;
-            }
-
+            // Используем только seed phrase для всех блокчейнов
             const result = await sendTransaction({
                 blockchain: token.blockchain,
-                fromAddress: token.address,
                 toAddress: toAddress,
                 amount: amount,
-                symbol: token.symbol,
-                contractAddress: token.contractAddress,
-                memo: comment,
-                privateKey: privateKey,
                 seedPhrase: userData.seed_phrases,
+                memo: comment,
+                contractAddress: token.contractAddress,
                 network: network
             });
 
