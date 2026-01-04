@@ -1,4 +1,4 @@
-// blockchainService.js - полный код
+// blockchainService.js - полный код с реализацией TRON, NEAR и BTC согласно документации
 
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { TonClient, WalletContractV4, internal, toNano } from '@ton/ton';
@@ -11,7 +11,6 @@ import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import crypto from 'crypto';
 import base58 from 'bs58';
-import sha256 from 'js-sha256';
 import TronWeb from 'tronweb';
 import * as nearAPI from 'near-api-js';
 import { Buffer } from 'buffer';
@@ -508,22 +507,20 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
     try {
         const config = getConfig(network);
         
-        // Получаем приватный ключ из seed фразы для TRON (путь m/44'/195'/0'/0/0)
+        // Получаем приватный ключ из seed фразы
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const root = bip32.fromSeed(seedBuffer, bitcoin.networks.bitcoin);
+        const root = bip32.fromSeed(seedBuffer);
         const child = root.derivePath("m/44'/195'/0'/0/0");
+        const privateKeyHex = child.privateKey.toString('hex');
         
-        // Получаем приватный ключ в hex формате
-        const privateKey = child.privateKey.toString('hex');
-        
-        // Инициализируем TronWeb правильно
+        // Инициализируем TronWeb согласно документации
         const tronWeb = new TronWeb({
             fullHost: config.TRON.FULL_NODE,
-            privateKey: privateKey
+            privateKey: privateKeyHex
         });
         
         // Получаем адрес отправителя
-        const fromAddress = tronWeb.address.fromPrivateKey(privateKey);
+        const fromAddress = tronWeb.address.fromPrivateKey(privateKeyHex);
         
         if (contractAddress) {
             // Отправка TRC20 токена
@@ -560,18 +557,18 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
                 timestamp: new Date().toISOString()
             };
         } else {
-            // Отправка нативного TRX
+            // Отправка нативного TRX согласно документации
             const amountInSun = Math.floor(amount * 1000000); // 1 TRX = 1,000,000 SUN
             
-            // Создаем транзакцию
+            // Создаем транзакцию используя sendTrx как указано в документации
             const transaction = await tronWeb.transactionBuilder.sendTrx(
-                toAddress,
-                amountInSun,
-                fromAddress
+                toAddress,    // адрес получателя
+                amountInSun,  // количество в SUN
+                fromAddress   // адрес отправителя
             );
             
             // Подписываем транзакцию
-            const signedTx = await tronWeb.trx.sign(transaction, privateKey);
+            const signedTx = await tronWeb.trx.sign(transaction);
             
             // Отправляем транзакцию
             const result = await tronWeb.trx.sendRawTransaction(signedTx);
@@ -603,47 +600,57 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, contractAddress 
     try {
         const config = getConfig(network);
         
-        // Генерируем seed из мнемонической фразы
+        // Получаем seed из мнемонической фразы
         const seed = await bip39.mnemonicToSeed(seedPhrase);
+        const seedBuffer = Buffer.from(seed).toString('hex');
         
         // Для NEAR используем путь m/44'/397'/0'/0'/0'
-        // Создаем HMAC-SHA512 из seed
-        const hmac = crypto.createHmac('sha512', Buffer.from('ed25519 seed', 'utf8'));
-        hmac.update(seed);
-        const I = hmac.digest();
-        const IL = I.slice(0, 32);
+        const root = bip32.fromSeed(seed);
+        const child = root.derivePath("m/44'/397'/0'/0'/0'");
         
-        // Создаем ключевую пару из IL
-        const keyPair = KeyPair.fromString(`ed25519:${Buffer.from(IL).toString('base64')}`);
+        // Создаем ключевую пару NEAR из приватного ключа
+        // NEAR использует ED25519, конвертируем secp256k1 приватный ключ в ED25519
+        const privateKeyBuffer = child.privateKey;
+        const hash = crypto.createHash('sha512').update(privateKeyBuffer).digest();
+        const nearSeed = hash.slice(0, 32);
         
-        // Создаем keyStore в памяти
+        const keyPair = KeyPair.fromSeed(new Uint8Array(nearSeed));
+        
+        // Создаем keyStore в памяти как в примере
         const keyStore = new keyStores.InMemoryKeyStore();
         
-        // Получаем публичный ключ для создания accountId
+        // Создаем account ID для отправителя (нужен существующий аккаунт NEAR)
+        // В NEAR аккаунты должны быть созданы заранее
         const publicKey = keyPair.getPublicKey();
-        const accountId = Buffer.from(publicKey.data).toString('hex').slice(0, 40) + '.' + (network === 'testnet' ? 'testnet' : 'near');
+        const senderAccountId = `near-${Buffer.from(publicKey.data).toString('hex').slice(0, 16)}.${network === 'testnet' ? 'testnet' : 'near'}`;
         
-        // Сохраняем ключ в keyStore
-        await keyStore.setKey(config.NEAR.NETWORK_ID, accountId, keyPair);
+        // Сохраняем ключ в keyStore как в примере
+        await keyStore.setKey(config.NEAR.NETWORK_ID, senderAccountId, keyPair);
         
-        // Конфигурация для подключения к NEAR
+        // Конфигурация подключения к NEAR как в примере
         const nearConfig = {
             networkId: config.NEAR.NETWORK_ID,
             keyStore: keyStore,
-            nodeUrl: config.NEAR.RPC_URL
+            nodeUrl: config.NEAR.RPC_URL,
+            walletUrl: config.NEAR.WALLET_URL,
+            helperUrl: config.NEAR.HELPER_URL,
+            explorerUrl: config.NEAR.EXPLORER_URL
         };
         
-        // Подключаемся к NEAR
+        // Подключаемся к NEAR как в примере
         const near = await connect(nearConfig);
         
-        // Создаем объект аккаунта
-        const account = await near.account(accountId);
+        // Создаем объект аккаунта отправителя как в примере
+        const senderAccount = await near.account(senderAccountId);
         
-        // Конвертируем amount в yoctoNEAR
+        // Конвертируем amount в yoctoNEAR как в примере (1 NEAR = 10^24 yoctoNEAR)
         const amountInYocto = utils.format.parseNearAmount(amount.toString());
         
-        // Отправляем транзакцию
-        const result = await account.sendMoney(toAddress, BigInt(amountInYocto));
+        // Отправляем транзакцию как в примере
+        const result = await senderAccount.sendMoney(
+            toAddress,
+            BigInt(amountInYocto)
+        );
         
         const explorerUrl = `${config.NEAR.EXPLORER_URL}/transactions/${result.transaction.hash}`;
         
@@ -689,6 +696,7 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, contractAddre
         
         console.log('Sender address:', fromAddress);
         console.log('Recipient address:', toAddress);
+        console.log('Amount:', amount, 'BTC');
         
         // Получаем UTXOs для адреса отправителя
         const utxosResponse = await fetch(`${config.BITCOIN.EXPLORER_URL}/address/${fromAddress}/utxo`);
