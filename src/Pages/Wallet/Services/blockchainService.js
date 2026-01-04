@@ -494,6 +494,7 @@ export const sendBsc = async ({ toAddress, amount, seedPhrase, contractAddress =
 };
 
 // ========== BITCOIN ==========
+// Функция для получения Bitcoin кошелька из seed phrase
 const getBitcoinWalletFromSeed = (seedPhrase, network = 'mainnet') => {
     try {
         const networkConfig = network === 'testnet' ? bitcoin.networks.testnet : bitcoin.networks.bitcoin;
@@ -508,7 +509,7 @@ const getBitcoinWalletFromSeed = (seedPhrase, network = 'mainnet') => {
         const derivationPath = network === 'testnet' ? "m/84'/1'/0'/0/0" : "m/84'/0'/0'/0/0";
         const child = root.derivePath(derivationPath);
         
-        // Создаем ключевую пару
+        // Создаем ECPair правильно
         const keyPair = bitcoin.ECPair.fromPrivateKey(child.privateKey, { network: networkConfig });
         
         // Генерируем P2WPKH адрес (bech32)
@@ -520,7 +521,6 @@ const getBitcoinWalletFromSeed = (seedPhrase, network = 'mainnet') => {
         return {
             keyPair,
             address,
-            child,
             network: networkConfig
         };
     } catch (error) {
@@ -529,6 +529,7 @@ const getBitcoinWalletFromSeed = (seedPhrase, network = 'mainnet') => {
     }
 };
 
+// Функция для получения UTXOs
 const getBitcoinUtxos = async (address, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -541,6 +542,7 @@ const getBitcoinUtxos = async (address, network = 'mainnet') => {
     }
 };
 
+// Функция для получения деталей транзакции
 const getBitcoinTransaction = async (txid, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -553,6 +555,7 @@ const getBitcoinTransaction = async (txid, network = 'mainnet') => {
     }
 };
 
+// Функция для отправки транзакции
 const broadcastBitcoinTransaction = async (txHex, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -573,6 +576,7 @@ const broadcastBitcoinTransaction = async (txHex, network = 'mainnet') => {
     }
 };
 
+// Основная функция отправки Bitcoin
 export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
         console.log(`Starting Bitcoin send: ${amount} BTC to ${toAddress} on ${network}`);
@@ -634,6 +638,7 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
                     script: bitcoin.address.toOutputScript(wallet.address, wallet.network),
                     value: utxo.value
                 },
+                // Для SegWit также нужно nonWitnessUtxo (хэш транзакции)
                 nonWitnessUtxo: Buffer.from(tx.hex, 'hex')
             });
         }
@@ -721,6 +726,7 @@ const getTronPrivateKeyFromSeed = async (seedPhrase) => {
     }
 };
 
+// Основная функция отправки TRON
 export const sendTron = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
         const config = getConfig(network);
@@ -728,13 +734,13 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, network = 'mainn
         
         console.log(`Starting TRON send: ${amount} TRX to ${toAddress} on ${network}`);
         
-        // Динамически импортируем tronweb для избежания проблем с SSR
+        // Импортируем TronWeb динамически для избежания проблем с SSR
         const TronWeb = (await import('tronweb')).default;
         
-        // Инициализируем TronWeb
+        // Инициализируем TronWeb БЕЗ API-ключа
         const tronWeb = new TronWeb({
-            fullHost: config.TRON.RPC_URL,
-            headers: { 'TRON-PRO-API-KEY': 'your-api-key-here' }
+            fullHost: config.TRON.RPC_URL
+            // Без headers с API-ключом
         });
         
         // Устанавливаем приватный ключ
@@ -748,49 +754,21 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, network = 'mainn
         const amountInSun = tronWeb.toSun(amount);
         console.log('Amount in SUN:', amountInSun);
         
-        // Создаем транзакцию через tronGrid API
-        const createTxUrl = `${config.TRON.RPC_URL}/wallet/createtransaction`;
-        const txData = {
-            owner_address: fromAddress,
-            to_address: toAddress,
-            amount: amountInSun,
-            visible: true
-        };
-        
+        // Создаем транзакцию через tronWeb
         console.log('Creating transaction...');
-        const createResponse = await fetch(createTxUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(txData)
-        });
-        
-        if (!createResponse.ok) {
-            throw new Error(`Failed to create transaction: ${createResponse.status}`);
-        }
-        
-        const transaction = await createResponse.json();
-        
-        if (transaction.Error) {
-            throw new Error(`Transaction error: ${transaction.Error}`);
-        }
+        const transaction = await tronWeb.transactionBuilder.sendTrx(
+            toAddress,
+            amountInSun,
+            fromAddress
+        );
         
         // Подписываем транзакцию
         console.log('Signing transaction...');
         const signedTransaction = await tronWeb.trx.sign(transaction);
         
-        // Отправляем подписанную транзакцию
-        const sendTxUrl = `${config.TRON.RPC_URL}/wallet/broadcasttransaction`;
-        const sendResponse = await fetch(sendTxUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(signedTransaction)
-        });
-        
-        if (!sendResponse.ok) {
-            throw new Error(`Failed to broadcast transaction: ${sendResponse.status}`);
-        }
-        
-        const result = await sendResponse.json();
+        // Отправляем транзакцию
+        console.log('Broadcasting transaction...');
+        const result = await tronWeb.trx.sendRawTransaction(signedTransaction);
         
         if (!result.result) {
             throw new Error(`Transaction failed: ${JSON.stringify(result)}`);
@@ -816,7 +794,8 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, network = 'mainn
     }
 };
 
-// ========== NEAR ==========
+// ========== NEAR (оптимизированная версия) ==========
+// Функция для получения аккаунта NEAR из seed phrase
 const getNearAccountFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -838,14 +817,15 @@ const getNearAccountFromSeed = async (seedPhrase, network = 'mainnet') => {
         // Сохраняем ключ в keystore
         await keyStore.setKey(config.NEAR.NETWORK_ID, accountId, keyPair);
         
-        // Создаем подключение к NEAR
-        const nearConnection = await connect({
+        // Создаем минимальную конфигурацию для подключения
+        const nearConfig = {
             networkId: config.NEAR.NETWORK_ID,
             keyStore: keyStore,
-            nodeUrl: config.NEAR.RPC_URL,
-            helperUrl: config.NEAR.HELPER_URL,
-            walletUrl: `https://wallet.${config.NEAR.NETWORK_ID}.near.org`
-        });
+            nodeUrl: config.NEAR.RPC_URL
+        };
+        
+        // Подключаемся к NEAR (без helperUrl для ускорения)
+        const nearConnection = await connect(nearConfig);
         
         // Получаем аккаунт
         const account = await nearConnection.account(accountId);
@@ -853,8 +833,7 @@ const getNearAccountFromSeed = async (seedPhrase, network = 'mainnet') => {
         return {
             account,
             accountId,
-            keyPair,
-            nearConnection
+            keyPair
         };
     } catch (error) {
         console.error('Error getting NEAR account:', error);
@@ -862,6 +841,7 @@ const getNearAccountFromSeed = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
+// Основная функция отправки NEAR
 export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
         console.log(`Starting NEAR send: ${amount} NEAR to ${toAddress} on ${network}`);
@@ -869,16 +849,6 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         // Получаем аккаунт отправителя
         const { account, accountId } = await getNearAccountFromSeed(seedPhrase, network);
         console.log('From account:', accountId);
-        
-        // Проверяем, существует ли аккаунт отправителя
-        try {
-            await account.state();
-        } catch (error) {
-            if (error.message.includes('does not exist')) {
-                throw new Error('Sender account does not exist on NEAR. Fund it first with at least 0.1 NEAR');
-            }
-            throw error;
-        }
         
         // Конвертируем сумму в yoctoNEAR
         const amountInYocto = utils.format.parseNearAmount(amount.toString());
@@ -888,14 +858,24 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         
         console.log('Amount in yoctoNEAR:', amountInYocto);
         
-        // Для NEAR EVM-адресов (0x...) мы отправляем напрямую, без преобразования
+        // Проверяем, что адрес получателя действителен (0x... формат)
         if (!toAddress.startsWith('0x') || toAddress.length !== 42) {
             throw new Error('NEAR recipient must be a valid 0x... address (42 characters)');
         }
         
-        // Отправляем транзакцию
+        // Для NEAR EVM-адресов отправляем напрямую
         console.log('Sending transaction...');
-        const result = await account.sendMoney(toAddress, amountInYocto);
+        
+        // Создаем транзакцию с таймаутом
+        const sendPromise = account.sendMoney(toAddress, amountInYocto);
+        
+        // Добавляем таймаут для предотвращения долгой загрузки
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Transaction timeout after 30 seconds')), 30000);
+        });
+        
+        // Ждем либо результат, либо таймаут
+        const result = await Promise.race([sendPromise, timeoutPromise]);
         
         console.log('Transaction result:', result);
         
@@ -915,7 +895,11 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         console.error(`[NEAR ${network} ERROR]:`, error);
         
         if (error.message.includes('does not exist')) {
-            throw new Error('Account does not exist on NEAR network');
+            throw new Error('Account does not exist on NEAR network. Fund it first with at least 0.1 NEAR');
+        }
+        
+        if (error.message.includes('timeout')) {
+            throw new Error('Transaction timed out. Please check your network connection and try again.');
         }
         
         throw new Error(`Failed to send NEAR: ${error.message}`);
