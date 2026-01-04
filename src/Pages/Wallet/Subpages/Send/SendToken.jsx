@@ -130,6 +130,22 @@ const SendToken = () => {
             return;
         }
 
+        // Для Bitcoin и NEAR - дополнительные проверки
+        if (token.blockchain === 'Bitcoin') {
+            const amountSats = parseFloat(amount) * 100000000;
+            if (amountSats < 546) { // Минимальный выход в сатоши
+                setTransactionStatus({ type: 'error', message: 'Minimum Bitcoin amount is 0.00000546 BTC' });
+                return;
+            }
+        }
+
+        if (token.blockchain === 'NEAR') {
+            if (parseFloat(amount) < 0.001) { // Минимальная сумма NEAR
+                setTransactionStatus({ type: 'error', message: 'Minimum NEAR amount is 0.001' });
+                return;
+            }
+        }
+
         const totalAmount = parseFloat(amount) + parseFloat(transactionFee || 0);
         if (totalAmount > parseFloat(balance || 0)) {
             setTransactionStatus({ type: 'error', message: 'Insufficient balance' });
@@ -141,16 +157,26 @@ const SendToken = () => {
         setSendSuccess(false);
 
         try {
-            // Используем только seed phrase для всех блокчейнов
-            const result = await sendTransaction({
+            // Особые параметры для разных блокчейнов
+            const txParams = {
                 blockchain: token.blockchain,
                 toAddress: toAddress,
                 amount: amount,
                 seedPhrase: userData.seed_phrases,
                 memo: comment,
-                contractAddress: token.contractAddress,
                 network: network
-            });
+            };
+
+            // Для Tron (нативный TRX) - не передаем contractAddress
+            if (token.blockchain === 'Tron' && token.symbol === 'TRX') {
+                // Ничего не добавляем, contractAddress не нужен для нативного TRX
+            } 
+            // Для других токенов с контрактами
+            else if (token.contractAddress) {
+                txParams.contractAddress = token.contractAddress;
+            }
+
+            const result = await sendTransaction(txParams);
 
             if (result.success) {
                 setSendSuccess(true);

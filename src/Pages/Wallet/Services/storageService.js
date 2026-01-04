@@ -1145,25 +1145,56 @@ export const revealSeedPhrase = async (userData) => {
 
 export const getBalances = getRealBalances;
 
+// ========== ОБНОВЛЕННАЯ ФУНКЦИЯ ОТПРАВКИ ТРАНЗАКЦИЙ ==========
 export const sendTransaction = async (transactionData) => {
     const { blockchain, toAddress, amount, seedPhrase, memo, contractAddress, network = 'mainnet' } = transactionData;
     
     try {
+        // Динамический импорт blockchainService
         const { sendTransaction: sendTx } = await import('./blockchainService');
         
+        // Формируем параметры транзакции
         const txParams = {
             blockchain,
             toAddress,
             amount,
             seedPhrase,
             memo,
-            contractAddress,
             network
         };
         
-        return await sendTx(txParams);
+        // Для нативного TRX (TRX) - не передаем contractAddress
+        // Для других токенов с контрактами - передаем contractAddress
+        if (blockchain === 'Tron' && contractAddress && contractAddress.includes('TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t')) {
+            // Для USDT TRC20 передаем contractAddress
+            txParams.contractAddress = contractAddress;
+        } else if (contractAddress && blockchain !== 'Tron' && blockchain !== 'Bitcoin' && blockchain !== 'NEAR') {
+            // Для других блокчейнов (кроме BTC, NEAR) передаем contractAddress если есть
+            txParams.contractAddress = contractAddress;
+        }
+        
+        console.log(`Sending ${blockchain} transaction with params:`, txParams);
+        
+        const result = await sendTx(txParams);
+        
+        if (result.success) {
+            console.log(`Transaction successful: ${result.hash}`);
+            return {
+                success: true,
+                hash: result.hash,
+                message: result.message,
+                explorerUrl: result.explorerUrl,
+                timestamp: result.timestamp
+            };
+        } else {
+            console.error(`Transaction failed: ${result.error}`);
+            return {
+                success: false,
+                error: result.error
+            };
+        }
     } catch (error) {
-        console.error('Transaction error:', error);
+        console.error('Transaction error in storageService:', error);
         return {
             success: false,
             error: error.message
