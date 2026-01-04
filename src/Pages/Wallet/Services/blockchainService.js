@@ -14,7 +14,6 @@ import base58 from 'bs58';
 import TronWeb from 'tronweb';
 import * as nearAPI from 'near-api-js';
 import { Buffer } from 'buffer';
-import TronWeb from 'tronweb';
 
 const bip32 = BIP32Factory(ecc);
 const { KeyPair, keyStores, connect, utils } = nearAPI;
