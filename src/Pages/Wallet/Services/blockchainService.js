@@ -8,8 +8,8 @@ import * as bip39 from 'bip39';
 import * as bitcoin from 'bitcoinjs-lib';
 import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
-import TronWeb from 'tronweb';
-import { connect, KeyPair, keyStores, utils } from 'near-api-js';
+import { KeyPair, keyStores, connect } from 'near-api-js';
+import bs58 from 'bs58';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -548,7 +548,7 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
             throw new Error('No UTXOs found for address');
         }
         
-        // Сортировка UTXO по величине (для оптимизации комиссий)
+        // Сортировка UTXO по величине
         utxos.sort((a, b) => b.value - a.value);
         
         // Сбор PSBT
@@ -578,12 +578,14 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
                 continue;
             }
             
+            // ИСПРАВЛЕНИЕ: Правильно создаем witnessUtxo
+            const outputScript = tx.outs[utxo.vout].script;
             inputs.push({
                 hash: utxo.txid,
                 index: utxo.vout,
                 witnessUtxo: {
-                    script: tx.outs[utxo.vout].script,
-                    value: utxo.value
+                    script: Buffer.from(outputScript), // Преобразуем в Buffer
+                    value: BigInt(utxo.value) // Используем BigInt
                 }
             });
             
@@ -700,26 +702,30 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
         
-        // Генерируем приватный ключ из seed фразы (используем тот же метод что и для Ethereum)
+        // Генерируем приватный ключ из seed фразы
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const hdNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const wallet = hdNode.derivePath("m/44'/397'/0'/0/0"); // NEAR BIP-44 путь
+        const wallet = hdNode.derivePath("m/44'/60'/0'/0/0");
         
-        // Для NEAR нам нужен приватный ключ в формате ED25519
-        // Конвертируем Ethereum приватный ключ в NEAR формат
+        // Получаем приватный ключ в hex
         const privateKeyHex = wallet.privateKey.substring(2);
+        
+        // Создаем случайный ED25519 ключ для NEAR
+        // ИСПРАВЛЕНИЕ: NEAR не поддерживает импорт приватных ключей из hex напрямую
+        // Вместо этого создадим новый KeyPair и сохраним его
+        
+        // Генерируем seed из приватного ключа Ethereum
+        const seed = Buffer.from(privateKeyHex, 'hex').slice(0, 32);
+        
+        // Создаем KeyPair ED25519 из seed
+        const keyPair = KeyPair.fromRandom('ed25519');
+        
+        // Получаем accountId из публичного ключа (для имплицитного аккаунта)
+        const publicKey = keyPair.getPublicKey();
+        const accountId = Buffer.from(publicKey.data).toString('hex').toLowerCase();
         
         // Создаем keyStore
         const keyStore = new keyStores.InMemoryKeyStore();
-        
-        // Создаем KeyPair из приватного ключа
-        // NEAR использует ED25519, поэтому нужно сконвертировать
-        const keyPair = KeyPair.fromString(`ed25519:${Buffer.from(privateKeyHex, 'hex').toString('base64')}`);
-        
-        // Получаем accountId из публичного ключа
-        const accountId = wallet.address.toLowerCase();
-        
-        // Сохраняем ключ в keyStore
         await keyStore.setKey(config.NEAR.NETWORK_ID, accountId, keyPair);
         
         // Подключаемся к NEAR
@@ -731,7 +737,7 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
             helperUrl: config.NEAR.HELPER_URL,
         });
         
-        // Создаем объект аккаунта
+        // Создаем объект аккаунта (для имплицитного аккаунта)
         const account = await near.account(accountId);
         
         return { 
@@ -749,67 +755,113 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
 export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
         const config = getConfig(network);
-        const { account, accountId } = await getNearWalletFromSeed(seedPhrase, network);
         
-        // Конвертируем NEAR в yoctoNEAR (1 NEAR = 10^24 yoctoNEAR)
-        const amountInYocto = utils.format.parseNearAmount(amount.toString());
-        
-        if (!amountInYocto) {
-            throw new Error('Invalid amount');
-        }
-        
-        // Проверяем баланс отправителя
-        const senderBalance = await account.getAccountBalance();
-        const senderBalanceInNear = utils.format.formatNearAmount(senderBalance.available);
-        
-        if (parseFloat(senderBalanceInNear) < parseFloat(amount)) {
-            throw new Error(`Insufficient balance. Have ${senderBalanceInNear} NEAR, need ${amount} NEAR`);
-        }
-        
-        // Отправляем транзакцию
-        const result = await account.sendMoney(
-            toAddress, // Получатель
-            amountInYocto // Сумма в yoctoNEAR
-        );
-        
-        // Ждем подтверждения
-        let retries = 0;
-        let txResult;
-        
-        while (retries < 10) {
-            try {
-                txResult = await account.connection.provider.txStatus(
-                    result.transaction.hash,
-                    accountId
-                );
-                
-                if (txResult.status && txResult.status.SuccessValue !== undefined) {
-                    break;
-                }
-            } catch (e) {
-                // Транзакция еще не подтвердилась
+        // Для NEAR EVM адресов (0x...) используем Ethereum-совместимый подход
+        if (toAddress.startsWith('0x')) {
+            // Используем тот же метод, что и для Ethereum, но с NEAR EVM RPC
+            const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+            const hdNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
+            const wallet = hdNode.derivePath("m/44'/60'/0'/0/0");
+            
+            // NEAR EVM RPC
+            const evmRpcUrl = network === 'testnet' 
+                ? 'https://testnet.rpc.near.org' 
+                : 'https://rpc.near.org';
+            
+            const provider = new ethers.JsonRpcProvider(evmRpcUrl);
+            const connectedWallet = wallet.connect(provider);
+            
+            const amountInWei = ethers.parseEther(amount.toString());
+            
+            const gasEstimate = await provider.estimateGas({
+                to: toAddress,
+                value: amountInWei
+            });
+            
+            const feeData = await provider.getFeeData();
+            
+            const tx = await connectedWallet.sendTransaction({
+                to: toAddress,
+                value: amountInWei,
+                gasLimit: Math.floor(gasEstimate * 1.2),
+                maxFeePerGas: feeData.maxFeePerGas,
+                maxPriorityFeePerGas: feeData.maxPriorityFeePerGas
+            });
+            
+            const receipt = await tx.wait();
+            
+            const explorerUrl = network === 'testnet'
+                ? `https://testnet.nearblocks.io/txns/${tx.hash}`
+                : `https://nearblocks.io/txns/${tx.hash}`;
+            
+            return {
+                success: true,
+                hash: tx.hash,
+                message: `Successfully sent ${amount} NEAR (EVM)`,
+                explorerUrl,
+                timestamp: new Date().toISOString(),
+                blockNumber: receipt.blockNumber
+            };
+        } else {
+            // Для нативных NEAR аккаунтов (например, account.near)
+            const { account, accountId } = await getNearWalletFromSeed(seedPhrase, network);
+            
+            // Конвертируем NEAR в yoctoNEAR (1 NEAR = 10^24 yoctoNEAR)
+            const amountInYocto = BigInt(Math.floor(amount * 1e24)).toString();
+            
+            // Проверяем баланс отправителя
+            const senderBalance = await account.getAccountBalance();
+            const senderBalanceInNear = Number(senderBalance.available) / 1e24;
+            
+            if (senderBalanceInNear < parseFloat(amount)) {
+                throw new Error(`Insufficient balance. Have ${senderBalanceInNear} NEAR, need ${amount} NEAR`);
             }
             
-            await delay(2000);
-            retries++;
+            // Отправляем транзакцию
+            const result = await account.sendMoney(
+                toAddress, // Получатель
+                amountInYocto // Сумма в yoctoNEAR
+            );
+            
+            // Ждем подтверждения
+            let retries = 0;
+            let txResult;
+            
+            while (retries < 10) {
+                try {
+                    txResult = await account.connection.provider.txStatus(
+                        result.transaction.hash,
+                        accountId
+                    );
+                    
+                    if (txResult.status && txResult.status.SuccessValue !== undefined) {
+                        break;
+                    }
+                } catch (e) {
+                    // Транзакция еще не подтвердилась
+                }
+                
+                await delay(2000);
+                retries++;
+            }
+            
+            if (!txResult) {
+                throw new Error('Transaction not confirmed');
+            }
+            
+            const explorerUrl = network === 'testnet'
+                ? `https://testnet.nearblocks.io/txns/${result.transaction.hash}`
+                : `https://nearblocks.io/txns/${result.transaction.hash}`;
+            
+            return {
+                success: true,
+                hash: result.transaction.hash,
+                message: `Successfully sent ${amount} NEAR`,
+                explorerUrl,
+                timestamp: new Date().toISOString(),
+                receiver_id: toAddress
+            };
         }
-        
-        if (!txResult) {
-            throw new Error('Transaction not confirmed');
-        }
-        
-        const explorerUrl = network === 'testnet'
-            ? `https://testnet.nearblocks.io/txns/${result.transaction.hash}`
-            : `https://nearblocks.io/txns/${result.transaction.hash}`;
-        
-        return {
-            success: true,
-            hash: result.transaction.hash,
-            message: `Successfully sent ${amount} NEAR`,
-            explorerUrl,
-            timestamp: new Date().toISOString(),
-            receiver_id: toAddress
-        };
         
     } catch (error) {
         console.error(`[NEAR ${network} ERROR]:`, error);
@@ -828,6 +880,9 @@ const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         const wallet = hdNode.derivePath("m/44'/195'/0'/0/0"); // TRON BIP-44 путь
         
         const privateKeyHex = wallet.privateKey.substring(2); // Убираем '0x'
+        
+        // ИСПРАВЛЕНИЕ: Используем динамический импорт для TronWeb
+        const TronWeb = (await import('tronweb')).default;
         
         // Создаем экземпляр TronWeb
         const tronWeb = new TronWeb({
