@@ -9,7 +9,9 @@ import * as bitcoin from 'bitcoinjs-lib';
 import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import crypto from 'crypto';
-import { transactions, keyStores, providers } from '@near-js/providers';
+import { JsonRpcProvider } from '@near-js/providers';
+import { transactions } from '@near-js/providers';
+import { KeyPair, InMemoryKeyStore } from '@near-js/keystores';
 import TronWeb from 'tronweb';
 import { Buffer } from 'buffer';
 
@@ -670,7 +672,7 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         const derivedSeed = crypto.createHash('sha256').update(seedBuffer).digest();
         
         // Создаем ключевую пару ED25519 из seed
-        const keyPair = keyStores.KeyPair.fromString(
+        const keyPair = KeyPair.fromString(
             `ed25519:${Buffer.from(derivedSeed).toString('base64')}`
         );
         
@@ -697,7 +699,7 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         const amountInYocto = BigInt(Math.floor(amount * 1e24)).toString();
         
         // 1. Создаем провайдер для подключения к сети NEAR
-        const provider = new providers.JsonRpcProvider({ url: config.RPC_URL });
+        const provider = new JsonRpcProvider({ url: config.RPC_URL });
         
         // 2. Получаем информацию об аккаунте (nonce, block hash)
         const accountInfo = await provider.query({
