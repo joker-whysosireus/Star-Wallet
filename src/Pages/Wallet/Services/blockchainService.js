@@ -505,9 +505,23 @@ const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         const wallet = masterNode.derivePath("m/44'/195'/0'/0/0");
         const privateKeyHex = wallet.privateKey.substring(2);
 
-        // Инициализируем TronWeb
-        const TronWeb = (await import('tronweb')).default;
-        
+        // Инициализируем TronWeb с использованием глобального объекта
+        // Проверяем, доступен ли TronWeb глобально
+        let TronWeb;
+        if (typeof window !== 'undefined' && window.TronWeb) {
+            TronWeb = window.TronWeb;
+        } else {
+            // Динамический импорт для Node.js/Webpack
+            const TronWebModule = await import('tronweb');
+            TronWeb = TronWebModule.default || TronWebModule.TronWeb || TronWebModule;
+            
+            // Если это функция-конструктор, убедимся, что она правильная
+            if (typeof TronWeb !== 'function') {
+                throw new Error('TronWeb is not a constructor');
+            }
+        }
+
+        // Создаем экземпляр TronWeb
         const tronWeb = new TronWeb({
             fullHost: config.TRON.FULL_NODE,
             headers: {
@@ -629,10 +643,21 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
         const utxos = await utxoResponse.json();
         
         if (!utxos || utxos.length === 0) {
-            throw new Error('No UTXOs available for this address. Please fund it first.');
+            // Попробуем получить баланс через другой endpoint
+            const balanceResponse = await fetch(`${config.BITCOIN.EXPLORER_API}/address/${senderAddress}`);
+            if (!balanceResponse.ok) {
+                throw new Error('No UTXOs available for this address. Please fund it first.');
+            }
+            
+            const addressData = await balanceResponse.json();
+            const funded = addressData.chain_stats?.funded_txo_sum || 0;
+            const spent = addressData.chain_stats?.spent_txo_sum || 0;
+            const balance = (funded - spent) / 1e8;
+            
+            throw new Error(`No UTXOs found. Address balance: ${balance} BTC. This may be due to unconfirmed transactions or address format issues.`);
         }
         
-        console.log(`Found ${utxos.length} UTXOs`);
+        console.log(`Found ${utxos.length} UTXOs, total value: ${utxos.reduce((sum, utxo) => sum + utxo.value, 0) / 1e8} BTC`);
         
         // 2. Создаем PSBT
         const psbt = new bitcoin.Psbt({ network: btcNetwork });
@@ -648,23 +673,19 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
         for (const utxo of utxos) {
             try {
                 // Получаем полную транзакцию для получения скрипта выхода
-                const txResponse = await fetch(`${config.BITCOIN.EXPLORER_API}/tx/${utxo.txid}`);
-                if (!txResponse.ok) continue;
+                const txHexResponse = await fetch(`${config.BITCOIN.EXPLORER_API}/tx/${utxo.txid}/hex`);
+                if (!txHexResponse.ok) continue;
                 
-                const tx = await txResponse.json();
-                const txHex = await fetch(`${config.BITCOIN.EXPLORER_API}/tx/${utxo.txid}/hex`).then(r => r.text());
+                const txHex = await txHexResponse.text();
                 const rawTx = bitcoin.Transaction.fromHex(txHex);
                 
                 // Получаем выход (output) по индексу vout
                 const output = rawTx.outs[utxo.vout];
                 
-                // Получаем скрипт из выхода
-                const script = Buffer.from(output.script, 'hex');
-                
                 // Создаем witnessUtxo
                 const witnessUtxo = {
-                    script: script,
-                    value: utxo.value // Уже в сатоши
+                    script: output.script,
+                    value: utxo.value
                 };
                 
                 // Добавляем input в PSBT
@@ -677,12 +698,13 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
                 totalInput += utxo.value;
                 selectedUtxos.push(utxo);
                 
-                // Проверяем, достаточно ли средств
-                // Оценочная комиссия: ~200 сатоши/байт * ~140 байт на вход + ~34 байт на выход
-                const estimatedFee = selectedUtxos.length * 140 * 200 + 34 * 200;
+                // Оценочная комиссия: ~140 байт на вход + ~34 байт на выход
+                const estimatedTxSize = selectedUtxos.length * 140 + 34 * 2;
+                const feeRate = 10; // сатоши за байт (низкая комиссия для тестнета)
+                const estimatedFee = Math.ceil(estimatedTxSize * feeRate);
                 
                 if (totalInput >= amountSats + estimatedFee) {
-                    console.log(`Enough UTXOs selected: ${totalInput} sats`);
+                    console.log(`Enough UTXOs selected: ${totalInput} sats, needed: ${amountSats + estimatedFee} sats`);
                     break;
                 }
             } catch (error) {
@@ -692,14 +714,14 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
         }
         
         // Расчет комиссии
-        const estimatedTxSize = selectedUtxos.length * 68 + 2 * 31 + 10;
-        const feeRate = 200; // сатоши за байт
+        const estimatedTxSize = selectedUtxos.length * 140 + 34 * 2; // базовый размер
+        const feeRate = network === 'testnet' ? 10 : 20; // сатоши за байт
         const fee = Math.ceil(estimatedTxSize * feeRate);
         
         console.log(`Total input: ${totalInput} sats, Amount: ${amountSats} sats, Fee: ${fee} sats`);
         
         if (totalInput < amountSats + fee) {
-            throw new Error(`Insufficient balance. Available: ${(totalInput / 100_000_000).toFixed(8)} BTC, Needed: ${amount} BTC + fee`);
+            throw new Error(`Insufficient balance. Available: ${(totalInput / 100_000_000).toFixed(8)} BTC, Needed: ${amount} BTC + fee (${fee / 100_000_000} BTC)`);
         }
         
         // 4. Добавляем output для получателя
@@ -725,21 +747,14 @@ export const sendBitcoin = async ({ toAddress, amount, seedPhrase, network = 'ma
             psbt.signInput(i, keyPair);
         }
         
-        // 7. Проверяем подписи
-        for (let i = 0; i < selectedUtxos.length; i++) {
-            if (!psbt.validateSignaturesOfInput(i)) {
-                throw new Error(`Invalid signature for input ${i}`);
-            }
-        }
-        
-        // 8. Финализируем и извлекаем транзакцию
+        // 7. Финализируем и извлекаем транзакцию
         psbt.finalizeAllInputs();
         const tx = psbt.extractTransaction();
         const txHex = tx.toHex();
         
-        console.log(`Transaction size: ${txHex.length / 2} bytes, Hex: ${txHex.substring(0, 100)}...`);
+        console.log(`Transaction created, size: ${txHex.length / 2} bytes`);
         
-        // 9. Отправляем транзакцию
+        // 8. Отправляем транзакцию
         const broadcastResponse = await fetch(`${config.BITCOIN.EXPLORER_API}/tx`, {
             method: 'POST',
             body: txHex
@@ -791,25 +806,15 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         // Подключаемся к NEAR
         const near = await nearAPI.connect(nearConfig);
         
-        // Создаем account object
+        // Создаем account object - УДАЛЯЕМ ПРОВЕРКУ СУЩЕСТВОВАНИЯ АККАУНТА
         const account = new nearAPI.Account(near.connection, evmAddress);
         
-        // Проверяем существование аккаунта
-        let accountExists = false;
-        try {
-            const state = await account.state();
-            console.log(`NEAR account ${evmAddress} exists with balance: ${state.amount}`);
-            accountExists = true;
-        } catch (error) {
-            console.warn(`NEAR account ${evmAddress} does not exist or cannot be accessed.`);
-            console.warn(`To activate this account, send at least 0.1 NEAR to: ${evmAddress}`);
-        }
+        console.log(`NEAR account object created for: ${evmAddress}`);
         
         return { 
             near, 
             account,
-            accountId: evmAddress,
-            accountExists 
+            accountId: evmAddress
         };
         
     } catch (error) {
@@ -819,74 +824,28 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
 };
 
 export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
-    let accountId = null;
-    
     try {
         const config = getConfig(network);
-        const { account, accountId: senderAccountId, accountExists } = await getNearWalletFromSeed(seedPhrase, network);
+        const { account, accountId: senderAccountId } = await getNearWalletFromSeed(seedPhrase, network);
         
-        // Сохраняем accountId для использования в catch блоке
-        accountId = senderAccountId;
+        // УДАЛЯЕМ ПРОВЕРКУ СУЩЕСТВОВАНИЯ АККАУНТА - просто пытаемся отправить
         
-        // 1. Проверяем, существует ли аккаунт отправителя
-        if (!accountExists) {
-            throw new Error(`Sender account ${accountId} does not exist on NEAR. Fund it first.`);
-        }
+        console.log(`Attempting to send ${amount} NEAR from ${senderAccountId} to ${toAddress}`);
 
-        // 2. Определяем адрес получателя
-        const recipientAddress = toAddress;
-        console.log(`Attempting to send ${amount} NEAR from ${accountId} to ${recipientAddress}`);
-
-        // 3. Проверяем баланс отправителя
-        const senderState = await account.state();
-        const senderBalanceInYocto = BigInt(senderState.amount);
-        const senderBalance = nearAPI.utils.format.formatNearAmount(senderState.amount);
-        console.log(`Sender (${accountId}) balance: ${senderBalance} NEAR`);
-
-        // 4. Конвертируем количество NEAR в йоктонеар
+        // Конвертируем количество NEAR в йоктонеар
         const amountInYocto = nearAPI.utils.format.parseNearAmount(amount.toString());
         
         if (!amountInYocto) {
             throw new Error('Invalid amount format');
         }
 
-        const amountBigInt = BigInt(amountInYocto);
-        
-        // 5. Проверяем достаточность баланса
-        if (amountBigInt > senderBalanceInYocto) {
-            throw new Error(`Insufficient balance. Available: ${senderBalance} NEAR, Required: ${amount} NEAR`);
-        }
-
-        // 6. Проверяем, существует ли аккаунт получателя
-        const provider = new nearAPI.providers.JsonRpcProvider({ url: config.NEAR.RPC_URL });
-        let recipientExists = true;
-        
-        try {
-            await provider.query({
-                request_type: 'view_account',
-                account_id: recipientAddress,
-                finality: 'final'
-            });
-        } catch (error) {
-            if (error.message.includes('does not exist') || error.type === 'AccountDoesNotExist') {
-                recipientExists = false;
-                console.warn(`Recipient account ${recipientAddress} does not exist.`);
-                // NEAR позволяет отправлять на несуществующие аккаунты, но нужно проверить минимальную сумму
-                if (amountBigInt < BigInt(nearAPI.utils.format.parseNearAmount('0.1'))) {
-                    throw new Error('Minimum 0.1 NEAR required to create new account');
-                }
-            } else {
-                throw error;
-            }
-        }
-
-        // 7. Создаем и подписываем транзакцию
+        // Пытаемся отправить транзакцию
         const result = await account.sendMoney(
-            recipientAddress,
+            toAddress,
             amountInYocto
         );
 
-        // 8. Формируем URL для explorer
+        // Формируем URL для explorer
         const explorerBase = network === 'testnet' 
             ? 'https://testnet.nearblocks.io/txns' 
             : 'https://nearblocks.io/txns';
@@ -903,9 +862,12 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
     } catch (error) {
         console.error(`[NEAR ${network} ERROR]:`, error);
         
+        // Улучшаем сообщение об ошибке
         let errorMessage = error.message;
         if (error.message.includes('does not exist')) {
-            errorMessage = `Account ${accountId || 'unknown'} does not exist. Please fund the sender address first.`;
+            errorMessage = `Account does not exist or has no balance. Please fund the account first.`;
+        } else if (error.message.includes('NotEnoughBalance')) {
+            errorMessage = `Insufficient NEAR balance.`;
         }
         
         throw new Error(`Failed to send NEAR: ${errorMessage}`);
