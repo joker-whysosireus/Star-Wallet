@@ -9,10 +9,10 @@ import * as bitcoin from 'bitcoinjs-lib';
 import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import crypto from 'crypto';
-import { JsonRpcProvider } from '@near-js/providers';
-import { transactions } from '@near-js/providers';
-import { InMemoryKeyStore } from '@near-js/keystores';
-import { KeyPair } from '@near-js/crypto';
+import { JsonRpcProvider } from '@near-js/providers'; // Для подключения к RPC
+import { InMemoryKeyStore } from '@near-js/keystores'; // Для хранения ключей
+import { KeyPair } from '@near-js/crypto'; // Для работы с ключевой парой
+import { createTransaction, actionCreators, encodeTransaction } from '@near-js/transactions'; // Исправленные импорты для транзакций
 import TronWeb from 'tronweb';
 import { Buffer } from 'buffer';
 
@@ -716,29 +716,38 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
             finality: 'final'
         });
         
-        // 3. Создаем транзакцию на перевод
+        // 3. Создаем транзакцию на перевод (ИСПРАВЛЕННЫЙ КОД)
         const actions = [
-            transactions.transfer(amountInYocto)
+            actionCreators.transfer(amountInYocto) // Используйте actionCreators
         ];
         
-        const transaction = transactions.createTransaction(
+        const signerPublicKey = keyPair.getPublicKey(); // Получите публичный ключ
+        
+        const transaction = createTransaction( // Используйте createTransaction напрямую
             accountId, // sender
-            transactions.PublicKey.fromString(keyPair.getPublicKey().toString()),
+            signerPublicKey,
             toAddress, // receiver
             accessKeyInfo.nonce + 1,
             actions,
             Buffer.from(accessKeyInfo.block_hash, 'base64')
         );
         
-        // 4. Подписываем транзакцию
-        const signedTx = await transactions.signTransactionObject(
-            transaction,
-            keyPair
-        );
+        // 4. Кодируем транзакцию для подписания
+        const encodedTx = encodeTransaction(transaction); // Используйте encodeTransaction
         
-        // 5. Отправляем транзакцию
+        // 5. Подписываем транзакцию
+        const signature = keyPair.sign(Buffer.from(encodedTx));
+        const signedTransaction = {
+            transaction: transaction,
+            signature: {
+                keyType: keyPair.getPublicKey().keyType,
+                data: signature.signature
+            }
+        };
+        
+        // 6. Отправляем транзакцию
         const result = await provider.sendJsonRpc('broadcast_tx_commit', {
-            signed_transaction: Buffer.from(signedTx.encode()).toString('base64')
+            signed_transaction: Buffer.from(JSON.stringify(signedTransaction)).toString('base64')
         });
         
         if (result.status && result.status.Failure) {
