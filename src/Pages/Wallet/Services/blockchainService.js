@@ -11,7 +11,8 @@ import * as ecc from 'tiny-secp256k1';
 import crypto from 'crypto';
 import { JsonRpcProvider } from '@near-js/providers';
 import { transactions } from '@near-js/providers';
-import { KeyPair, InMemoryKeyStore } from '@near-js/keystores';
+import { InMemoryKeyStore } from '@near-js/keystores';
+import { KeyPair } from '@near-js/crypto';
 import TronWeb from 'tronweb';
 import { Buffer } from 'buffer';
 
