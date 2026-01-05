@@ -9,12 +9,21 @@ import * as bitcoin from 'bitcoinjs-lib';
 import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import crypto from 'crypto';
-import { JsonRpcProvider } from '@near-js/providers'; // Для подключения к RPC
-import { InMemoryKeyStore } from '@near-js/keystores'; // Для хранения ключей
-import { KeyPair } from '@near-js/crypto'; // Для работы с ключевой парой
-import { createTransaction, actionCreators, encodeTransaction } from '@near-js/transactions'; // Исправленные импорты для транзакций
-import TronWeb from 'tronweb';
+import { JsonRpcProvider } from '@near-js/providers';
+import { InMemoryKeyStore } from '@near-js/keystores';
+import { KeyPair } from '@near-js/crypto';
+import { createTransaction, actionCreators, encodeTransaction } from '@near-js/transactions';
+import * as bs58 from 'bs58'; // Добавляем для base58 кодирования
 import { Buffer } from 'buffer';
+
+// Для TRON используем CommonJS-style import для совместимости
+let TronWeb;
+try {
+  // Динамический импорт для избежания проблем с SSR
+  TronWeb = (await import('tronweb')).default;
+} catch (error) {
+  console.warn('TronWeb import failed, using fallback:', error);
+}
 
 const bip32 = BIP32Factory(ecc);
 
@@ -575,17 +584,27 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
         
         // 5. Добавляем входы в транзакцию
         for (const utxo of selectedUtxos) {
+            const txid = utxo.txid;
+            const vout = utxo.vout;
+            
+            // Получаем полную информацию о транзакции для получения scriptPubKey
+            const txUrl = `${config.BITCOIN.EXPLORER_API}/tx/${txid}`;
+            const txResponse = await callWithRetry(() => fetch(txUrl));
+            const txData = await txResponse.json();
+            
+            // Находим выход по индексу vout
+            const output = txData.vout[vout];
+            const script = Buffer.from(output.scriptpubkey, 'hex');
+            
             psbt.addInput({
-                hash: utxo.txid,
-                index: utxo.vout,
-                // Для SegWit (P2WPKH) указываем witnessUtxo
+                hash: txid,
+                index: vout,
                 witnessUtxo: {
-                    script: bitcoin.payments.p2wpkh({ 
-                        pubkey: keyPair.publicKey, 
-                        network: btcNetwork 
-                    }).output,
-                    value: utxo.value,
+                    script: script,
+                    value: utxo.value
                 },
+                // Добавляем sequence для RBF (replace-by-fee)
+                sequence: 0xfffffffd
             });
         }
         
@@ -672,10 +691,12 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         // Используем SHA256 для получения 32-байтного seed для ED25519
         const derivedSeed = crypto.createHash('sha256').update(seedBuffer).digest();
         
-        // Создаем ключевую пару ED25519 из seed
-        const keyPair = KeyPair.fromString(
-            `ed25519:${Buffer.from(derivedSeed).toString('base64')}`
-        );
+        // Для NEAR ключи должны быть в base58, а не base64
+        // Используем bs58 для кодирования
+        const base58Key = bs58.encode(derivedSeed);
+        
+        // Создаем ключевую пару ED25519 из seed в формате base58
+        const keyPair = KeyPair.fromString(`ed25519:${base58Key}`);
         
         // Получаем публичный ключ и преобразуем в неявный аккаунт (64 hex символа)
         const publicKey = keyPair.getPublicKey();
@@ -737,7 +758,9 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         
         // 5. Подписываем транзакцию
         const signature = keyPair.sign(Buffer.from(encodedTx));
-        const signedTransaction = {
+        
+        // 6. Создаем подписанную транзакцию
+        const signedTx = {
             transaction: transaction,
             signature: {
                 keyType: keyPair.getPublicKey().keyType,
@@ -745,9 +768,12 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
             }
         };
         
-        // 6. Отправляем транзакцию
+        // 7. Подготавливаем транзакцию для отправки
+        const serializedTx = encodeTransaction(signedTx.transaction);
+        
+        // 8. Отправляем транзакцию
         const result = await provider.sendJsonRpc('broadcast_tx_commit', {
-            signed_transaction: Buffer.from(JSON.stringify(signedTransaction)).toString('base64')
+            signed_transaction: Buffer.from(serializedTx).toString('base64')
         });
         
         if (result.status && result.status.Failure) {
@@ -785,9 +811,15 @@ const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         const wallet = masterNode.derivePath("m/44'/195'/0'/0/0");
         const privateKeyHex = wallet.privateKey.substring(2); // Убираем '0x'
         
-        // Создаем экземпляр TronWeb
+        if (!TronWeb) {
+            throw new Error('TronWeb is not available. Please check if tronweb package is installed.');
+        }
+        
+        // Создаем экземпляр TronWeb с правильными параметрами
         const tronWeb = new TronWeb({
-            fullHost: config.TRON.FULL_NODE,
+            fullNode: config.TRON.FULL_NODE,
+            solidityNode: config.TRON.SOLIDITY_NODE,
+            eventServer: config.TRON.EVENT_SERVER,
             privateKey: privateKeyHex
         });
         
@@ -807,6 +839,10 @@ const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
 
 export const sendTron = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
+        if (!TronWeb) {
+            throw new Error('TronWeb is not available. Please check if tronweb package is installed.');
+        }
+        
         const config = getConfig(network);
         const { tronWeb, address: fromAddress } = await getTronWalletFromSeed(seedPhrase, network);
         
