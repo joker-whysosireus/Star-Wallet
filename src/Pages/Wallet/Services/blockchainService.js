@@ -1,4 +1,4 @@
-/// blockchainService.js
+// blockchainService.js
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { TonClient, WalletContractV4, internal, toNano } from '@ton/ton';
 import { Connection, PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL, Keypair } from '@solana/web3.js';
@@ -499,7 +499,7 @@ export const sendBsc = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
-// ========== BITCOIN (BTC) ==========
+// ========== BITCOIN (BTC) - ИСПРАВЛЕННАЯ ВЕРСИЯ ==========
 const getBtcWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -565,7 +565,7 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
             throw new Error('Insufficient balance for transaction and fee');
         }
         
-        // Исправление для witnessUtxo
+        // Исправление для witnessUtxo - добавляем sequence для корректной работы
         for (const utxo of selectedUtxos) {
             const txUrl = `${config.BITCOIN.EXPLORER_API}/tx/${utxo.txid}`;
             const txResponse = await callWithRetry(() => fetch(txUrl));
@@ -579,18 +579,19 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
                 index: utxo.vout,
                 witnessUtxo: {
                     script: scriptBuffer,
-                    value: BigInt(utxo.value)  // Используем BigInt
-                }
+                    value: BigInt(utxo.value)
+                },
+                sequence: 0xfffffffd // Добавляем sequence для RBF
             });
         }
         
         psbt.addOutput({
             address: toAddress,
-            value: BigInt(amountInSatoshi),  // Используем BigInt
+            value: BigInt(amountInSatoshi),
         });
         
         const estimatedTxSize = selectedUtxos.length * 68 + 2 * 33 + 10;
-        const feeRate = network === 'testnet' ? 1 : 2;
+        const feeRate = network === 'testnet' ? 5 : 10; // Увеличиваем fee rate для надежности
         const estimatedFee = estimatedTxSize * feeRate;
         
         const changeAmount = totalUtxoAmount - amountInSatoshi - estimatedFee;
@@ -598,7 +599,7 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
         if (changeAmount > 546) {
             psbt.addOutput({
                 address: fromAddress,
-                value: BigInt(changeAmount),  // Используем BigInt
+                value: BigInt(changeAmount),
             });
         }
         
@@ -651,60 +652,110 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
     }
 };
 
-// ========== NEAR ==========
+// ========== NEAR - ИСПРАВЛЕННАЯ ВЕРСИЯ ==========
+// Получаем правильный NEAR EVM адрес из seed phrase
 const getNearEvmAddressFromSeed = async (seedPhrase) => {
     const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
     const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-    const wallet = masterNode.derivePath("m/44'/60'/0'/0/0");
+    const wallet = masterNode.derivePath("m/44'/397'/0'/0'/0'"); // Используем путь для NEAR
     return wallet.address.toLowerCase();
 };
 
 export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
+        const config = getConfig(network);
+        
+        // Получаем адрес отправителя
         const fromAddress = await getNearEvmAddressFromSeed(seedPhrase);
         
-        // Для NEAR с EVM-адресами используем Aurora
-        const auroraRpcUrl = network === 'testnet' 
-            ? 'https://testnet.aurora.dev' 
-            : 'https://mainnet.aurora.dev';
+        // Для NEAR используем нативный RPC, а не Aurora
+        const provider = new JsonRpcProvider({ url: config.NEAR.RPC_URL });
         
-        const provider = new ethers.JsonRpcProvider(auroraRpcUrl);
+        // Получаем информацию об аккаунте
+        let accountInfo;
+        try {
+            accountInfo = await provider.query({
+                request_type: 'view_account',
+                account_id: fromAddress,
+                finality: 'final'
+            });
+        } catch (error) {
+            // Если аккаунт не существует
+            throw new Error(`NEAR account ${fromAddress} does not exist or has 0 balance`);
+        }
         
+        const amountInYocto = BigInt(Math.floor(amount * 1e24)).toString();
+        
+        // Проверяем баланс
+        const balance = BigInt(accountInfo.amount);
+        const amountToSend = BigInt(amountInYocto);
+        
+        if (balance < amountToSend) {
+            throw new Error(`Insufficient NEAR balance. Available: ${Number(balance) / 1e24} NEAR, Trying to send: ${amount} NEAR`);
+        }
+        
+        // Создаем ключевую пару из seed phrase для подписи
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const wallet = masterNode.derivePath("m/44'/60'/0'/0/0");
-        const connectedWallet = wallet.connect(provider);
+        const wallet = masterNode.derivePath("m/44'/397'/0'/0'/0'");
         
-        const amountInWei = ethers.parseEther(amount.toString());
+        // Создаем keyPair для NEAR из приватного ключа
+        const privateKeyHex = wallet.privateKey.substring(2);
+        const keyPair = KeyPair.fromString(`ed25519:${base58.encode(Buffer.from(privateKeyHex, 'hex'))}`);
         
-        const balance = await provider.getBalance(fromAddress);
-        if (balance < amountInWei) {
-            throw new Error(`Insufficient NEAR balance. Available: ${ethers.formatEther(balance)} NEAR`);
-        }
-        
-        const nonce = await provider.getTransactionCount(fromAddress, 'latest');
-        const feeData = await provider.getFeeData();
-        
-        const tx = await connectedWallet.sendTransaction({
-            to: toAddress,
-            value: amountInWei,
-            nonce: nonce,
-            gasLimit: 21000,
-            gasPrice: feeData.gasPrice,
-            chainId: network === 'testnet' ? 1313161555 : 1313161554
+        // Получаем информацию о ключе доступа
+        const accessKeyInfo = await provider.query({
+            request_type: 'view_access_key',
+            account_id: fromAddress,
+            public_key: keyPair.getPublicKey().toString(),
+            finality: 'final'
         });
         
-        const receipt = await tx.wait();
-        
-        if (!receipt || receipt.status === 0) {
-            throw new Error('Transaction failed on Aurora');
+        if (!accessKeyInfo) {
+            throw new Error('No access key found for this account');
         }
         
-        const txHash = tx.hash;
+        // Создаем транзакцию
+        const actions = [
+            actionCreators.transfer(amountInYocto)
+        ];
+        
+        const transaction = createTransaction(
+            fromAddress,
+            keyPair.getPublicKey(),
+            toAddress,
+            accessKeyInfo.nonce + 1,
+            actions,
+            Buffer.from(accessKeyInfo.block_hash, 'base64')
+        );
+        
+        // Кодируем и подписываем транзакцию
+        const encodedTx = encodeTransaction(transaction);
+        const signature = keyPair.sign(encodedTx);
+        
+        // Создаем подписанную транзакцию
+        const signedTransaction = {
+            transaction: transaction,
+            signature: signature
+        };
+        
+        // Сериализуем транзакцию
+        const serializedTx = encodeTransaction(signedTransaction.transaction);
+        
+        // Отправляем транзакцию
+        const result = await provider.sendJsonRpc('broadcast_tx_commit', {
+            signed_transaction: Buffer.from(serializedTx).toString('base64')
+        });
+        
+        if (result.status && result.status.Failure) {
+            throw new Error(`Transaction failed: ${JSON.stringify(result.status.Failure)}`);
+        }
+        
+        const txHash = result.transaction.hash || result.transaction_outcome.id;
         
         const explorerUrl = network === 'testnet'
-            ? `https://testnet.aurorascan.dev/tx/${txHash}`
-            : `https://aurorascan.dev/tx/${txHash}`;
+            ? `https://testnet.nearblocks.io/txns/${txHash}`
+            : `https://nearblocks.io/txns/${txHash}`;
             
         return {
             success: true,
@@ -720,7 +771,8 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
     }
 };
 
-// ========== TRON (TRX) ==========
+// ========== TRON (TRX) - ИСПРАВЛЕННАЯ ВЕРСИЯ ==========
+// Глобальная переменная для TronWeb
 let TronWeb;
 
 const initializeTronWeb = async (privateKeyHex, network = 'mainnet') => {
@@ -732,8 +784,11 @@ const initializeTronWeb = async (privateKeyHex, network = 'mainnet') => {
         
         const config = getConfig(network);
         
+        // Исправление: используем правильные параметры для инициализации
         const tronWeb = new TronWeb({
-            fullHost: config.TRON.FULL_NODE,
+            fullNode: config.TRON.FULL_NODE,
+            solidityNode: config.TRON.SOLIDITY_NODE,
+            eventServer: config.TRON.EVENT_SERVER,
             privateKey: privateKeyHex
         });
         
