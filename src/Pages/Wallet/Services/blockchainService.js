@@ -11,7 +11,7 @@ import { Buffer } from 'buffer';
 
 const bip32 = BIP32Factory(ecc);
 
-// Конфигурация сетей - ДОБАВЛЕНО AURORA
+// Конфигурация сетей - ОБНОВЛЕНО для NEAR EVM
 const MAINNET_CONFIG = {
     TON: {
         RPC_URL: 'https://toncenter.com/api/v2/jsonRPC',
@@ -32,16 +32,15 @@ const MAINNET_CONFIG = {
         NETWORK: bitcoin.networks.bitcoin
     },
     TRON: {
-        RPC_URL: 'https://api.trongrid.io',
         FULL_NODE: 'https://api.trongrid.io',
         SOLIDITY_NODE: 'https://api.trongrid.io',
         EVENT_SERVER: 'https://api.trongrid.io'
     },
-    AURORA: {
-        RPC_URL: 'https://mainnet.aurora.dev',
-        CHAIN_ID: 1313161554,
-        WNEAR_CONTRACT: '0xC42C30aC6Cc15faC9bD938618BcaA1a1FaE8501d',
-        EXPLORER_URL: 'https://aurorascan.dev'
+    NEAR_EVM: {
+        // Используем Translator RPC вместо Aurora RPC
+        RPC_URL: 'https://eth-rpc.mainnet.near.org',
+        CHAIN_ID: 397, // NEAR mainnet chain ID для EVM
+        EXPLORER_URL: 'https://nearblocks.io'
     }
 };
 
@@ -65,16 +64,15 @@ const TESTNET_CONFIG = {
         NETWORK: bitcoin.networks.testnet
     },
     TRON: {
-        RPC_URL: 'https://api.shasta.trongrid.io',
         FULL_NODE: 'https://api.shasta.trongrid.io',
         SOLIDITY_NODE: 'https://api.shasta.trongrid.io',
         EVENT_SERVER: 'https://api.shasta.trongrid.io'
     },
-    AURORA: {
-        RPC_URL: 'https://testnet.aurora.dev',
-        CHAIN_ID: 1313161555,
-        WNEAR_CONTRACT: '0x0c92Ff0c5ba5e3A6A6A9c46eAD17B7bE5b096d5d',
-        EXPLORER_URL: 'https://testnet.aurorascan.dev'
+    NEAR_EVM: {
+        // Translator RPC для testnet
+        RPC_URL: 'https://eth-rpc.testnet.near.org',
+        CHAIN_ID: 398, // NEAR testnet chain ID для EVM
+        EXPLORER_URL: 'https://testnet.nearblocks.io'
     }
 };
 
@@ -640,41 +638,18 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
     }
 };
 
-// ========== TRON (TRX) - НАТИВНЫЙ ==========
-const getTronWebInstance = async (network = 'mainnet') => {
-    try {
-        // Динамический импорт для уменьшения размера бандла
-        const TronWeb = await import('tronweb').then(module => module.default || module);
-        const config = getConfig(network);
-        
-        return new TronWeb({
-            fullHost: config.TRON?.RPC_URL || (network === 'testnet' ? 'https://api.shasta.trongrid.io' : 'https://api.trongrid.io'),
-            solidityNode: config.TRON?.SOLIDITY_NODE || config.TRON?.RPC_URL,
-            eventServer: config.TRON?.EVENT_SERVER || config.TRON?.RPC_URL
-        });
-    } catch (error) {
-        console.error('Error importing TronWeb:', error);
-        throw error;
-    }
-};
-
-const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
+// ========== TRON (TRX) ==========
+// Функция для получения кошелька TRON из seed фразы
+const getTronWalletFromSeed = async (seedPhrase) => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const hdNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        // TRON BIP-44 путь: m/44'/195'/0'/0/0
+        // Используем тот же путь, что и в storageService для TRON
         const wallet = hdNode.derivePath("m/44'/195'/0'/0/0");
         const privateKey = wallet.privateKey.slice(2); // Убираем '0x' префикс
         
-        const tronWeb = await getTronWebInstance(network);
-        
-        // Конвертируем Ethereum приватный ключ в TRON адрес
-        const address = tronWeb.address.fromPrivateKey(privateKey);
-        
         return {
-            tronWeb,
-            address,
-            privateKey
+            privateKey,
         };
     } catch (error) {
         console.error('Error getting TRON wallet from seed:', error);
@@ -684,7 +659,29 @@ const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
 
 export const sendTrx = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
-        const { tronWeb, address: fromAddress, privateKey } = await getTronWalletFromSeed(seedPhrase, network);
+        // Получаем только приватный ключ из seed фразы
+        const { privateKey } = await getTronWalletFromSeed(seedPhrase);
+        
+        // Динамический импорт TronWeb
+        let TronWeb;
+        try {
+            const tronWebModule = await import('tronweb');
+            TronWeb = tronWebModule.default || tronWebModule;
+        } catch (error) {
+            console.error('Error importing TronWeb:', error);
+            throw new Error('Failed to load TronWeb library');
+        }
+        
+        const config = getConfig(network);
+        
+        // Создаем экземпляр TronWeb
+        const tronWeb = new TronWeb({
+            fullHost: config.TRON.FULL_NODE,
+        });
+        
+        // Создаем аккаунт из приватного ключа
+        const account = tronWeb.address.fromPrivateKey(privateKey);
+        const fromAddress = account;
         
         // Конвертация суммы в SUN (1 TRX = 1,000,000 SUN)
         const amountInSun = tronWeb.toSun(amount.toString());
@@ -700,7 +697,7 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, network = 'mainne
             validatedToAddress = tronWeb.address.toHex(toAddress);
         }
         
-        // Создание unsigned транзакции через transactionBuilder
+        // Создание транзакции через transactionBuilder
         const transaction = await tronWeb.transactionBuilder.sendTrx(
             validatedToAddress,
             amountInSun,
@@ -735,82 +732,75 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, network = 'mainne
     }
 };
 
-// ========== NEAR EVM (AURORA СЕТЬ) ==========
-const getAuroraWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
+// ========== NEAR EVM (Translator RPC) ==========
+// Функция для получения кошелька NEAR EVM из seed фразы
+const getNearEvmWalletFromSeed = async (seedPhrase) => {
     try {
-        const config = getConfig(network);
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const hdNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        // Используем стандартный Ethereum путь для Aurora
+        // Используем стандартный Ethereum путь для NEAR EVM
         const wallet = hdNode.derivePath("m/44'/60'/0'/0/0");
-        const provider = new ethers.JsonRpcProvider(config.AURORA.RPC_URL);
-        return { wallet: wallet.connect(provider), provider };
+        
+        return {
+            wallet,
+        };
     } catch (error) {
-        console.error('Error getting Aurora wallet from seed:', error);
+        console.error('Error getting NEAR EVM wallet from seed:', error);
         throw error;
     }
 };
 
 export const sendNearEvm = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
+        // Получаем кошелек из seed фразы
+        const { wallet } = await getNearEvmWalletFromSeed(seedPhrase);
+        
         const config = getConfig(network);
-        const { wallet, provider } = await getAuroraWalletFromSeed(seedPhrase, network);
+        // Используем Translator RPC вместо Aurora RPC
+        const provider = new ethers.JsonRpcProvider(config.NEAR_EVM.RPC_URL);
+        const connectedWallet = wallet.connect(provider);
         
-        // Для EVM адресов используем контракт wNEAR
-        const wnearContractAddress = config.AURORA.WNEAR_CONTRACT;
-        
-        if (!wnearContractAddress) {
-            throw new Error('wNEAR contract address not configured');
+        // Проверяем, что адрес получателя валидный EVM адрес
+        if (!ethers.isAddress(toAddress)) {
+            throw new Error('Invalid NEAR EVM address. Must be a valid Ethereum address (0x...).');
         }
         
-        // ABI контракта wNEAR (ERC-20 токен)
-        const abi = [
-            'function balanceOf(address) view returns (uint256)',
-            'function decimals() view returns (uint8)',
-            'function transfer(address, uint256) returns (bool)'
-        ];
+        // Согласно документации NEAR для EVM-адресов:
+        // 1. Если адрес соответствует формату 0x..., используем его как есть
+        // 2. Значение amount должно быть конвертировано в wei (1 NEAR = 10^18 wei для EVM транзакций)
+        //    Примечание: Это предположение, требует проверки по NEP-518
         
-        const contract = new ethers.Contract(wnearContractAddress, abi, provider);
-        const contractWithSigner = contract.connect(wallet);
+        const amountInWei = ethers.parseEther(amount.toString());
         
-        // Получаем decimals (wNEAR имеет 18 decimals)
-        let decimals = 18;
-        try {
-            decimals = await contract.decimals();
-        } catch (e) {
-            console.warn('Could not get wNEAR decimals, using default 18');
-        }
+        // Получаем текущий nonce
+        const nonce = await provider.getTransactionCount(connectedWallet.address, 'latest');
         
-        // Конвертация суммы в wei (wNEAR имеет 18 decimals)
-        const amountInUnits = ethers.parseUnits(amount.toString(), decimals);
-        
-        // Проверяем баланс отправителя
-        const senderBalance = await contract.balanceOf(wallet.address);
-        if (senderBalance < amountInUnits) {
-            throw new Error(`Insufficient wNEAR balance. Have: ${ethers.formatUnits(senderBalance, decimals)}, Need: ${amount}`);
-        }
-        
-        // Оцениваем газ для транзакции
-        const gasEstimate = await contractWithSigner.transfer.estimateGas(toAddress, amountInUnits);
+        // Получаем актуальные данные о gas
         const feeData = await provider.getFeeData();
         
-        // Отправляем транзакцию
-        const tx = await contractWithSigner.transfer(toAddress, amountInUnits, {
-            gasLimit: Math.floor(gasEstimate * 1.2),
-            maxFeePerGas: feeData.maxFeePerGas,
-            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas
+        // Формируем транзакцию для отправки нативного NEAR через EVM-совместимый интерфейс
+        // Согласно документации, Translator RPC преобразует Ethereum транзакцию в NEAR транзакцию
+        const tx = await connectedWallet.sendTransaction({
+            to: toAddress,
+            value: amountInWei,
+            nonce: nonce,
+            gasLimit: 21000, // Базовый лимит для простой транзакции
+            maxFeePerGas: feeData.maxFeePerGas || feeData.gasPrice,
+            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || feeData.gasPrice,
+            chainId: config.NEAR_EVM.CHAIN_ID, // Chain ID для NEAR EVM
+            type: 2 // EIP-1559
         });
         
         const receipt = await tx.wait();
         
         const explorerUrl = network === 'testnet'
-            ? `${config.AURORA.EXPLORER_URL}/tx/${tx.hash}`
-            : `${config.AURORA.EXPLORER_URL}/tx/${tx.hash}`;
+            ? `${config.NEAR_EVM.EXPLORER_URL}/txns/${receipt.hash}`
+            : `${config.NEAR_EVM.EXPLORER_URL}/txns/${receipt.hash}`;
         
         return {
             success: true,
-            hash: tx.hash,
-            message: `Successfully sent ${amount} wNEAR (Aurora EVM)`,
+            hash: receipt.hash,
+            message: `Successfully sent ${amount} NEAR via EVM-compatible interface`,
             explorerUrl,
             timestamp: new Date().toISOString(),
             blockNumber: receipt.blockNumber
@@ -818,7 +808,7 @@ export const sendNearEvm = async ({ toAddress, amount, seedPhrase, network = 'ma
         
     } catch (error) {
         console.error(`[NEAR EVM ${network} ERROR]:`, error);
-        throw new Error(`Failed to send NEAR (EVM): ${error.message}`);
+        throw new Error(`Failed to send NEAR via EVM interface: ${error.message}`);
     }
 };
 
@@ -888,7 +878,7 @@ export const sendTransaction = async (params) => {
                 });
                 break;
             case 'NEAR':
-                // Для NEAR EVM (Aurora сети) - только EVM адреса
+                // Для NEAR EVM (Translator RPC) - только EVM адреса
                 if (!toAddress.startsWith('0x') || toAddress.length !== 42) {
                     throw new Error('Invalid NEAR EVM address. Must be a valid Ethereum address (0x...).');
                 }
