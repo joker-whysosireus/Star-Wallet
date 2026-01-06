@@ -9,8 +9,13 @@ import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import * as base58 from 'bs58';
 import { Buffer } from 'buffer';
-import { TronWeb } from 'tronweb';
 import crypto from 'crypto';
+
+// Для NEAR используем те же импорты что в storageService
+import { JsonRpcProvider } from '@near-js/providers';
+
+// Для TRON используем стабильную версию
+import TronWeb from 'tronweb';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -37,7 +42,8 @@ const MAINNET_CONFIG = {
     NEAR: {
         RPC_URL: 'https://rpc.mainnet.near.org',
         NETWORK_ID: 'mainnet',
-        WALLET_URL: 'https://wallet.near.org'
+        WALLET_URL: 'https://wallet.near.org',
+        AURORA_RPC: 'https://mainnet.aurora.dev'  // Добавлен Aurora RPC
     },
     TRON: {
         FULL_NODE: 'https://api.trongrid.io',
@@ -70,7 +76,8 @@ const TESTNET_CONFIG = {
     NEAR: {
         RPC_URL: 'https://rpc.testnet.near.org',
         NETWORK_ID: 'testnet',
-        WALLET_URL: 'https://testnet.mynearwallet.com'
+        WALLET_URL: 'https://testnet.mynearwallet.com',
+        AURORA_RPC: 'https://testnet.aurora.dev'  // Добавлен Aurora RPC
     },
     TRON: {
         FULL_NODE: 'https://api.shasta.trongrid.io',
@@ -643,74 +650,64 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
     }
 };
 
-// ========== NEAR - АВРОРА РЕАЛИЗАЦИЯ (совместимо с storageService) ==========
-// storageService генерирует EVM-адрес для NEAR (0x...), значит используется Aurora (EVM-совместимая сеть)
-const getNearEvmAddressFromSeed = async (seedPhrase) => {
-    const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-    const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-    const wallet = masterNode.derivePath("m/44'/60'/0'/0/0");
-    return wallet.address.toLowerCase();
-};
+// ========== NEAR - ИСПРАВЛЕННАЯ ВЕРСИЯ (совместимо с storageService) ==========
+// ВАЖНО: storageService генерирует EVM-адреса для NEAR (0x...) - это Aurora
+// НО storageService проверяет баланс через нативный NEAR RPC - это НЕПРАВИЛЬНО
 
-const getNearEvmPrivateKeyFromSeed = async (seedPhrase) => {
-    const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-    const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-    const wallet = masterNode.derivePath("m/44'/60'/0'/0/0");
-    return wallet.privateKey;
+// Функция получения приватного ключа для Ethereum-адреса (тот же что в storageService)
+const getEthereumPrivateKeyFromSeed = async (seedPhrase) => {
+    try {
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
+        const wallet = masterNode.derivePath("m/44'/60'/0'/0/0");
+        return wallet.privateKey;
+    } catch (error) {
+        console.error('Error getting Ethereum private key:', error);
+        throw error;
+    }
 };
 
 export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
-        // Используем Aurora RPC (EVM-совместимая сеть NEAR)
-        const auroraRpc = network === 'testnet' 
-            ? 'https://testnet.aurora.dev' 
-            : 'https://mainnet.aurora.dev';
+        const config = getConfig(network);
         
+        // Получаем приватный ключ (тот же что и в storageService для NEAR)
+        const privateKey = await getEthereumPrivateKeyFromSeed(seedPhrase);
+        
+        // Используем Aurora RPC для работы с NEAR (EVM-совместимая сеть)
+        const auroraRpc = config.NEAR.AURORA_RPC;
         const provider = new ethers.JsonRpcProvider(auroraRpc);
         
-        // Получаем приватный ключ для EVM-адреса
-        const privateKey = await getNearEvmPrivateKeyFromSeed(seedPhrase);
+        // Создаем кошелек
         const wallet = new ethers.Wallet(privateKey, provider);
         const fromAddress = wallet.address.toLowerCase();
         
         console.log(`NEAR (Aurora) Sending: From ${fromAddress} to ${toAddress} amount ${amount}`);
         
-        // Проверяем, что toAddress это EVM-адрес (начинается с 0x)
-        if (!toAddress.startsWith('0x')) {
-            throw new Error('NEAR Aurora requires EVM addresses (starting with 0x)');
-        }
-        
-        // Преобразуем amount в wei
-        const amountInWei = ethers.parseEther(amount.toString());
-        
-        // Проверяем баланс через Aurora RPC
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем баланс через Aurora RPC
         const balance = await provider.getBalance(fromAddress);
         const balanceInNEAR = ethers.formatEther(balance);
+        const amountInWei = ethers.parseEther(amount.toString());
         
-        console.log(`NEAR Aurora balance: ${balanceInNEAR} NEAR`);
+        console.log(`NEAR Aurora balance check: ${balanceInNEAR} NEAR`);
+        console.log(`Amount to send: ${amount} NEAR (${amountInWei.toString()} wei)`);
         
         if (balance < amountInWei) {
             throw new Error(`Insufficient NEAR balance. Available: ${balanceInNEAR} NEAR, Trying to send: ${amount} NEAR`);
         }
         
-        // Получаем nonce
-        const nonce = await provider.getTransactionCount(fromAddress, 'latest');
+        // Отправляем транзакцию через Aurora
+        console.log(`Sending ${amount} NEAR from ${fromAddress} to ${toAddress} via Aurora`);
         
-        // Получаем gas price
-        const gasPrice = await provider.getFeeData();
-        
-        // Создаем транзакцию
         const tx = await wallet.sendTransaction({
             to: toAddress,
             value: amountInWei,
             gasLimit: 21000,
-            gasPrice: gasPrice.gasPrice || ethers.parseUnits('30', 'gwei'),
-            nonce: nonce
+            gasPrice: await provider.getGasPrice()
         });
         
-        console.log(`NEAR Aurora transaction sent: ${tx.hash}`);
+        console.log(`NEAR transaction sent: ${tx.hash}`);
         
-        // Ждем подтверждения
         const receipt = await tx.wait();
         
         const explorerUrl = network === 'testnet'
@@ -733,16 +730,12 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
             throw new Error(`Insufficient NEAR balance for transaction. You need extra NEAR for gas fees.`);
         }
         
-        if (error.message.includes('nonce')) {
-            throw new Error(`Transaction nonce error. Please try again.`);
-        }
-        
         throw new Error(`Failed to send NEAR: ${error.message}`);
     }
 };
 
-// ========== TRON - ИСПРАВЛЕННАЯ РЕАЛИЗАЦИЯ с API ключом ==========
-// Функция получения приватного ключа TRON из seed phrase
+// ========== TRON - ИСПРАВЛЕННАЯ ВЕРСИЯ для tronweb 6.1.1 ==========
+// Функция получения приватного ключа TRON
 const getTronPrivateKeyFromSeed = async (seedPhrase) => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -755,7 +748,7 @@ const getTronPrivateKeyFromSeed = async (seedPhrase) => {
     }
 };
 
-// Функция генерации адреса TRON (совместима с storageService)
+// Функция генерации адреса TRON (такая же как в storageService)
 const generateTronAddressFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -791,21 +784,24 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
         // Получаем приватный ключ
         const privateKeyHex = await getTronPrivateKeyFromSeed(seedPhrase);
         
-        // Генерируем адрес отправителя
+        // Генерируем адрес отправителя (совместимо с storageService)
         const fromAddress = await generateTronAddressFromSeed(seedPhrase, network);
         
         console.log(`TRON From address: ${fromAddress}`);
+        console.log(`TRON Private key (hex): ${privateKeyHex}`);
         
-        // Инициализируем TronWeb с API ключом согласно документации
+        // Инициализируем TronWeb с API ключом (версия 6.1.1)
         // Документация: https://developers.tron.network/reference/background#how-to-use-api-keys
         const tronWeb = new TronWeb({
             fullHost: config.TRON.FULL_NODE,
             headers: { 
                 'Content-Type': 'application/json',
                 'TRON-PRO-API-KEY': config.TRON.API_KEY
-            },
-            privateKey: privateKeyHex
+            }
         });
+        
+        // Устанавливаем приватный ключ
+        tronWeb.setPrivateKey(privateKeyHex);
         
         // Проверяем, что адрес валидный
         const isValid = await tronWeb.isAddress(fromAddress);
@@ -851,6 +847,8 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
                     from: fromAddress
                 });
                 
+                console.log('TRC20 transaction result:', result);
+                
             } catch (contractError) {
                 console.error('TRC20 contract error:', contractError);
                 throw new Error(`TRC20 contract error: ${contractError.message}`);
@@ -860,8 +858,7 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
             console.log('Sending native TRX');
             
             try {
-                // Создаем транзакцию согласно документации TronWeb
-                // Документация: https://tronweb.network/docu/docs/6.0.1/API%20List/transactionBuilder/sendTrx/
+                // Создаем транзакцию согласно документации TronWeb 6.x
                 const transaction = await tronWeb.transactionBuilder.sendTrx(
                     toAddress,
                     amountInSun,
@@ -911,15 +908,13 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
         let errorMessage = error.message;
         
         if (error.message.includes('(void 0) is not a function')) {
-            errorMessage = 'TronWeb version mismatch. Please check TronWeb installation.';
+            errorMessage = 'TronWeb version 6.1.1 detected. Make sure tronweb is properly imported.';
         } else if (error.message.includes('CONTRACT_VALIDATE_ERROR')) {
             errorMessage = 'Contract validation error. Check contract address and parameters.';
         } else if (error.message.includes('invalid address')) {
             errorMessage = 'Invalid TRON address format. TRON addresses start with T.';
         } else if (error.message.includes('private key is invalid')) {
             errorMessage = 'Invalid private key. Please check key derivation path.';
-        } else if (error.message.includes('api key')) {
-            errorMessage = 'TRON API key error. Please check API key configuration.';
         }
         
         throw new Error(`Failed to send TRX: ${errorMessage}`);
