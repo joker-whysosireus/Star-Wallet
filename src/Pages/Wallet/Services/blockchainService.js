@@ -8,12 +8,10 @@ import * as bip39 from 'bip39';
 import * as bitcoin from 'bitcoinjs-lib';
 import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
-import { JsonRpcProvider } from '@near-js/providers';
-import { KeyPair } from '@near-js/crypto';
-import { createTransaction, actionCreators, encodeTransaction } from '@near-js/transactions';
 import * as base58 from 'bs58';
 import { Buffer } from 'buffer';
 import { TronWeb } from 'tronweb';
+import crypto from 'crypto';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -654,7 +652,7 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
     }
 };
 
-// ========== NEAR - ИСПРАВЛЕННАЯ ВЕРСИЯ ==========
+// ========== NEAR - ИСПРАВЛЕННАЯ ВЕРСИЯ С ПРАВИЛЬНОЙ ПРОВЕРКОЙ БАЛАНСА ==========
 // Используем тот же EVM-адрес, что и в storageService.js
 const getNearEvmAddressFromSeed = async (seedPhrase) => {
     const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
@@ -686,21 +684,28 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         const wallet = masterNode.derivePath("m/44'/60'/0'/0/0");
         const walletWithProvider = wallet.connect(provider);
         
-        // Проверяем баланс через Aurora RPC
+        // ПРОВЕРКА БАЛАНСА ЧЕРЕЗ AURORA RPC - КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ
         const balance = await provider.getBalance(fromAddress);
+        const balanceInNEAR = ethers.formatEther(balance);
         const amountInWei = ethers.parseEther(amount.toString());
         
+        console.log(`NEAR Aurora balance check: ${balanceInNEAR} NEAR`);
+        
         if (balance < amountInWei) {
-            throw new Error(`Insufficient NEAR balance. Available: ${ethers.formatEther(balance)} NEAR, Trying to send: ${amount} NEAR`);
+            throw new Error(`Insufficient NEAR balance. Available: ${balanceInNEAR} NEAR, Trying to send: ${amount} NEAR`);
         }
         
         // Отправляем транзакцию через Aurora
+        console.log(`Sending ${amount} NEAR from ${fromAddress} to ${toAddress}`);
+        
         const tx = await walletWithProvider.sendTransaction({
             to: toAddress,
             value: amountInWei,
             gasLimit: 21000,
             gasPrice: await provider.getGasPrice()
         });
+        
+        console.log(`NEAR transaction sent: ${tx.hash}`);
         
         const receipt = await tx.wait();
         
@@ -723,7 +728,34 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
     }
 };
 
-// ========== TRON (TRX) - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ ==========
+// ========== TRON (TRX) - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ С ПРАВИЛЬНОЙ ГЕНЕРАЦИЕЙ АДРЕСА ==========
+// Функция для генерации адреса TRON из seed phrase (такая же как в storageService.js)
+const generateTronAddressFromSeed = (seedPhrase, network = 'mainnet') => {
+    try {
+        const seedBuffer = bip39.mnemonicToSeedSync(seedPhrase);
+        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
+        const wallet = masterNode.derivePath("m/44'/195'/0'/0/0");
+        const privateKeyHex = wallet.privateKey.substring(2);
+        
+        const privateKeyBuffer = Buffer.from(privateKeyHex, 'hex');
+        const publicKey = ecc.pointFromScalar(privateKeyBuffer, true);
+        
+        const keccakHash = crypto.createHash('sha256').update(publicKey).digest();
+        const addressBytes = keccakHash.slice(keccakHash.length - 20);
+        const addressWithPrefix = Buffer.concat([Buffer.from([0x41]), addressBytes]);
+        
+        const hash1 = crypto.createHash('sha256').update(addressWithPrefix).digest();
+        const hash2 = crypto.createHash('sha256').update(hash1).digest();
+        const checksum = hash2.slice(0, 4);
+        
+        const addressWithChecksum = Buffer.concat([addressWithPrefix, checksum]);
+        return base58.encode(addressWithChecksum);
+    } catch (error) {
+        console.error('Error generating TRON address from seed:', error);
+        throw error;
+    }
+};
+
 const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -753,16 +785,22 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
         const config = getConfig(network);
         
         const tronWeb = await getTronWalletFromSeed(seedPhrase, network);
-        const address = tronWeb.address.fromPrivateKey(tronWeb.defaultPrivateKey);
+        
+        // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Используем ту же функцию генерации адреса, что и в storageService.js
+        const address = generateTronAddressFromSeed(seedPhrase, network);
         
         console.log(`TRON Sending: From ${address} to ${toAddress} amount ${amount}`);
         
         const amountInSun = Math.floor(amount * 1000000);
         
-        // Проверяем баланс
+        // ПРОВЕРКА БАЛАНСА ЧЕРЕЗ TRONWEB - КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ
         const balance = await tronWeb.trx.getBalance(address);
+        const balanceInTRX = balance / 1000000;
+        
+        console.log(`TRON balance check: ${balance} SUN (${balanceInTRX} TRX)`);
+        
         if (balance < amountInSun) {
-            throw new Error(`Insufficient TRX balance. Available: ${balance / 1000000} TRX, Trying to send: ${amount} TRX`);
+            throw new Error(`Insufficient TRX balance. Available: ${balanceInTRX} TRX, Trying to send: ${amount} TRX`);
         }
         
         // Для TRC20 токенов
@@ -784,7 +822,8 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
             console.log(`TRC20 amount: ${amountInUnits} (decimals: ${decimals})`);
             
             const result = await contract.transfer(toAddress, amountInUnits).send({
-                feeLimit: 100000000
+                feeLimit: 100000000,
+                from: address
             });
             
             const explorerUrl = network === 'testnet'
