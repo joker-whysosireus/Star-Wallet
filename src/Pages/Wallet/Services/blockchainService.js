@@ -1,4 +1,3 @@
-// blockchainService.js
 import { mnemonicToPrivateKey } from '@ton/crypto';
 import { TonClient, WalletContractV4, internal, toNano } from '@ton/ton';
 import { Connection, PublicKey, SystemProgram, Transaction, LAMPORTS_PER_SOL, Keypair } from '@solana/web3.js';
@@ -12,6 +11,7 @@ import * as base58 from 'bs58';
 import { Buffer } from 'buffer';
 import { TronWeb } from 'tronweb';
 import crypto from 'crypto';
+import { providers } from 'near-api-js';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -38,7 +38,8 @@ const MAINNET_CONFIG = {
     NEAR: {
         RPC_URL: 'https://rpc.mainnet.near.org',
         NETWORK_ID: 'mainnet',
-        WALLET_URL: 'https://wallet.near.org'
+        WALLET_URL: 'https://wallet.near.org',
+        AURORA_RPC: 'https://mainnet.aurora.dev'
     },
     TRON: {
         FULL_NODE: 'https://api.trongrid.io',
@@ -70,7 +71,8 @@ const TESTNET_CONFIG = {
     NEAR: {
         RPC_URL: 'https://rpc.testnet.near.org',
         NETWORK_ID: 'testnet',
-        WALLET_URL: 'https://testnet.mynearwallet.com'
+        WALLET_URL: 'https://testnet.mynearwallet.com',
+        AURORA_RPC: 'https://testnet.aurora.dev'
     },
     TRON: {
         FULL_NODE: 'https://api.shasta.trongrid.io',
@@ -527,7 +529,6 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
         
         const amountInSatoshi = Math.floor(amount * 100000000);
         
-        // Уменьшаем сумму для отправки на 1000 сатоши для комиссии
         const amountToSend = amountInSatoshi - 1000;
         if (amountToSend <= 546) {
             throw new Error('Amount too small after deducting fee');
@@ -546,7 +547,6 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
             throw new Error('No UTXOs available to spend');
         }
         
-        // Сортируем по убыванию значения (берем самые большие UTXO)
         utxos.sort((a, b) => b.value - a.value);
         
         const psbt = new bitcoin.Psbt({ network: btcNetwork });
@@ -554,12 +554,10 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
         let totalUtxoAmount = 0;
         const selectedUtxos = [];
         
-        // Выбираем достаточно UTXO
         for (const utxo of utxos) {
             totalUtxoAmount += utxo.value;
             selectedUtxos.push(utxo);
             
-            // Расчет комиссии (очень консервативно: 1000 сатоши)
             const estimatedFee = 1000;
             
             if (totalUtxoAmount >= amountInSatoshi + estimatedFee) {
@@ -567,12 +565,10 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
             }
         }
         
-        // Проверяем, хватает ли с учетом минимальной комиссии
         if (totalUtxoAmount < amountInSatoshi + 1000) {
             throw new Error(`Insufficient balance. Need: ${(amountInSatoshi + 1000) / 100000000} BTC, Have: ${totalUtxoAmount / 100000000} BTC`);
         }
         
-        // Добавляем inputs
         for (const utxo of selectedUtxos) {
             const txUrl = `${config.BITCOIN.EXPLORER_API}/tx/${utxo.txid}`;
             const txResponse = await callWithRetry(() => fetch(txUrl));
@@ -591,23 +587,20 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
             });
         }
         
-        // Output получателю
         psbt.addOutput({
             address: toAddress,
             value: BigInt(amountToSend),
         });
         
-        // Расчет сдачи
-        const changeAmount = totalUtxoAmount - amountToSend - 1000; // 1000 сатоши комиссия
+        const changeAmount = totalUtxoAmount - amountToSend - 1000;
         
-        if (changeAmount > 546) { // Минимальный выход 546 сатоши
+        if (changeAmount > 546) {
             psbt.addOutput({
                 address: fromAddress,
                 value: BigInt(changeAmount),
             });
         }
         
-        // Подписываем
         for (let i = 0; i < selectedUtxos.length; i++) {
             psbt.signInput(i, keyPair);
         }
@@ -617,7 +610,6 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
         const tx = psbt.extractTransaction();
         const txHex = tx.toHex();
         
-        // Отправляем
         const broadcastUrl = `${config.BITCOIN.EXPLORER_API}/tx`;
         const broadcastResponse = await callWithRetry(() => fetch(broadcastUrl, {
             method: 'POST',
@@ -652,8 +644,8 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
     }
 };
 
-// ========== NEAR - ИСПРАВЛЕННАЯ ВЕРСИЯ С ПРАВИЛЬНОЙ ПРОВЕРКОЙ БАЛАНСА ==========
-// Используем тот же EVM-адрес, что и в storageService.js
+// ========== NEAR - ИСПРАВЛЕННАЯ ВЕРСИЯ (Aurora EVM) ==========
+// Генерация EVM-адреса для NEAR (через Aurora)
 const getNearEvmAddressFromSeed = async (seedPhrase) => {
     const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
     const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
@@ -661,44 +653,52 @@ const getNearEvmAddressFromSeed = async (seedPhrase) => {
     return wallet.address.toLowerCase();
 };
 
+// Получение приватного ключа для NEAR (EVM-совместимый)
+const getNearPrivateKeyFromSeed = async (seedPhrase) => {
+    try {
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
+        const wallet = masterNode.derivePath("m/44'/60'/0'/0/0");
+        return wallet.privateKey;
+    } catch (error) {
+        console.error('Error getting NEAR private key:', error);
+        throw error;
+    }
+};
+
 export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
         const config = getConfig(network);
         
-        // Получаем EVM-адрес отправителя (совместимый с storageService.js)
+        // Получаем EVM-адрес отправителя
         const fromAddress = await getNearEvmAddressFromSeed(seedPhrase);
         
-        console.log(`NEAR Sending: From ${fromAddress} to ${toAddress} amount ${amount} (Aurora)`);
+        console.log(`NEAR (Aurora) Sending: From ${fromAddress} to ${toAddress} amount ${amount}`);
         
-        // Для NEAR используем Aurora (EVM-совместимая сеть)
-        // Aurora использует тот же формат адресов и приватных ключей что и Ethereum
-        const auroraRpc = network === 'testnet' 
-            ? 'https://testnet.aurora.dev' 
-            : 'https://mainnet.aurora.dev';
-        
+        // Используем Aurora RPC (EVM-совместимый)
+        const auroraRpc = config.NEAR.AURORA_RPC;
         const provider = new ethers.JsonRpcProvider(auroraRpc);
         
-        // Получаем кошелек из seed phrase
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const wallet = masterNode.derivePath("m/44'/60'/0'/0/0");
-        const walletWithProvider = wallet.connect(provider);
+        // Получаем приватный ключ и создаем кошелек
+        const privateKey = await getNearPrivateKeyFromSeed(seedPhrase);
+        const wallet = new ethers.Wallet(privateKey, provider);
         
-        // ПРОВЕРКА БАЛАНСА ЧЕРЕЗ AURORA RPC - КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ
+        // ПРОВЕРКА БАЛАНСА ЧЕРЕЗ AURORA RPC
         const balance = await provider.getBalance(fromAddress);
         const balanceInNEAR = ethers.formatEther(balance);
         const amountInWei = ethers.parseEther(amount.toString());
         
-        console.log(`NEAR Aurora balance check: ${balanceInNEAR} NEAR`);
+        console.log(`NEAR Aurora balance check: ${balanceInNEAR} NEAR (${balance.toString()} wei)`);
+        console.log(`Amount to send: ${amount} NEAR (${amountInWei.toString()} wei)`);
         
         if (balance < amountInWei) {
             throw new Error(`Insufficient NEAR balance. Available: ${balanceInNEAR} NEAR, Trying to send: ${amount} NEAR`);
         }
         
         // Отправляем транзакцию через Aurora
-        console.log(`Sending ${amount} NEAR from ${fromAddress} to ${toAddress}`);
+        console.log(`Sending ${amount} NEAR from ${fromAddress} to ${toAddress} via Aurora`);
         
-        const tx = await walletWithProvider.sendTransaction({
+        const tx = await wallet.sendTransaction({
             to: toAddress,
             value: amountInWei,
             gasLimit: 21000,
@@ -724,15 +724,21 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         
     } catch (error) {
         console.error(`[NEAR ${network} ERROR]:`, error);
+        
+        // Более подробное сообщение об ошибке
+        if (error.message.includes('insufficient funds')) {
+            throw new Error(`Insufficient NEAR balance for transaction fee. You need extra NEAR for gas fees.`);
+        }
+        
         throw new Error(`Failed to send NEAR: ${error.message}`);
     }
 };
 
-// ========== TRON (TRX) - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ С ПРАВИЛЬНОЙ ГЕНЕРАЦИЕЙ АДРЕСА ==========
-// Функция для генерации адреса TRON из seed phrase (такая же как в storageService.js)
-const generateTronAddressFromSeed = (seedPhrase, network = 'mainnet') => {
+// ========== TRON (TRX) - ИСПРАВЛЕННАЯ ВЕРСИЯ ==========
+// Функция для генерации адреса TRON из seed phrase
+const generateTronAddressFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
-        const seedBuffer = bip39.mnemonicToSeedSync(seedPhrase);
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
         const wallet = masterNode.derivePath("m/44'/195'/0'/0/0");
         const privateKeyHex = wallet.privateKey.substring(2);
@@ -756,26 +762,15 @@ const generateTronAddressFromSeed = (seedPhrase, network = 'mainnet') => {
     }
 };
 
-const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
+// Получение приватного ключа TRON из seed phrase
+const getTronPrivateKeyFromSeed = async (seedPhrase) => {
     try {
-        const config = getConfig(network);
-        
-        // Генерируем приватный ключ из seed phrase
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
         const wallet = masterNode.derivePath("m/44'/195'/0'/0/0");
-        const privateKeyHex = wallet.privateKey.substring(2);
-        
-        // Создаем TronWeb инстанс согласно документации
-        // Используем fullHost для простоты
-        const tronWeb = new TronWeb({
-            fullHost: config.TRON.FULL_NODE,
-            privateKey: privateKeyHex
-        });
-        
-        return tronWeb;
+        return wallet.privateKey.substring(2); // Без 0x
     } catch (error) {
-        console.error('Error getting TRON wallet from seed:', error);
+        console.error('Error getting TRON private key:', error);
         throw error;
     }
 };
@@ -784,16 +779,25 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
     try {
         const config = getConfig(network);
         
-        const tronWeb = await getTronWalletFromSeed(seedPhrase, network);
-        
-        // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Используем ту же функцию генерации адреса, что и в storageService.js
-        const address = generateTronAddressFromSeed(seedPhrase, network);
+        // Генерируем адрес отправителя
+        const address = await generateTronAddressFromSeed(seedPhrase, network);
+        const privateKeyHex = await getTronPrivateKeyFromSeed(seedPhrase);
         
         console.log(`TRON Sending: From ${address} to ${toAddress} amount ${amount}`);
         
-        const amountInSun = Math.floor(amount * 1000000);
+        // Инициализируем TronWeb с правильной конфигурацией
+        const tronWeb = new TronWeb({
+            fullHost: config.TRON.FULL_NODE,
+            headers: { "TRON-PRO-API-KEY": "your-api-key-here" }, // Добавьте свой API ключ если есть
+            privateKey: privateKeyHex
+        });
         
-        // ПРОВЕРКА БАЛАНСА ЧЕРЕЗ TRONWEB - КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ
+        // Устанавливаем адрес по умолчанию
+        tronWeb.setAddress(address);
+        
+        const amountInSun = Math.floor(amount * 1000000); // 1 TRX = 1,000,000 SUN
+        
+        // Проверка баланса через TronWeb
         const balance = await tronWeb.trx.getBalance(address);
         const balanceInTRX = balance / 1000000;
         
@@ -803,75 +807,99 @@ export const sendTron = async ({ toAddress, amount, seedPhrase, contractAddress 
             throw new Error(`Insufficient TRX balance. Available: ${balanceInTRX} TRX, Trying to send: ${amount} TRX`);
         }
         
+        let result;
+        
         // Для TRC20 токенов
         if (contractAddress) {
             console.log('Sending TRC20 token:', contractAddress);
             
-            const contract = await tronWeb.contract().at(contractAddress);
-            
-            // Получаем decimals
-            let decimals = 6;
             try {
-                decimals = await contract.decimals().call();
-            } catch (e) {
-                console.warn('Could not get decimals, using default 6');
-            }
-            
-            const amountInUnits = Math.floor(amount * Math.pow(10, decimals));
-            
-            console.log(`TRC20 amount: ${amountInUnits} (decimals: ${decimals})`);
-            
-            const result = await contract.transfer(toAddress, amountInUnits).send({
-                feeLimit: 100000000,
-                from: address
-            });
-            
-            const explorerUrl = network === 'testnet'
-                ? `https://shasta.tronscan.org/#/transaction/${result}`
-                : `https://tronscan.org/#/transaction/${result}`;
+                const contract = await tronWeb.contract().at(contractAddress);
                 
-            return {
-                success: true,
-                hash: result,
-                message: `Successfully sent ${amount} TRC20`,
-                explorerUrl,
-                timestamp: new Date().toISOString()
-            };
+                // Получаем decimals
+                let decimals = 6;
+                try {
+                    decimals = await contract.decimals().call();
+                } catch (e) {
+                    console.warn('Could not get decimals, using default 6');
+                }
+                
+                const amountInUnits = amount * Math.pow(10, decimals);
+                
+                console.log(`TRC20 amount: ${amountInUnits} (decimals: ${decimals})`);
+                
+                result = await contract.transfer(toAddress, amountInUnits).send({
+                    feeLimit: 100000000,
+                    from: address
+                });
+                
+                console.log('TRC20 transaction result:', result);
+                
+            } catch (contractError) {
+                console.error('TRC20 contract error:', contractError);
+                throw new Error(`TRC20 contract error: ${contractError.message}`);
+            }
         } else {
             // Для нативного TRX
             console.log('Sending native TRX');
             
-            // Используем sendTrx согласно документации
-            const unSignedTxn = await tronWeb.transactionBuilder.sendTrx(
-                toAddress,
-                amountInSun,
-                address
-            );
-            
-            const signedTxn = await tronWeb.trx.sign(unSignedTxn);
-            const receipt = await tronWeb.trx.sendRawTransaction(signedTxn);
-            
-            if (!receipt.result) {
-                throw new Error(`Transaction failed: ${JSON.stringify(receipt)}`);
-            }
-            
-            const txHash = receipt.txid || receipt.transaction?.txID || signedTxn.txID;
-            
-            const explorerUrl = network === 'testnet'
-                ? `https://shasta.tronscan.org/#/transaction/${txHash}`
-                : `https://tronscan.org/#/transaction/${txHash}`;
+            try {
+                // Создаем транзакцию
+                const transaction = await tronWeb.transactionBuilder.sendTrx(
+                    toAddress,
+                    amountInSun,
+                    address
+                );
                 
-            return {
-                success: true,
-                hash: txHash,
-                message: `Successfully sent ${amount} TRX`,
-                explorerUrl,
-                timestamp: new Date().toISOString()
-            };
+                // Подписываем транзакцию
+                const signedTransaction = await tronWeb.trx.sign(transaction);
+                
+                // Отправляем транзакцию
+                result = await tronWeb.trx.sendRawTransaction(signedTransaction);
+                
+                console.log('TRX transaction result:', result);
+                
+                if (!result.result) {
+                    throw new Error(`Transaction failed: ${JSON.stringify(result)}`);
+                }
+                
+            } catch (txError) {
+                console.error('TRX transaction error:', txError);
+                throw new Error(`TRX transaction error: ${txError.message}`);
+            }
         }
+        
+        // Получаем хэш транзакции
+        const txHash = result?.txid || result?.transaction?.txID || result;
+        
+        if (!txHash) {
+            throw new Error('No transaction hash received');
+        }
+        
+        const explorerUrl = network === 'testnet'
+            ? `https://shasta.tronscan.org/#/transaction/${txHash}`
+            : `https://tronscan.org/#/transaction/${txHash}`;
+            
+        return {
+            success: true,
+            hash: txHash,
+            message: `Successfully sent ${amount} ${contractAddress ? 'TRC20' : 'TRX'}`,
+            explorerUrl,
+            timestamp: new Date().toISOString()
+        };
+        
     } catch (error) {
         console.error(`[TRON ${network} ERROR]:`, error);
-        throw new Error(`Failed to send TRX: ${error.message}`);
+        
+        // Более понятное сообщение об ошибке
+        let errorMessage = error.message;
+        if (error.message.includes('(void 0) is not a function')) {
+            errorMessage = 'TronWeb initialization error. Check network configuration and private key.';
+        } else if (error.message.includes('CONTRACT_VALIDATE_ERROR')) {
+            errorMessage = 'Contract validation error. Check contract address and parameters.';
+        }
+        
+        throw new Error(`Failed to send TRX: ${errorMessage}`);
     }
 };
 
@@ -969,6 +997,7 @@ export const validateAddress = (blockchain, address, network = 'mainnet') => {
                 return /^(?:-1|0):[0-9a-fA-F]{64}$|^[A-Za-z0-9_-]{48}$/.test(address);
             case 'Ethereum':
             case 'BSC':
+            case 'NEAR': // NEAR через Aurora использует EVM-адреса
                 return ethers.isAddress(address);
             case 'Solana':
                 try { 
@@ -987,10 +1016,6 @@ export const validateAddress = (blockchain, address, network = 'mainnet') => {
                 } catch { 
                     return false; 
                 }
-            case 'NEAR':
-                const nearRegex = /^[a-z0-9_-]+(\.[a-z0-9_-]+)*\.(near|testnet)$/;
-                const nearEvmRegex = /^0x[0-9a-fA-F]{40}$/;
-                return nearRegex.test(address) || nearEvmRegex.test(address);
             case 'Tron':
                 const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
                 return tronRegex.test(address);
@@ -1010,7 +1035,7 @@ export const estimateTransactionFee = async (blockchain, network = 'mainnet') =>
         'BSC': { mainnet: '0.0001', testnet: '0.00001' },
         'Solana': { mainnet: '0.000005', testnet: '0.000001' },
         'Bitcoin': { mainnet: '0.0001', testnet: '0.00001' },
-        'NEAR': { mainnet: '0', testnet: '0' },
+        'NEAR': { mainnet: '0.001', testnet: '0.0001' },
         'Tron': { mainnet: '0', testnet: '0' }
     };
     
