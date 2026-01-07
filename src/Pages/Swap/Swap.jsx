@@ -9,7 +9,7 @@ import {
   stopPriceUpdates,
   TOKENS,
   getBlockchainIcon
-} from '../../services/storageService';
+} from '../Wallet/Services/storageService';
 import './Swap.css';
 
 function Swap({ userData }) {
