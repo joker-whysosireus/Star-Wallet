@@ -10,7 +10,7 @@ import * as ecc from 'tiny-secp256k1';
 import * as base58 from 'bs58';
 import { Buffer } from 'buffer';
 import crypto from 'crypto';
-import { TronWeb } from 'tronweb';
+import TronWeb from 'tronweb';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -641,14 +641,14 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
     }
 };
 
-// ========== NEAR (исправленная версия) ==========
 const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const hdNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const wallet = hdNode.derivePath("m/44'/60'/0'/0/0"); // Тот же путь, что и для Ethereum
+        const wallet = hdNode.derivePath("m/44'/60'/0'/0/0");
         
+        // Используем EVM-совместимый RPC для NEAR
         const provider = new ethers.JsonRpcProvider(config.NEAR.EVM_RPC_URL);
         
         return { 
@@ -675,31 +675,36 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
             throw new Error(`Insufficient balance. Have: ${ethers.formatEther(balance)} NEAR, Need: ${amount} NEAR`);
         }
         
-        // Получаем gasPrice
+        // Получаем nonce и gasPrice
+        const nonce = await provider.getTransactionCount(fromAddress, 'latest');
         const feeData = await provider.getFeeData();
         
-        // Используем простой метод sendTransaction вместо ручного создания
-        const tx = await wallet.sendTransaction({
+        // Для NEAR EVM RPC используем legacy транзакцию (type 0) вместо EIP-1559
+        const tx = {
+            from: fromAddress,
             to: toAddress,
             value: amountInWei,
-            gasLimit: 30000, // Фиксированный лимит для простого перевода
-            maxFeePerGas: feeData.maxFeePerGas || feeData.gasPrice,
-            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || feeData.gasPrice,
+            nonce: nonce,
+            gasLimit: 21000,
+            gasPrice: feeData.gasPrice || ethers.parseUnits('10', 'gwei'),
             chainId: 398, // ChainId для NEAR в EVM-совместимом режиме
-        });
+            type: 0 // Legacy транзакция
+        };
         
-        // Ждем подтверждения
-        const receipt = await tx.wait();
+        // Подписываем транзакцию
+        const signedTx = await wallet.signTransaction(tx);
         
-        const explorerUrl = `${config.NEAR.EXPLORER_URL}${receipt.hash}`;
+        // Отправляем транзакцию напрямую через RPC
+        const txHash = await provider.send('eth_sendRawTransaction', [signedTx]);
+        
+        const explorerUrl = `${config.NEAR.EXPLORER_URL}${txHash}`;
         
         return {
             success: true,
-            hash: receipt.hash,
+            hash: txHash,
             message: `Successfully sent ${amount} NEAR`,
             explorerUrl,
-            timestamp: new Date().toISOString(),
-            blockNumber: receipt.blockNumber
+            timestamp: new Date().toISOString()
         };
     } catch (error) {
         console.error(`[NEAR ${network} ERROR]:`, error);
@@ -707,34 +712,33 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
     }
 };
 
-// ========== TRON (исправленная версия) ==========
+// ========== TRON (окончательная исправленная версия) ==========
 const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
-        
-        // Получаем приватный ключ тем же способом, что и в storageService.js
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
         const ethWallet = masterNode.derivePath("m/44'/195'/0'/0/0");
         const privateKeyHex = ethWallet.privateKey.substring(2);
         
-        // Создаем простой экземпляр TronWeb с минимальными параметрами
-        // Используем новый стиль инициализации для версии 6.x
-        const HttpProvider = TronWeb.providers.HttpProvider;
+        // Получаем адрес Tron по приватному ключу
+        const privateKeyBuffer = Buffer.from(privateKeyHex, 'hex');
+        const publicKey = ecc.pointFromScalar(privateKeyBuffer, true);
+        const keccakHash = crypto.createHash('sha256').update(publicKey).digest();
+        const addressBytes = keccakHash.subarray(keccakHash.length - 20);
+        const addressWithPrefix = Buffer.concat([Buffer.from([0x41]), addressBytes]);
         
-        const fullNode = config.TRON.RPC_URL;
-        const solidityNode = config.TRON.RPC_URL;
-        const eventServer = config.TRON.RPC_URL;
+        const hash1 = crypto.createHash('sha256').update(addressWithPrefix).digest();
+        const hash2 = crypto.createHash('sha256').update(hash1).digest();
+        const checksum = hash2.subarray(0, 4);
+        const addressWithChecksum = Buffer.concat([addressWithPrefix, checksum]);
+        const address = base58.encode(addressWithChecksum);
         
-        const tronWeb = new TronWeb(
-            fullNode,
-            solidityNode,
-            eventServer,
-            privateKeyHex
-        );
-        
-        // Получаем адрес из приватного ключа
-        const address = tronWeb.address.fromPrivateKey(privateKeyHex);
+        // Для TronWeb версии 4.x используем простую инициализацию
+        const tronWeb = new TronWeb({
+            fullHost: config.TRON.RPC_URL,
+            privateKey: privateKeyHex
+        });
         
         return {
             tronWeb,
@@ -755,20 +759,11 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, network = 'mainne
         // Конвертация TRX в SUN (1 TRX = 1,000,000 SUN)
         const amountInSun = Math.floor(amount * 1000000);
         
-        // Проверяем баланс - используем base58 адрес
-        try {
-            const balance = await tronWeb.trx.getBalance(fromAddress);
-            console.log(`TRX Balance check: ${balance} SUN (${balance / 1000000} TRX)`);
-            
-            if (balance < amountInSun) {
-                throw new Error(`Insufficient balance. Have: ${balance / 1000000} TRX, Need: ${amount} TRX`);
-            }
-        } catch (balanceError) {
-            console.error('Error checking balance:', balanceError);
-            throw new Error(`Failed to check balance: ${balanceError.message}`);
+        // Проверяем баланс
+        const balance = await tronWeb.trx.getBalance(fromAddress);
+        if (balance < amountInSun) {
+            throw new Error(`Insufficient balance. Have: ${balance / 1000000} TRX, Need: ${amount} TRX`);
         }
-        
-        console.log(`Sending ${amount} TRX (${amountInSun} SUN) from ${fromAddress} to ${toAddress}`);
         
         // Создаем транзакцию с помощью transactionBuilder.sendTrx
         const transaction = await tronWeb.transactionBuilder.sendTrx(
@@ -781,8 +776,6 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, network = 'mainne
             throw new Error('Failed to create transaction');
         }
         
-        console.log('Transaction created:', transaction.txID);
-        
         // Подписание транзакции
         const signedTransaction = await tronWeb.trx.sign(transaction);
         
@@ -790,16 +783,12 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, network = 'mainne
             throw new Error('Failed to sign transaction');
         }
         
-        console.log('Transaction signed');
-        
         // Отправка транзакции
         const result = await tronWeb.trx.sendRawTransaction(signedTransaction);
         
         if (!result || !result.result) {
             throw new Error(`Transaction failed: ${JSON.stringify(result)}`);
         }
-        
-        console.log('Transaction broadcasted:', result);
         
         const explorerUrl = `${config.TRON.EXPLORER_URL}${result.txid || transaction.txID}`;
         
