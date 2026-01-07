@@ -10,7 +10,7 @@ import * as ecc from 'tiny-secp256k1';
 import * as base58 from 'bs58';
 import { Buffer } from 'buffer';
 import crypto from 'crypto';
-import TronWeb from 'tronweb';
+import { TronWeb } from 'tronweb'; // Исправленный импорт
 
 const bip32 = BIP32Factory(ecc);
 
@@ -683,16 +683,16 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         // Получаем актуальные параметры газа
         const feeData = await provider.getFeeData();
         
-        // Создаем транзакцию
+        // Создаем транзакцию с правильным chainId (398 для NEAR)
         const tx = {
             from: fromAddress,
             to: toAddress,
             value: amountInWei,
             nonce: nonce,
-            gasLimit: 21000, // Базовый лимит газа для простого перевода
+            gasLimit: 21000,
             maxFeePerGas: feeData.maxFeePerGas || feeData.gasPrice,
             maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || feeData.gasPrice,
-            chainId: 397, // Chain ID для NEAR в EVM-совместимом режиме
+            chainId: 398, // ChainId для NEAR в EVM-совместимом режиме
             type: 2 // EIP-1559 транзакция
         };
         
@@ -728,29 +728,13 @@ const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         const ethWallet = masterNode.derivePath("m/44'/195'/0'/0/0");
         const privateKeyHex = ethWallet.privateKey.substring(2);
         
-        // Проверяем, что TronWeb доступен
-        if (typeof TronWeb === 'undefined') {
-            throw new Error('TronWeb is not available. Make sure tronweb package is installed.');
-        }
-        
-        // Используем правильный конструктор TronWeb
-        const HttpProvider = TronWeb.providers.HttpProvider;
-        const fullNode = new HttpProvider(config.TRON.RPC_URL);
-        const solidityNode = new HttpProvider(config.TRON.RPC_URL);
-        const eventServer = new HttpProvider(config.TRON.RPC_URL);
-        
+        // Инициализация TronWeb с правильным конструктором
         const tronWeb = new TronWeb({
-            fullNode,
-            solidityNode,
-            eventServer,
+            fullHost: config.TRON.RPC_URL,
             privateKey: privateKeyHex
         });
         
-        // Ждем инициализации TronWeb
-        await tronWeb.setAddress(privateKeyHex);
-        
         const address = tronWeb.address.fromPrivateKey(privateKeyHex);
-        
         return {
             tronWeb,
             address,
