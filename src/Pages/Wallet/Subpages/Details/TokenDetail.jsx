@@ -411,14 +411,6 @@ const TokenDetail = () => {
                         alignItems: 'center',
                         marginBottom: '15px'
                     }}>
-                        <h3 style={{
-                            color: 'white',
-                            fontSize: '16px',
-                            fontWeight: '600',
-                            margin: 0
-                        }}>
-                            Price Chart ({wallet.symbol})
-                        </h3>
                         <div style={{
                             display: 'flex',
                             gap: '8px',

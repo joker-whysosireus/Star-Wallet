@@ -133,12 +133,6 @@ const USDTDetail = () => {
                         </div>
                     ))}
                 </div>
-                
-                {usdtTokens.length === 0 && (
-                    <div className="no-tokens-message">
-                        <p>No USDT tokens available</p>
-                    </div>
-                )}
             </div>
             <Menu />
         </div>
