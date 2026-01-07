@@ -424,14 +424,27 @@ const generateBSCAddress = generateEthereumAddress;
 
 const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
     try {
-        const ethAddress = await generateEthereumAddress(seedPhrase, network);
-        return ethAddress.toLowerCase();
-    } catch (error) {
-        console.error('Error generating NEAR EVM address:', error);
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        
+        // Генерируем приватный ключ из seed-фразы
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const wallet = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const derivedWallet = wallet.derivePath("m/44'/60'/0'/0/0");
-        return derivedWallet.address.toLowerCase();
+        const hdNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
+        const wallet = hdNode.derivePath("m/44'/60'/0'/0/0");
+        
+        // Создаем именованный адрес NEAR на основе хэша публичного ключа
+        // Формат: near-[хеш].testnet (для тестнета) или near-[хеш].near (для мейннета)
+        const addressHash = crypto.createHash('sha256')
+            .update(wallet.address)
+            .digest('hex')
+            .substring(0, 16);
+        
+        const suffix = network === 'testnet' ? 'testnet' : 'near';
+        return `near-${addressHash}.${suffix}`;
+    } catch (error) {
+        console.error('Error generating NEAR address:', error);
+        // Fallback адрес
+        const suffix = network === 'testnet' ? 'testnet' : 'near';
+        return `user-${Date.now().toString(36)}.${suffix}`;
     }
 };
 
