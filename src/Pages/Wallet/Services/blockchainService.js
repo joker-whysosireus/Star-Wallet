@@ -12,7 +12,6 @@ import base58 from 'bs58';
 
 const bip32 = BIP32Factory(ecc);
 
-// Конфигурация сетей
 const MAINNET_CONFIG = {
     TON: {
         RPC_URL: 'https://toncenter.com/api/v2/jsonRPC',
@@ -37,17 +36,6 @@ const MAINNET_CONFIG = {
         SOLIDITY_NODE: 'https://api.trongrid.io',
         EVENT_SERVER: 'https://api.trongrid.io',
         NETWORK: 'mainnet'
-    },
-    LITECOIN: {
-        EXPLORER_API: 'https://blockstream.info/litecoin/api',
-        NETWORK: {
-            messagePrefix: '\x19Litecoin Signed Message:\n',
-            bech32: 'ltc',
-            bip32: { public: 0x019da462, private: 0x019d9cfe },
-            pubKeyHash: 0x30,
-            scriptHash: 0x32,
-            wif: 0xb0,
-        }
     }
 };
 
@@ -75,21 +63,9 @@ const TESTNET_CONFIG = {
         SOLIDITY_NODE: 'https://api.shasta.trongrid.io',
         EVENT_SERVER: 'https://api.shasta.trongrid.io',
         NETWORK: 'shasta'
-    },
-    LITECOIN: {
-        EXPLORER_API: 'https://blockstream.info/litecoin/testnet/api',
-        NETWORK: {
-            messagePrefix: '\x19Litecoin Signed Message:\n',
-            bech32: 'tltc',
-            bip32: { public: 0x043587cf, private: 0x04358394 },
-            pubKeyHash: 0x6f,
-            scriptHash: 0xc4,
-            wif: 0xef,
-        }
     }
 };
 
-// Вспомогательные функции
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const getConfig = (network) => network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
 
@@ -651,153 +627,6 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
     }
 };
 
-// ========== LITECOIN (LTC) ==========
-const getLtcWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
-    try {
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const networkConfig = network === 'testnet' 
-            ? TESTNET_CONFIG.LITECOIN.NETWORK 
-            : MAINNET_CONFIG.LITECOIN.NETWORK;
-        const root = bip32.fromSeed(seedBuffer, networkConfig);
-        const child = root.derivePath("m/84'/2'/0'/0/0");
-        const { address } = bitcoin.payments.p2wpkh({ 
-            pubkey: child.publicKey, 
-            network: networkConfig 
-        });
-        
-        return {
-            keyPair: child,
-            address: address,
-            network: networkConfig
-        };
-    } catch (error) {
-        console.error('Error getting LTC wallet from seed:', error);
-        throw error;
-    }
-};
-
-export const sendLtc = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
-    try {
-        const config = getConfig(network);
-        const { keyPair, address: fromAddress, network: ltcNetwork } = await getLtcWalletFromSeed(seedPhrase, network);
-        
-        const amountInSatoshi = Math.floor(amount * 100000000);
-        
-        const amountToSend = amountInSatoshi - 1000;
-        if (amountToSend <= 546) {
-            throw new Error('Amount too small after deducting fee');
-        }
-        
-        const utxoUrl = `${config.LITECOIN.EXPLORER_API}/address/${fromAddress}/utxo`;
-        const utxoResponse = await callWithRetry(() => fetch(utxoUrl));
-        
-        if (!utxoResponse.ok) {
-            throw new Error(`Failed to fetch UTXOs: ${utxoResponse.status}`);
-        }
-        
-        const utxos = await utxoResponse.json();
-        
-        if (!utxos || utxos.length === 0) {
-            throw new Error('No UTXOs available to spend');
-        }
-        
-        utxos.sort((a, b) => b.value - a.value);
-        
-        const psbt = new bitcoin.Psbt({ network: ltcNetwork });
-        
-        let totalUtxoAmount = 0;
-        const selectedUtxos = [];
-        
-        for (const utxo of utxos) {
-            totalUtxoAmount += utxo.value;
-            selectedUtxos.push(utxo);
-            
-            const estimatedFee = 1000;
-            
-            if (totalUtxoAmount >= amountInSatoshi + estimatedFee) {
-                break;
-            }
-        }
-        
-        if (totalUtxoAmount < amountInSatoshi + 1000) {
-            throw new Error(`Insufficient balance. Need: ${(amountInSatoshi + 1000) / 100000000} LTC, Have: ${totalUtxoAmount / 100000000} LTC`);
-        }
-        
-        for (const utxo of selectedUtxos) {
-            const txUrl = `${config.LITECOIN.EXPLORER_API}/tx/${utxo.txid}`;
-            const txResponse = await callWithRetry(() => fetch(txUrl));
-            const txData = await txResponse.json();
-            
-            const output = txData.vout[utxo.vout];
-            const scriptBuffer = Buffer.from(output.scriptpubkey, 'hex');
-            
-            psbt.addInput({
-                hash: utxo.txid,
-                index: utxo.vout,
-                witnessUtxo: {
-                    script: scriptBuffer,
-                    value: BigInt(utxo.value)
-                }
-            });
-        }
-        
-        psbt.addOutput({
-            address: toAddress,
-            value: BigInt(amountToSend),
-        });
-        
-        const changeAmount = totalUtxoAmount - amountToSend - 1000;
-        
-        if (changeAmount > 546) {
-            psbt.addOutput({
-                address: fromAddress,
-                value: BigInt(changeAmount),
-            });
-        }
-        
-        for (let i = 0; i < selectedUtxos.length; i++) {
-            psbt.signInput(i, keyPair);
-        }
-        
-        psbt.finalizeAllInputs();
-        
-        const tx = psbt.extractTransaction();
-        const txHex = tx.toHex();
-        
-        const broadcastUrl = `${config.LITECOIN.EXPLORER_API}/tx`;
-        const broadcastResponse = await callWithRetry(() => fetch(broadcastUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'text/plain',
-            },
-            body: txHex
-        }));
-        
-        if (!broadcastResponse.ok) {
-            const errorText = await broadcastResponse.text();
-            throw new Error(`Broadcast failed: ${errorText}`);
-        }
-        
-        const txid = await broadcastResponse.text();
-        
-        const explorerUrl = network === 'testnet'
-            ? `https://blockstream.info/litecoin/testnet/tx/${txid}`
-            : `https://blockstream.info/litecoin/tx/${txid}`;
-            
-        return {
-            success: true,
-            hash: txid,
-            message: `Successfully sent ${amount} LTC`,
-            explorerUrl,
-            timestamp: new Date().toISOString()
-        };
-        
-    } catch (error) {
-        console.error(`[LTC ${network} ERROR]:`, error);
-        throw new Error(`Failed to send LTC: ${error.message}`);
-    }
-};
-
 // ========== TRON (TRX) ==========
 const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
@@ -811,7 +640,6 @@ const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         const privateKeyBuffer = Buffer.from(privateKeyHex, 'hex');
         const publicKey = ecc.pointFromScalar(privateKeyBuffer, true);
         
-        // Используем ethers для хэширования вместо crypto
         const keccakHash = Buffer.from(ethers.sha256(publicKey).slice(2), 'hex');
         const addressBytes = keccakHash.subarray(keccakHash.length - 20);
         const addressWithPrefix = Buffer.concat([Buffer.from([0x41]), addressBytes]);
@@ -839,31 +667,53 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
         const config = getConfig(network);
         const { wallet, address: fromAddress, privateKey } = await getTronWalletFromSeed(seedPhrase, network);
         
-        // Для нативного TRX не нужен contractAddress
-        const amountInSun = Math.floor(amount * 1000000); // TRX имеет 6 десятичных знаков
+        const amountInSun = Math.floor(amount * 1000000);
         
-        // Получаем баланс через TronGrid API
-        const balanceUrl = `${config.TRON.FULL_NODE}/v1/accounts/${fromAddress}`;
-        const balanceResponse = await callWithRetry(() => fetch(balanceUrl));
+        // Получаем информацию об аккаунте
+        const accountUrl = `${config.TRON.FULL_NODE}/v1/accounts/${fromAddress}`;
+        const accountResponse = await callWithRetry(() => fetch(accountUrl));
         
-        if (!balanceResponse.ok) {
+        if (!accountResponse.ok) {
             throw new Error('Failed to fetch TRX balance');
         }
         
-        const balanceData = await balanceResponse.json();
-        const balanceSun = balanceData.data?.[0]?.balance || 0;
+        const accountData = await accountResponse.json();
+        const accountInfo = accountData.data?.[0];
+        
+        if (!accountInfo) {
+            throw new Error('Account not found');
+        }
+        
+        const balanceSun = accountInfo.balance || 0;
         
         if (balanceSun < amountInSun) {
             throw new Error(`Insufficient balance. Need: ${amount} TRX, Have: ${balanceSun / 1000000} TRX`);
         }
         
-        // Создаем транзакцию для отправки TRX
+        // Проверяем ресурсы
+        const freeNetLimit = accountInfo.free_net_limit || 0;
+        const freeNetUsed = accountInfo.free_net_used || 0;
+        const freeNetRemaining = freeNetLimit - freeNetUsed;
+        
+        const energyLimit = accountInfo.energy_limit || 0;
+        const energyUsed = accountInfo.energy_used || 0;
+        const energyRemaining = energyLimit - energyUsed;
+        
+        console.log(`Resources - Free Net: ${freeNetRemaining}, Energy: ${energyRemaining}`);
+        
+        // Создаем транзакцию
         const txData = {
             to_address: toAddress.startsWith('T') ? toAddress : base58.encode(Buffer.concat([Buffer.from([0x41]), Buffer.from(toAddress, 'hex')])),
             owner_address: fromAddress,
             amount: amountInSun,
             visible: true
         };
+        
+        // Если ресурсов мало, добавляем fee_limit
+        if (freeNetRemaining < 500 || energyRemaining < 500) {
+            txData.fee_limit = 10000000; // 10 TRX в sun
+            console.log('Adding fee_limit due to insufficient resources');
+        }
         
         const txUrl = `${config.TRON.FULL_NODE}/wallet/createtransaction`;
         const txResponse = await callWithRetry(() => fetch(txUrl, {
@@ -873,13 +723,15 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
         }));
         
         if (!txResponse.ok) {
-            throw new Error('Failed to create TRX transaction');
+            const errorText = await txResponse.text();
+            console.error('TRX transaction creation error:', errorText);
+            throw new Error(`Failed to create TRX transaction: ${errorText}`);
         }
         
         const txResult = await txResponse.json();
         
-        if (txResult.Error) {
-            throw new Error(txResult.Error);
+        if (txResult.Error || txResult.result === false) {
+            throw new Error(txResult.Error || txResult.message || 'Transaction creation failed');
         }
         
         // Подписываем транзакцию
@@ -932,6 +784,13 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
         
     } catch (error) {
         console.error(`[TRON ${network} ERROR]:`, error);
+        
+        if (error.message.includes('resource')) {
+            throw new Error(`TRX transaction failed: Insufficient resources. Try freezing more TRX for energy/bandwidth`);
+        } else if (error.message.includes('Load failed')) {
+            throw new Error(`TRX transaction failed: Network error. Please check your internet connection and try again`);
+        }
+        
         throw new Error(`Failed to send TRX: ${error.message}`);
     }
 };
@@ -989,17 +848,8 @@ export const sendTransaction = async (params) => {
                     network
                 });
                 break;
-            case 'Litecoin':
-                result = await sendLtc({ 
-                    toAddress, 
-                    amount, 
-                    seedPhrase,
-                    network
-                });
-                break;
             case 'Tron':
                 if (contractAddress) {
-                    // Для TRC20 токенов (USDT TRC20)
                     result = await sendTrx({ 
                         toAddress, 
                         amount, 
@@ -1008,7 +858,6 @@ export const sendTransaction = async (params) => {
                         network
                     });
                 } else {
-                    // Для нативного TRX
                     result = await sendTrx({ 
                         toAddress, 
                         amount, 
@@ -1059,16 +908,6 @@ export const validateAddress = (blockchain, address, network = 'mainnet') => {
                 } catch { 
                     return false; 
                 }
-            case 'Litecoin':
-                try {
-                    const networkConfig = network === 'testnet' 
-                        ? TESTNET_CONFIG.LITECOIN.NETWORK 
-                        : MAINNET_CONFIG.LITECOIN.NETWORK;
-                    bitcoin.address.toOutputScript(address, networkConfig);
-                    return true;
-                } catch { 
-                    return false; 
-                }
             case 'Tron':
                 const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
                 return tronRegex.test(address);
@@ -1088,7 +927,6 @@ export const estimateTransactionFee = async (blockchain, network = 'mainnet') =>
         'BSC': { mainnet: '0.0001', testnet: '0.00001' },
         'Solana': { mainnet: '0.000005', testnet: '0.000001' },
         'Bitcoin': { mainnet: '0.0001', testnet: '0.00001' },
-        'Litecoin': { mainnet: '0.0001', testnet: '0.00001' },
         'Tron': { mainnet: '0.1', testnet: '0.01' }
     };
     
@@ -1104,7 +942,6 @@ export default {
     sendSol,
     sendBsc,
     sendBtc,
-    sendLtc,
     sendTrx,
     validateAddress,
     estimateTransactionFee,

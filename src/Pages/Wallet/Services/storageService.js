@@ -5,7 +5,6 @@ import { ethers } from 'ethers';
 import * as bip39 from 'bip39';
 import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
-import crypto from 'crypto';
 import { Buffer } from 'buffer';
 import base58 from 'bs58';
 import * as bitcoin from 'bitcoinjs-lib';
@@ -41,19 +40,6 @@ const MAINNET_CONFIG = {
     BSC: { 
         RPC_URL: 'https://bsc-dataseed1.binance.org/',
         CHAIN_ID: 56
-    },
-    LITECOIN: {
-        EXPLORER_API: 'https://blockchain.info',
-        BLOCKCYPHER_API: 'https://api.blockcypher.com/v1/ltc/main',
-        SOCHAIN_API: 'https://sochain.com/api/v2',
-        NETWORK: {
-            messagePrefix: '\x19Litecoin Signed Message:\n',
-            bech32: 'ltc',
-            bip32: { public: 0x019da462, private: 0x019d9cfe },
-            pubKeyHash: 0x30,
-            scriptHash: 0x32,
-            wif: 0xb0,
-        }
     }
 };
 
@@ -86,19 +72,6 @@ const TESTNET_CONFIG = {
     BSC: { 
         RPC_URL: 'https://data-seed-prebsc-1-s1.binance.org:8545/',
         CHAIN_ID: 97
-    },
-    LITECOIN: {
-        EXPLORER_API: 'https://blockchain.info',
-        BLOCKCYPHER_API: 'https://api.blockcypher.com/v1/ltc/test3',
-        SOCHAIN_API: 'https://sochain.com/api/v2',
-        NETWORK: {
-            messagePrefix: '\x19Litecoin Signed Message:\n',
-            bech32: 'tltc',
-            bip32: { public: 0x043587cf, private: 0x04358394 },
-            pubKeyHash: 0x6f,
-            scriptHash: 0xc4,
-            wif: 0xef,
-        }
     }
 };
 
@@ -191,14 +164,6 @@ export const TOKENS = {
         decimals: 18, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' 
-    },
-    LTC: { 
-        symbol: 'LTC', 
-        name: 'Litecoin', 
-        blockchain: 'Litecoin', 
-        decimals: 8, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' 
     }
 };
 
@@ -286,14 +251,6 @@ export const TESTNET_TOKENS = {
         decimals: 18, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' 
-    },
-    LTC: { 
-        symbol: 'LTC', 
-        name: 'Litecoin', 
-        blockchain: 'Litecoin', 
-        decimals: 8, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' 
     }
 };
 
@@ -310,14 +267,13 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
     try {
         if (!seedPhrase) throw new Error('Seed phrase is required');
 
-        const [tonAddress, ethAddress, solAddress, tronAddress, bitcoinAddress, bscAddress, litecoinAddress] = await Promise.all([
+        const [tonAddress, ethAddress, solAddress, tronAddress, bitcoinAddress, bscAddress] = await Promise.all([
             generateTonAddress(seedPhrase, network),
             generateEthereumAddress(seedPhrase, network),
             generateSolanaAddress(seedPhrase, network),
             generateTronAddress(seedPhrase, network),
             generateBitcoinAddress(seedPhrase, network),
-            generateBSCAddress(seedPhrase, network),
-            generateLitecoinAddress(seedPhrase, network)
+            generateBSCAddress(seedPhrase, network)
         ]);
 
         const walletArray = [];
@@ -330,7 +286,6 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
         walletArray.push(createWallet(tokens.TRX, tronAddress, network));
         walletArray.push(createWallet(tokens.BTC, bitcoinAddress, network));
         walletArray.push(createWallet(tokens.BNB, bscAddress, network));
-        walletArray.push(createWallet(tokens.LTC, litecoinAddress, network));
         
         return walletArray;
     } catch (error) {
@@ -401,7 +356,7 @@ const generateTronAddress = async (seedPhrase, network = 'mainnet') => {
         const privateKeyBuffer = Buffer.from(privateKeyHex, 'hex');
         const publicKey = ecc.pointFromScalar(privateKeyBuffer, true);
         
-        // Используем ethers для хэширования вместо crypto
+        // Используем ethers для хэширования
         const keccakHash = Buffer.from(ethers.sha256(publicKey).slice(2), 'hex');
         const addressBytes = keccakHash.subarray(keccakHash.length - 20);
         const addressWithPrefix = Buffer.concat([Buffer.from([0x41]), addressBytes]);
@@ -431,25 +386,6 @@ const generateBitcoinAddress = async (seedPhrase, network = 'mainnet') => {
         return address;
     } catch (error) {
         console.error('Error generating Bitcoin address:', error);
-        return '';
-    }
-};
-
-const generateLitecoinAddress = async (seedPhrase, network = 'mainnet') => {
-    try {
-        const networkConfig = network === 'testnet' 
-            ? TESTNET_CONFIG.LITECOIN.NETWORK 
-            : MAINNET_CONFIG.LITECOIN.NETWORK;
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const root = bip32.fromSeed(seedBuffer, networkConfig);
-        const child = root.derivePath("m/84'/2'/0'/0/0");
-        const { address } = bitcoin.payments.p2wpkh({ 
-            pubkey: child.publicKey, 
-            network: networkConfig 
-        });
-        return address;
-    } catch (error) {
-        console.error('Error generating Litecoin address:', error);
         return '';
     }
 };
@@ -888,42 +824,6 @@ const getBitcoinBalance = async (address, network = 'mainnet') => {
     }
 };
 
-const getLitecoinBalance = async (address, network = 'mainnet') => {
-    try {
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        
-        // Используем Sochain API для получения баланса LTC
-        const apiUrl = network === 'testnet'
-            ? `${config.LITECOIN.SOCHAIN_API}/get_address_balance/LTCTEST/${address}`
-            : `${config.LITECOIN.SOCHAIN_API}/get_address_balance/LTC/${address}`;
-        
-        const response = await fetch(apiUrl);
-        if (!response.ok) {
-            // Fallback на Blockcypher
-            const fallbackUrl = network === 'testnet'
-                ? `${config.LITECOIN.BLOCKCYPHER_API}/addrs/${address}/balance`
-                : `https://api.blockcypher.com/v1/ltc/main/addrs/${address}/balance`;
-            
-            const fallbackResponse = await fetch(fallbackUrl);
-            if (!fallbackResponse.ok) {
-                throw new Error('Network response was not ok');
-            }
-            const data = await fallbackResponse.json();
-            return (data.balance / 1e8).toString();
-        }
-        
-        const data = await response.json();
-        if (data.status === 'success' && data.data) {
-            return data.data.confirmed_balance.toString();
-        }
-        
-        return '0';
-    } catch (error) {
-        console.error('LTC balance error:', error);
-        return '0';
-    }
-};
-
 const getBNBBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -970,9 +870,6 @@ export const getRealBalances = async (wallets) => {
                         case 'Bitcoin':
                             balance = await getBitcoinBalance(wallet.address, wallet.network);
                             break;
-                        case 'Litecoin':
-                            balance = await getLitecoinBalance(wallet.address, wallet.network);
-                            break;
                         case 'BSC':
                             balance = await getBNBBalance(wallet.address, wallet.network);
                             break;
@@ -1000,7 +897,7 @@ export const getRealBalances = async (wallets) => {
 
 export const getTokenPrices = async () => {
     try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ethereum,solana,binancecoin,tron,bitcoin,litecoin,tether&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true');
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ethereum,solana,binancecoin,tron,bitcoin,tether&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true');
         
         if (response.ok) {
             const data = await response.json();
@@ -1011,7 +908,6 @@ export const getTokenPrices = async () => {
                 'BNB': data.binancecoin?.usd || 600.00,
                 'TRX': data.tron?.usd || 0.12,
                 'BTC': data.bitcoin?.usd || 68000.00,
-                'LTC': data.litecoin?.usd || 85.00,
                 'USDT': data.tether?.usd || 1.00,
                 lastUpdated: Date.now()
             };
@@ -1024,7 +920,6 @@ export const getTokenPrices = async () => {
             'BNB': 600.00,
             'TRX': 0.12,
             'BTC': 68000.00,
-            'LTC': 85.00,
             'USDT': 1.00,
             lastUpdated: Date.now()
         };
@@ -1037,7 +932,6 @@ export const getTokenPrices = async () => {
             'BNB': 600.00,
             'TRX': 0.12,
             'BTC': 68000.00,
-            'LTC': 85.00,
             'USDT': 1.00,
             lastUpdated: Date.now()
         };
@@ -1131,17 +1025,6 @@ export const validateAddress = async (blockchain, address, network = 'mainnet') 
                     return false; 
                 }
                 
-            case 'Litecoin':
-                try {
-                    const networkConfig = network === 'testnet' 
-                        ? TESTNET_CONFIG.LITECOIN.NETWORK 
-                        : MAINNET_CONFIG.LITECOIN.NETWORK;
-                    bitcoin.address.toOutputScript(address, networkConfig);
-                    return true;
-                } catch { 
-                    return false; 
-                }
-                
             default:
                 return true;
         }
@@ -1186,15 +1069,12 @@ export const revealSeedPhrase = async (userData) => {
 
 export const getBalances = getRealBalances;
 
-// ========== ОБНОВЛЕННАЯ ФУНКЦИЯ ОТПРАВКИ ТРАНЗАКЦИЙ ==========
 export const sendTransaction = async (transactionData) => {
     const { blockchain, toAddress, amount, seedPhrase, memo, contractAddress, network = 'mainnet' } = transactionData;
     
     try {
-        // Динамический импорт blockchainService
         const { sendTransaction: sendTx } = await import('./blockchainService');
         
-        // Формируем параметры транзакции
         const txParams = {
             blockchain,
             toAddress,
@@ -1204,13 +1084,9 @@ export const sendTransaction = async (transactionData) => {
             network
         };
         
-        // Для нативного TRX (TRX) - не передаем contractAddress
-        // Для других токенов с контрактами - передаем contractAddress
         if (blockchain === 'Tron' && contractAddress && contractAddress.includes('TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t')) {
-            // Для USDT TRC20 передаем contractAddress
             txParams.contractAddress = contractAddress;
         } else if (contractAddress && blockchain !== 'Tron' && blockchain !== 'Bitcoin' && blockchain !== 'Litecoin') {
-            // Для других блокчейнов (кроме BTC, LTC) передаем contractAddress если есть
             txParams.contractAddress = contractAddress;
         }
         
@@ -1250,8 +1126,7 @@ export const estimateTransactionFee = async (blockchain, network = 'mainnet') =>
         'BSC': '0.0001',
         'Solana': '0.000005',
         'Tron': '0.1',
-        'Bitcoin': '0.0001',
-        'Litecoin': '0.0001'
+        'Bitcoin': '0.0001'
     };
     
     return defaultFees[blockchain] || '0.01';
@@ -1270,7 +1145,6 @@ export const getTokenPricesFromRPC = async () => {
             'BNB': 600.00,
             'TRX': 0.12,
             'BTC': 68000.00,
-            'LTC': 85.00,
             'USDT': 1.00
         };
     }
@@ -1398,8 +1272,7 @@ export const getBlockchainIcon = (blockchain) => {
         'Solana': 'https://cryptologos.cc/logos/solana-sol-logo.png',
         'Tron': 'https://cryptologos.cc/logos/tron-trx-logo.png',
         'Bitcoin': 'https://cryptologos.cc/logos/bitcoin-btc-logo.png',
-        'BSC': 'https://cryptologos.cc/logos/bnb-bnb-logo.png',
-        'Litecoin': 'https://cryptologos.cc/logos/litecoin-ltc-logo.png'
+        'BSC': 'https://cryptologos.cc/logos/bnb-bnb-logo.png'
     };
     
     return icons[blockchain] || '';
