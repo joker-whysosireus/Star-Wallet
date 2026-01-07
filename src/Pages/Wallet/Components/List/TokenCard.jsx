@@ -101,13 +101,13 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInLis
     
     const getBlockchainBadge = (blockchain) => {
         const badges = {
-            'TON': { color: '#0088cc', text: 'TON' },
-            'Solana': { color: '#00ff88', text: 'SOL' },
-            'Ethereum': { color: '#8c8cff', text: 'ETH' },
-            'Tron': { color: '#ff0000', text: 'TRX' },
-            'Bitcoin': { color: '#E49E00', text: 'BTC' },
-            'NEAR': { color: '#0b4731ff', text: 'NEAR' },
-            'BSC': { color: '#bfcd43ff', text: 'BNB' }
+            'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)', text: 'TON' },
+            'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)', text: 'SOL' },
+            'Ethereum': { color: '#8c8cff', bg: 'rgba(140, 140, 255, 0.1)', text: 'ETH' },
+            'Tron': { color: '#ff0000', bg: 'rgba(255, 0, 0, 0.1)', text: 'TRX' },
+            'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)', text: 'BTC' },
+            'Litecoin': { color: '#bfbbbf', bg: 'rgba(191, 187, 191, 0.1)', text: 'LTC' },
+            'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)', text: 'BNB' }
         };
         
         return badges[blockchain] || { color: '#666', text: blockchain };

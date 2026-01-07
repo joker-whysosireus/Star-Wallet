@@ -1,4 +1,3 @@
-//storageService.js
 import { mnemonicToWalletKey } from '@ton/crypto';
 import { WalletContractV4, TonClient, Address } from '@ton/ton';
 import { Keypair, Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
@@ -7,7 +6,6 @@ import * as bip39 from 'bip39';
 import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import crypto from 'crypto';
-import { JsonRpcProvider } from '@near-js/providers';
 import { Buffer } from 'buffer';
 import base58 from 'bs58';
 import * as bitcoin from 'bitcoinjs-lib';
@@ -40,14 +38,20 @@ const MAINNET_CONFIG = {
         EXPLORER_API: 'https://blockstream.info/api',
         NETWORK: bitcoin.networks.bitcoin
     },
-    NEAR: { 
-        RPC_URL: 'https://rpc.mainnet.near.org',
-        NETWORK_ID: 'mainnet',
-        WALLET_URL: 'https://wallet.near.org'
-    },
     BSC: { 
         RPC_URL: 'https://bsc-dataseed1.binance.org/',
         CHAIN_ID: 56
+    },
+    LITECOIN: {
+        EXPLORER_API: 'https://blockstream.info/litecoin/api',
+        NETWORK: {
+            messagePrefix: '\x19Litecoin Signed Message:\n',
+            bech32: 'ltc',
+            bip32: { public: 0x019da462, private: 0x019d9cfe },
+            pubKeyHash: 0x30,
+            scriptHash: 0x32,
+            wif: 0xb0,
+        }
     }
 };
 
@@ -77,14 +81,20 @@ const TESTNET_CONFIG = {
         EXPLORER_API: 'https://blockstream.info/testnet/api',
         NETWORK: bitcoin.networks.testnet
     },
-    NEAR: { 
-        RPC_URL: 'https://rpc.testnet.near.org',
-        NETWORK_ID: 'testnet',
-        WALLET_URL: 'https://testnet.mynearwallet.com'
-    },
     BSC: { 
         RPC_URL: 'https://data-seed-prebsc-1-s1.binance.org:8545/',
         CHAIN_ID: 97
+    },
+    LITECOIN: {
+        EXPLORER_API: 'https://blockstream.info/litecoin/testnet/api',
+        NETWORK: {
+            messagePrefix: '\x19Litecoin Signed Message:\n',
+            bech32: 'tltc',
+            bip32: { public: 0x043587cf, private: 0x04358394 },
+            pubKeyHash: 0x6f,
+            scriptHash: 0xc4,
+            wif: 0xef,
+        }
     }
 };
 
@@ -178,13 +188,13 @@ export const TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' 
     },
-    NEAR: { 
-        symbol: 'NEAR', 
-        name: 'NEAR Protocol', 
-        blockchain: 'NEAR', 
-        decimals: 24, 
+    LTC: { 
+        symbol: 'LTC', 
+        name: 'Litecoin', 
+        blockchain: 'Litecoin', 
+        decimals: 8, 
         isNative: true, 
-        logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' 
+        logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' 
     }
 };
 
@@ -273,13 +283,13 @@ export const TESTNET_TOKENS = {
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' 
     },
-    NEAR: { 
-        symbol: 'NEAR', 
-        name: 'NEAR Protocol', 
-        blockchain: 'NEAR', 
-        decimals: 24, 
+    LTC: { 
+        symbol: 'LTC', 
+        name: 'Litecoin', 
+        blockchain: 'Litecoin', 
+        decimals: 8, 
         isNative: true, 
-        logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.svg' 
+        logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' 
     }
 };
 
@@ -296,14 +306,14 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
     try {
         if (!seedPhrase) throw new Error('Seed phrase is required');
 
-        const [tonAddress, ethAddress, solAddress, tronAddress, bitcoinAddress, bscAddress, nearAddress] = await Promise.all([
+        const [tonAddress, ethAddress, solAddress, tronAddress, bitcoinAddress, bscAddress, litecoinAddress] = await Promise.all([
             generateTonAddress(seedPhrase, network),
             generateEthereumAddress(seedPhrase, network),
             generateSolanaAddress(seedPhrase, network),
             generateTronAddress(seedPhrase, network),
             generateBitcoinAddress(seedPhrase, network),
             generateBSCAddress(seedPhrase, network),
-            generateNearAddress(seedPhrase, network)
+            generateLitecoinAddress(seedPhrase, network)
         ]);
 
         const walletArray = [];
@@ -316,7 +326,7 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
         walletArray.push(createWallet(tokens.TRX, tronAddress, network));
         walletArray.push(createWallet(tokens.BTC, bitcoinAddress, network));
         walletArray.push(createWallet(tokens.BNB, bscAddress, network));
-        walletArray.push(createWallet(tokens.NEAR, nearAddress, network));
+        walletArray.push(createWallet(tokens.LTC, litecoinAddress, network));
         
         return walletArray;
     } catch (error) {
@@ -420,20 +430,26 @@ const generateBitcoinAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-const generateBSCAddress = generateEthereumAddress;
-
-const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
+const generateLitecoinAddress = async (seedPhrase, network = 'mainnet') => {
     try {
-        const ethAddress = await generateEthereumAddress(seedPhrase, network);
-        return ethAddress.toLowerCase();
-    } catch (error) {
-        console.error('Error generating NEAR EVM address:', error);
+        const networkConfig = network === 'testnet' 
+            ? TESTNET_CONFIG.LITECOIN.NETWORK 
+            : MAINNET_CONFIG.LITECOIN.NETWORK;
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const wallet = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const derivedWallet = wallet.derivePath("m/44'/60'/0'/0/0");
-        return derivedWallet.address.toLowerCase();
+        const root = bip32.fromSeed(seedBuffer, networkConfig);
+        const child = root.derivePath("m/84'/2'/0'/0/0");
+        const { address } = bitcoin.payments.p2wpkh({ 
+            pubkey: child.publicKey, 
+            network: networkConfig 
+        });
+        return address;
+    } catch (error) {
+        console.error('Error generating Litecoin address:', error);
+        return '';
     }
 };
+
+const generateBSCAddress = generateEthereumAddress;
 
 export const initializeUserWallets = async (userData) => {
     try {
@@ -867,25 +883,19 @@ const getBitcoinBalance = async (address, network = 'mainnet') => {
     }
 };
 
-const getNearBalance = async (accountId, network = 'mainnet') => {
+const getLitecoinBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const provider = new JsonRpcProvider({ url: config.NEAR.RPC_URL });
+        const response = await fetch(`${config.LITECOIN.EXPLORER_API}/address/${address}`);
+        if (!response.ok) throw new Error('Network response was not ok');
+        const data = await response.json();
         
-        const result = await provider.query({
-            request_type: 'view_account',
-            account_id: accountId,
-            finality: 'final'
-        });
-        
-        const balanceInYocto = result.amount;
-        const balanceInNEAR = (BigInt(balanceInYocto) / BigInt(1e24)).toString();
-        return balanceInNEAR;
+        const funded = data.chain_stats?.funded_txo_sum || 0;
+        const spent = data.chain_stats?.spent_txo_sum || 0;
+        const balance = (funded - spent) / 1e8;
+        return balance.toString();
     } catch (error) {
-        console.error('NEAR balance error:', error);
-        if (error.message.includes('does not exist') || error.message.includes('Account not found')) {
-            return '0';
-        }
+        console.error('LTC balance error:', error);
         return '0';
     }
 };
@@ -936,8 +946,8 @@ export const getRealBalances = async (wallets) => {
                         case 'Bitcoin':
                             balance = await getBitcoinBalance(wallet.address, wallet.network);
                             break;
-                        case 'NEAR':
-                            balance = await getNearBalance(wallet.address, wallet.network);
+                        case 'Litecoin':
+                            balance = await getLitecoinBalance(wallet.address, wallet.network);
                             break;
                         case 'BSC':
                             balance = await getBNBBalance(wallet.address, wallet.network);
@@ -966,7 +976,7 @@ export const getRealBalances = async (wallets) => {
 
 export const getTokenPrices = async () => {
     try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ethereum,solana,binancecoin,tron,bitcoin,near-protocol,tether&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true');
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ethereum,solana,binancecoin,tron,bitcoin,litecoin,tether&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true');
         
         if (response.ok) {
             const data = await response.json();
@@ -977,7 +987,7 @@ export const getTokenPrices = async () => {
                 'BNB': data.binancecoin?.usd || 600.00,
                 'TRX': data.tron?.usd || 0.12,
                 'BTC': data.bitcoin?.usd || 68000.00,
-                'NEAR': data['near-protocol']?.usd || 8.50,
+                'LTC': data.litecoin?.usd || 85.00,
                 'USDT': data.tether?.usd || 1.00,
                 lastUpdated: Date.now()
             };
@@ -990,7 +1000,7 @@ export const getTokenPrices = async () => {
             'BNB': 600.00,
             'TRX': 0.12,
             'BTC': 68000.00,
-            'NEAR': 8.50,
+            'LTC': 85.00,
             'USDT': 1.00,
             lastUpdated: Date.now()
         };
@@ -1003,7 +1013,7 @@ export const getTokenPrices = async () => {
             'BNB': 600.00,
             'TRX': 0.12,
             'BTC': 68000.00,
-            'NEAR': 8.50,
+            'LTC': 85.00,
             'USDT': 1.00,
             lastUpdated: Date.now()
         };
@@ -1097,10 +1107,16 @@ export const validateAddress = async (blockchain, address, network = 'mainnet') 
                     return false; 
                 }
                 
-            case 'NEAR':
-                const nearRegex = /^[a-z0-9_-]+(\.[a-z0-9_-]+)*\.(near|testnet)$/;
-                const nearEvmRegex = /^0x[0-9a-fA-F]{40}$/;
-                return nearRegex.test(address) || nearEvmRegex.test(address);
+            case 'Litecoin':
+                try {
+                    const networkConfig = network === 'testnet' 
+                        ? TESTNET_CONFIG.LITECOIN.NETWORK 
+                        : MAINNET_CONFIG.LITECOIN.NETWORK;
+                    bitcoin.address.toOutputScript(address, networkConfig);
+                    return true;
+                } catch { 
+                    return false; 
+                }
                 
             default:
                 return true;
@@ -1169,8 +1185,8 @@ export const sendTransaction = async (transactionData) => {
         if (blockchain === 'Tron' && contractAddress && contractAddress.includes('TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t')) {
             // Для USDT TRC20 передаем contractAddress
             txParams.contractAddress = contractAddress;
-        } else if (contractAddress && blockchain !== 'Tron' && blockchain !== 'Bitcoin' && blockchain !== 'NEAR') {
-            // Для других блокчейнов (кроме BTC, NEAR) передаем contractAddress если есть
+        } else if (contractAddress && blockchain !== 'Tron' && blockchain !== 'Bitcoin' && blockchain !== 'Litecoin') {
+            // Для других блокчейнов (кроме BTC, LTC) передаем contractAddress если есть
             txParams.contractAddress = contractAddress;
         }
         
@@ -1211,7 +1227,7 @@ export const estimateTransactionFee = async (blockchain, network = 'mainnet') =>
         'Solana': '0.000005',
         'Tron': '0.1',
         'Bitcoin': '0.0001',
-        'NEAR': '0.01'
+        'Litecoin': '0.0001'
     };
     
     return defaultFees[blockchain] || '0.01';
@@ -1230,7 +1246,7 @@ export const getTokenPricesFromRPC = async () => {
             'BNB': 600.00,
             'TRX': 0.12,
             'BTC': 68000.00,
-            'NEAR': 8.50,
+            'LTC': 85.00,
             'USDT': 1.00
         };
     }
@@ -1359,7 +1375,7 @@ export const getBlockchainIcon = (blockchain) => {
         'Tron': 'https://cryptologos.cc/logos/tron-trx-logo.png',
         'Bitcoin': 'https://cryptologos.cc/logos/bitcoin-btc-logo.png',
         'BSC': 'https://cryptologos.cc/logos/bnb-bnb-logo.png',
-        'NEAR': 'https://cryptologos.cc/logos/near-protocol-near-logo.svg'
+        'Litecoin': 'https://cryptologos.cc/logos/litecoin-ltc-logo.png'
     };
     
     return icons[blockchain] || '';
