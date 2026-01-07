@@ -45,177 +45,243 @@
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.swap-card {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 16px;
-    padding: 24px;
+.swap-block {
     width: 100%;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-}
-
-.swap-section {
     margin-bottom: 20px;
-}
-
-.swap-label {
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.7);
-    margin-bottom: 10px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.swap-input-group {
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: all 0.2s;
-}
-
-.swap-input-group:focus-within {
-    border-color: rgba(255, 215, 0, 0.3);
-    box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.1);
-}
-
-.swap-input-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.swap-input {
-    border: none;
+    padding: 0;
     background: transparent;
-    font-size: 24px;
-    font-weight: 700;
-    color: white;
-    width: 60%;
-    outline: none;
-    font-family: 'Rubik', sans-serif;
 }
 
-.swap-input::placeholder {
-    color: rgba(255, 255, 255, 0.3);
-}
-
-.swap-input:read-only {
-    cursor: not-allowed;
-    opacity: 0.7;
-}
-
-.swap-currency {
+.swap-block-header {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 8px;
+    margin-bottom: 15px;
+    padding: 0 5px;
 }
 
-.swap-token-info {
+.swap-header-left {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 6px 12px;
-    background: rgba(255, 215, 0, 0.1);
-    border-radius: 10px;
-    border: 1px solid rgba(255, 215, 0, 0.2);
 }
 
-.swap-token-logo {
+.swap-token-icon-small {
     width: 24px;
     height: 24px;
     border-radius: 50%;
     object-fit: cover;
 }
 
-.swap-select {
+.swap-header-text {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 500;
+}
+
+.swap-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.swap-balance {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.swap-token-name {
+    font-size: 14px;
+    color: #FFD700;
+    font-weight: 600;
+}
+
+.swap-block-content {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.swap-amount-section {
+    flex: 1;
+    min-width: 0;
+}
+
+.swap-amount-input {
+    width: 100%;
     background: transparent;
     border: none;
-    font-size: 16px;
-    font-weight: 600;
+    font-size: 32px;
+    font-weight: 700;
     color: white;
     outline: none;
-    cursor: pointer;
-    min-width: 80px;
-    padding: 4px;
-    border-radius: 6px;
+    padding: 5px 0;
     font-family: 'Rubik', sans-serif;
 }
 
-.swap-select option {
-    background: #1a1a1a;
-    color: white;
-    padding: 8px;
-    font-family: 'Rubik', sans-serif;
+.swap-amount-input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
 }
 
-.swap-note {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.5);
-    text-align: center;
-    margin-top: 6px;
-    font-style: italic;
+.swap-amount-input:read-only {
+    cursor: default;
+    opacity: 0.8;
 }
 
-.swap-divider {
-    display: flex;
-    justify-content: center;
-    margin: 20px 0;
+/* Remove number input spinners */
+.swap-amount-input::-webkit-inner-spin-button,
+.swap-amount-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.swap-amount-input[type=number] {
+    -moz-appearance: textfield;
+}
+
+.swap-divider-line {
     position: relative;
+    height: 50px;
+    width: 2px;
+    background: rgba(255, 255, 255, 0.2);
+    margin: 0 10px;
 }
 
-.swap-divider::before {
-    content: '';
+.swap-divider-button {
     position: absolute;
     top: 50%;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: rgba(255, 255, 255, 0.1);
-    z-index: 1;
-}
-
-.swap-arrow {
-    background: rgba(255, 215, 0, 0.2);
-    width: 44px;
-    height: 44px;
+    right: -15px;
+    transform: translateY(-50%);
+    background: rgba(255, 215, 0, 0.1);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    color: #FFD700;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #FFD700;
-    font-size: 20px;
+    font-size: 16px;
     cursor: pointer;
-    z-index: 2;
     transition: all 0.3s;
-    border: 1px solid rgba(255, 215, 0, 0.3);
+    z-index: 10;
 }
 
-.swap-arrow:hover {
-    background: rgba(255, 215, 0, 0.3);
-    transform: scale(1.1) rotate(180deg);
-    box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
+.swap-divider-button:hover {
+    background: rgba(255, 215, 0, 0.2);
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
 }
 
-.swap-rate {
+.swap-token-selector {
+    position: relative;
+    min-width: 120px;
+}
+
+.swap-token-button {
+    width: 100%;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 10px 15px;
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.3s;
+    font-family: 'Rubik', sans-serif;
+}
+
+.swap-token-button:hover {
+    border-color: rgba(255, 215, 0, 0.4);
+    background: rgba(255, 215, 0, 0.05);
+}
+
+.swap-selected-token {
+    color: #FFD700;
+}
+
+.swap-selector-arrow {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 18px;
+    transform: rotate(90deg);
+}
+
+.swap-selector-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    width: 200px;
+    background: #1a1a1a;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    margin-top: 5px;
+    z-index: 1000;
+    max-height: 300px;
+    overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.swap-selector-option {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.swap-selector-option:last-child {
+    border-bottom: none;
+}
+
+.swap-selector-option:hover {
+    background-color: rgba(255, 215, 0, 0.1);
+}
+
+.swap-option-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    margin-right: 10px;
+    object-fit: cover;
+}
+
+.swap-option-symbol {
+    font-weight: 600;
+    color: white;
+    margin-right: 10px;
+    min-width: 50px;
+}
+
+.swap-option-name {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+}
+
+.swap-rate-display {
     text-align: center;
     font-size: 14px;
     color: rgba(255, 255, 255, 0.7);
-    margin: 20px 0;
-    padding: 12px;
+    margin: 25px 0 20px;
+    padding: 10px 15px;
     background: rgba(255, 255, 255, 0.03);
-    border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    font-weight: 500;
+    border-radius: 8px;
+    width: 100%;
 }
 
-.swap-button {
+.swap-deal-button {
     background: rgba(255, 215, 0, 0.2);
     color: #FFD700;
-    border: none;
+    border: 1px solid rgba(255, 215, 0, 0.3);
     border-radius: 12px;
     padding: 16px;
     font-size: 16px;
@@ -225,25 +291,25 @@
     transition: all 0.3s;
     font-family: 'Rubik', sans-serif;
     letter-spacing: 0.5px;
-    border: 1px solid rgba(255, 215, 0, 0.3);
+    margin-top: 10px;
 }
 
-.swap-button:hover:not(:disabled) {
+.swap-deal-button:hover:not(:disabled) {
     background: rgba(255, 215, 0, 0.3);
-    color: #FFD700;
     transform: translateY(-2px);
     box-shadow: 0 4px 15px rgba(255, 215, 0, 0.1);
 }
 
-.swap-button:active:not(:disabled) {
+.swap-deal-button:active:not(:disabled) {
     transform: translateY(0);
 }
 
-.swap-button:disabled {
+.swap-deal-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     color: rgba(255, 215, 0, 0.5);
     background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
 }
 
 .swap-loading {
@@ -256,18 +322,23 @@
     font-weight: 500;
 }
 
-/* Animation for token logo */
-@keyframes tokenLogoSpin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+/* Custom scrollbar for dropdown */
+.swap-selector-dropdown::-webkit-scrollbar {
+    width: 6px;
 }
 
-.swap-token-logo:hover {
-    animation: tokenLogoSpin 2s linear infinite;
+.swap-selector-dropdown::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+}
+
+.swap-selector-dropdown::-webkit-scrollbar-thumb {
+    background: rgba(255, 215, 0, 0.3);
+    border-radius: 3px;
+}
+
+.swap-selector-dropdown::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 215, 0, 0.5);
 }
 
 /* Responsive design */
@@ -281,107 +352,70 @@
         margin-bottom: 20px;
     }
     
-    .swap-card {
-        padding: 20px;
-        border-radius: 14px;
+    .swap-amount-input {
+        font-size: 28px;
     }
     
-    .swap-input {
-        font-size: 20px;
-        width: 55%;
+    .swap-token-button {
+        padding: 8px 12px;
+        font-size: 14px;
     }
     
-    .swap-token-info {
-        padding: 4px 10px;
-        gap: 8px;
+    .swap-selector-dropdown {
+        width: 180px;
     }
     
-    .swap-token-logo {
+    .swap-option-icon {
         width: 20px;
         height: 20px;
+        margin-right: 8px;
     }
     
-    .swap-select {
-        font-size: 14px;
-        min-width: 70px;
+    .swap-option-symbol {
+        min-width: 40px;
+        margin-right: 8px;
     }
     
-    .swap-rate {
+    .swap-rate-display {
         font-size: 13px;
-        padding: 10px;
-        margin: 16px 0;
+        padding: 8px 12px;
+        margin: 20px 0 15px;
     }
     
-    .swap-button {
+    .swap-deal-button {
         padding: 14px;
         font-size: 15px;
     }
     
-    .swap-arrow {
-        width: 40px;
-        height: 40px;
-        font-size: 18px;
+    .swap-divider-button {
+        width: 28px;
+        height: 28px;
+        font-size: 14px;
+        right: -13px;
     }
 }
 
-/* Custom scrollbar for select */
-.swap-select::-webkit-scrollbar {
-    width: 6px;
+/* Animation for token icons */
+@keyframes tokenIconSpin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
-.swap-select::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 3px;
-}
-
-.swap-select::-webkit-scrollbar-thumb {
-    background: rgba(255, 215, 0, 0.3);
-    border-radius: 3px;
-}
-
-.swap-select::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 215, 0, 0.5);
+.swap-token-icon-small:hover,
+.swap-option-icon:hover {
+    animation: tokenIconSpin 2s linear infinite;
 }
 
 /* Focus styles */
-.swap-input:focus,
-.swap-select:focus {
+.swap-amount-input:focus {
+    outline: none;
+}
+
+.swap-token-button:focus {
     outline: 2px solid rgba(255, 215, 0, 0.3);
     outline-offset: 2px;
-}
-
-/* Number input spinner */
-.swap-input::-webkit-inner-spin-button,
-.swap-input::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-}
-
-.swap-input[type=number] {
-    -moz-appearance: textfield;
-}
-
-/* Gold glow effect for active elements */
-.swap-arrow.gold-glow,
-.swap-button.gold-glow {
-    box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
-}
-
-/* Loading animation */
-@keyframes shimmer {
-    0% {
-        background-position: -200px 0;
-    }
-    100% {
-        background-position: 200px 0;
-    }
-}
-
-.swap-loading-shimmer {
-    background: linear-gradient(90deg, 
-        rgba(255, 255, 255, 0.03) 0%, 
-        rgba(255, 255, 255, 0.08) 50%, 
-        rgba(255, 255, 255, 0.03) 100%);
-    background-size: 200px 100%;
-    animation: shimmer 1.5s infinite;
 }
