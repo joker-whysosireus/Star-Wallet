@@ -10,7 +10,7 @@ import * as ecc from 'tiny-secp256k1';
 import * as base58 from 'bs58';
 import { Buffer } from 'buffer';
 import crypto from 'crypto';
-import { TronWeb } from 'tronweb'; // Исправленный импорт
+import { TronWeb } from 'tronweb';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -645,18 +645,17 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
 const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
-        // Используем стандартный путь деривации Ethereum для совместимости с EVM-адресами NEAR
+        // СИНХРОНИЗАЦИЯ: используем тот же путь, что и в storageService.js
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const hdNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const wallet = hdNode.derivePath("m/44'/60'/0'/0/0");
+        const wallet = hdNode.derivePath("m/44'/60'/0'/0/0"); // Тот же путь, что и для Ethereum
         
-        // Используем EVM-совместимый RPC для NEAR
         const provider = new ethers.JsonRpcProvider(config.NEAR.EVM_RPC_URL);
         
         return { 
             wallet: wallet.connect(provider), 
             provider,
-            address: wallet.address
+            address: wallet.address.toLowerCase() // Приводим к нижнему регистру для консистентности
         };
     } catch (error) {
         console.error('Error getting NEAR wallet from seed:', error);
@@ -677,10 +676,14 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
             throw new Error(`Insufficient balance. Have: ${ethers.formatEther(balance)} NEAR, Need: ${amount} NEAR`);
         }
         
-        // Получаем nonce
-        const nonce = await provider.getTransactionCount(fromAddress, 'latest');
+        // Получаем estimateGas
+        const gasEstimate = await provider.estimateGas({
+            from: fromAddress,
+            to: toAddress,
+            value: amountInWei
+        });
         
-        // Получаем актуальные параметры газа
+        const nonce = await provider.getTransactionCount(fromAddress, 'latest');
         const feeData = await provider.getFeeData();
         
         // Создаем транзакцию с правильным chainId (398 для NEAR)
@@ -689,7 +692,7 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
             to: toAddress,
             value: amountInWei,
             nonce: nonce,
-            gasLimit: 21000,
+            gasLimit: gasEstimate,
             maxFeePerGas: feeData.maxFeePerGas || feeData.gasPrice,
             maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || feeData.gasPrice,
             chainId: 398, // ChainId для NEAR в EVM-совместимом режиме
@@ -723,21 +726,38 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
 const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
+        // СИНХРОНИЗАЦИЯ: используем тот же метод, что и в storageService.js
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
         const ethWallet = masterNode.derivePath("m/44'/195'/0'/0/0");
         const privateKeyHex = ethWallet.privateKey.substring(2);
         
-        // Инициализация TronWeb с правильным конструктором
+        const privateKeyBuffer = Buffer.from(privateKeyHex, 'hex');
+        
+        // Генерируем публичный ключ (как в storageService.js)
+        const publicKey = ecc.pointFromScalar(privateKeyBuffer, true);
+        
+        // Вычисляем адрес Tron (как в storageService.js)
+        const keccakHash = crypto.createHash('sha256').update(publicKey).digest();
+        const addressBytes = keccakHash.subarray(keccakHash.length - 20);
+        const addressWithPrefix = Buffer.concat([Buffer.from([0x41]), addressBytes]);
+        
+        const hash1 = crypto.createHash('sha256').update(addressWithPrefix).digest();
+        const hash2 = crypto.createHash('sha256').update(hash1).digest();
+        const checksum = hash2.subarray(0, 4);
+        
+        const addressWithChecksum = Buffer.concat([addressWithPrefix, checksum]);
+        const address = base58.encode(addressWithChecksum);
+        
+        // Инициализируем TronWeb
         const tronWeb = new TronWeb({
             fullHost: config.TRON.RPC_URL,
             privateKey: privateKeyHex
         });
         
-        const address = tronWeb.address.fromPrivateKey(privateKeyHex);
         return {
             tronWeb,
-            address,
+            address, // Base58 адрес
             privateKey: privateKeyHex
         };
     } catch (error) {
@@ -754,13 +774,14 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, network = 'mainne
         // Конвертация TRX в SUN (1 TRX = 1,000,000 SUN)
         const amountInSun = Math.floor(amount * 1000000);
         
-        // Проверяем баланс
+        // Проверяем баланс - используем base58 адрес
         const balance = await tronWeb.trx.getBalance(fromAddress);
         if (balance < amountInSun) {
             throw new Error(`Insufficient balance. Have: ${balance / 1000000} TRX, Need: ${amount} TRX`);
         }
         
         // Создаем транзакцию с помощью transactionBuilder.sendTrx
+        // toAddress должен быть в base58 формате
         const transaction = await tronWeb.transactionBuilder.sendTrx(
             toAddress,
             amountInSun,
@@ -917,7 +938,7 @@ export const validateAddress = (blockchain, address, network = 'mainnet') => {
                 const nearAccountRegex = /^[a-z0-9_-]+(\.[a-z0-9_-]+)*\.(near|testnet)$/;
                 return nearEvmRegex.test(address) || nearAccountRegex.test(address);
             case 'Tron':
-                // Проверка базового формата адреса Tron
+                // Проверка базового формата адреса Tron (TAV92uKwDn5FJNwbf9TF8QfdCkN2ps2g8P)
                 const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$|^41[0-9a-fA-F]{40}$/;
                 return tronRegex.test(address);
             default: 
