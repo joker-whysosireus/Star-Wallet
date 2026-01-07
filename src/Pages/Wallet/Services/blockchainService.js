@@ -8,8 +8,6 @@ import * as bitcoin from 'bitcoinjs-lib';
 import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import { Buffer } from 'buffer';
-import base58 from 'bs58';
-import TronWeb from 'tronweb';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -31,12 +29,6 @@ const MAINNET_CONFIG = {
     BITCOIN: {
         EXPLORER_API: 'https://blockstream.info/api',
         NETWORK: bitcoin.networks.bitcoin
-    },
-    TRON: {
-        FULL_NODE: 'https://api.trongrid.io',
-        SOLIDITY_NODE: 'https://api.trongrid.io',
-        EVENT_SERVER: 'https://api.trongrid.io',
-        NETWORK: 'mainnet'
     }
 };
 
@@ -58,12 +50,6 @@ const TESTNET_CONFIG = {
     BITCOIN: {
         EXPLORER_API: 'https://blockstream.info/testnet/api',
         NETWORK: bitcoin.networks.testnet
-    },
-    TRON: {
-        FULL_NODE: 'https://api.shasta.trongrid.io',
-        SOLIDITY_NODE: 'https://api.shasta.trongrid.io',
-        EVENT_SERVER: 'https://api.shasta.trongrid.io',
-        NETWORK: 'shasta'
     }
 };
 
@@ -628,142 +614,6 @@ export const sendBtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
     }
 };
 
-// ========== TRON (TRX) - ИСПРАВЛЕННАЯ ВЕРСИЯ ==========
-const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
-    try {
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const hdNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const wallet = hdNode.derivePath("m/44'/195'/0'/0/0");
-        
-        // Преобразуем приватный ключ в формат Tron
-        const privateKeyHex = wallet.privateKey.substring(2); // Убираем 0x
-        
-        // Создаем TronWeb инстанс
-        const config = getConfig(network);
-        const tronWeb = new TronWeb({
-            fullHost: config.TRON.FULL_NODE,
-            headers: { "TRON-PRO-API-KEY": "8cc55545-5888-4f02-ada8-df2043bd03f2" }
-        });
-        
-        // Получаем адрес из приватного ключа
-        const address = tronWeb.address.fromPrivateKey(privateKeyHex);
-        
-        return {
-            wallet: wallet,
-            address: address,
-            privateKey: privateKeyHex,
-            tronWeb: tronWeb
-        };
-    } catch (error) {
-        console.error('Error getting Tron wallet from seed:', error);
-        throw error;
-    }
-};
-
-export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress = null, network = 'mainnet' }) => {
-    try {
-        const config = getConfig(network);
-        const { address: fromAddress, privateKey, tronWeb } = await getTronWalletFromSeed(seedPhrase, network);
-        
-        console.log(`Sending TRX from ${fromAddress} to ${toAddress}, amount: ${amount}`);
-        
-        // Устанавливаем приватный ключ для подписи транзакций
-        tronWeb.setPrivateKey(privateKey);
-        
-        // Проверяем баланс
-        const balance = await tronWeb.trx.getBalance(fromAddress);
-        const balanceInTRX = balance / 1000000;
-        
-        if (balanceInTRX < parseFloat(amount)) {
-            throw new Error(`Insufficient balance. Need: ${amount} TRX, Have: ${balanceInTRX} TRX`);
-        }
-        
-        let result;
-        
-        if (contractAddress) {
-            // Отправка TRC20 токена (USDT)
-            console.log(`Sending TRC20 token from contract: ${contractAddress}`);
-            
-            const contract = await tronWeb.contract().at(contractAddress);
-            
-            // Получаем decimals
-            let decimals = 6;
-            try {
-                decimals = await contract.decimals().call();
-            } catch (e) {
-                console.warn('Could not get decimals, using default 6');
-            }
-            
-            const amountInUnits = Math.floor(amount * Math.pow(10, decimals));
-            
-            // Отправка токена
-            result = await contract.transfer(toAddress, amountInUnits).send({
-                feeLimit: 100000000,
-                callValue: 0,
-                shouldPollResponse: true
-            });
-        } else {
-            // Отправка нативного TRX
-            console.log(`Sending native TRX`);
-            
-            // Конвертируем TRX в sun (1 TRX = 1,000,000 sun)
-            const amountInSun = Math.floor(amount * 1000000);
-            
-            // Создаем транзакцию
-            const transaction = await tronWeb.transactionBuilder.sendTrx(
-                toAddress,
-                amountInSun,
-                fromAddress
-            );
-            
-            // Добавляем fee limit для избежания ошибок с ресурсами
-            const transactionWithFee = await tronWeb.transactionBuilder.addUpdateData(
-                transaction,
-                'Transfer TRX',
-                'text'
-            );
-            
-            // Подписываем и отправляем транзакцию
-            const signedTx = await tronWeb.trx.sign(transactionWithFee);
-            result = await tronWeb.trx.sendRawTransaction(signedTx);
-        }
-        
-        if (!result || !result.txid) {
-            throw new Error('Transaction failed: No transaction ID received');
-        }
-        
-        const explorerUrl = network === 'testnet'
-            ? `https://shasta.tronscan.org/#/transaction/${result.txid}`
-            : `https://tronscan.org/#/transaction/${result.txid}`;
-        
-        console.log(`TRX transaction successful: ${result.txid}`);
-        
-        return {
-            success: true,
-            hash: result.txid,
-            message: contractAddress ? `Successfully sent ${amount} TRC20 token` : `Successfully sent ${amount} TRX`,
-            explorerUrl,
-            timestamp: new Date().toISOString()
-        };
-        
-    } catch (error) {
-        console.error(`[TRON ${network} ERROR]:`, error);
-        
-        // Более информативные сообщения об ошибках
-        if (error.message.includes('insufficient resource')) {
-            throw new Error('Insufficient bandwidth or energy. Try freezing TRX for resources.');
-        } else if (error.message.includes('validate signature error')) {
-            throw new Error('Invalid private key or signature error.');
-        } else if (error.message.includes('account not found')) {
-            throw new Error('Sender account not found or activated.');
-        } else if (error.message.includes('balance is not sufficient')) {
-            throw new Error('Insufficient TRX balance for transaction.');
-        }
-        
-        throw new Error(`Failed to send TRX: ${error.message || error.toString()}`);
-    }
-};
-
 // ========== УНИВЕРСАЛЬНАЯ ФУНКЦИЯ ==========
 export const sendTransaction = async (params) => {
     const { blockchain, toAddress, amount, seedPhrase, memo, contractAddress, network = 'mainnet' } = params;
@@ -817,24 +667,6 @@ export const sendTransaction = async (params) => {
                     network
                 });
                 break;
-            case 'Tron':
-                if (contractAddress && contractAddress !== 'TRX') {
-                    result = await sendTrx({ 
-                        toAddress, 
-                        amount, 
-                        seedPhrase,
-                        contractAddress,
-                        network
-                    });
-                } else {
-                    result = await sendTrx({ 
-                        toAddress, 
-                        amount, 
-                        seedPhrase,
-                        network
-                    });
-                }
-                break;
             default:
                 throw new Error(`Unsupported blockchain: ${blockchain}`);
         }
@@ -877,11 +709,6 @@ export const validateAddress = (blockchain, address, network = 'mainnet') => {
                 } catch { 
                     return false; 
                 }
-            case 'Tron':
-                // Tron адреса начинаются с T (mainnet) или TG (testnet shasta) и имеют 34 символа
-                const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
-                const shastaRegex = /^TG[1-9A-HJ-NP-Za-km-z]{32}$/;
-                return network === 'testnet' ? shastaRegex.test(address) : tronRegex.test(address);
             default: 
                 return true;
         }
@@ -897,8 +724,7 @@ export const estimateTransactionFee = async (blockchain, network = 'mainnet') =>
         'Ethereum': { mainnet: '0.001', testnet: '0.0001' },
         'BSC': { mainnet: '0.0001', testnet: '0.00001' },
         'Solana': { mainnet: '0.000005', testnet: '0.000001' },
-        'Bitcoin': { mainnet: '0.0001', testnet: '0.00001' },
-        'Tron': { mainnet: '0.1', testnet: '0.01' }
+        'Bitcoin': { mainnet: '0.0001', testnet: '0.00001' }
     };
     
     const fees = defaultFees[blockchain] || { mainnet: '0.01', testnet: '0.001' };
@@ -913,7 +739,6 @@ export default {
     sendSol,
     sendBsc,
     sendBtc,
-    sendTrx,
     validateAddress,
     estimateTransactionFee,
     MAINNET_CONFIG,

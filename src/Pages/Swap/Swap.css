@@ -1,341 +1,387 @@
 @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap');
 
-/* ОБЩИЙ СТИЛЬ ДЛЯ ВСЕХ СТРАНИЦ */
-.page-container {
+.wallet-page-wallet {
     min-height: 100vh;
-    background-color: #000000 !important;
+    background-color: #000000;
     color: white;
     font-family: 'Rubik', sans-serif;
     display: flex;
     flex-direction: column;
     position: relative;
-    padding-top: 60px; /* Для Header */
-    padding-bottom: 80px; /* Для Menu */
+    padding-top: 120px;
+    padding-bottom: 60px;
 }
 
 .page-content {
-    flex: 1;
-    padding: 20px;
-    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 15px;
+    justify-content: flex-start;
+    padding: 20px;
+    padding-bottom: 80px;
+    box-sizing: border-box;
+    flex: 1;
     width: 100%;
-    overflow-y: auto;
+    transition: margin-top 0.3s ease;
 }
 
-.swap-header {
-    text-align: center;
-    margin-bottom: 15px;
-    width: 100%;
-}
-
-.swap-header h1 {
-    color: white;
-    font-size: 24px;
-    font-weight: 600;
-    margin: 0 0 5px 0;
-}
-
-.swap-header p {
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 14px;
-    margin: 0;
-}
-
-/* Swap Container */
 .swap-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 0;
     width: 100%;
     max-width: 400px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
 }
 
-/* Swap Blocks */
-.swap-block {
+.swap-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: white;
+    margin: 0;
+    text-align: center;
+    margin-bottom: 30px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.swap-card {
     background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 24px;
+    width: 100%;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 15px;
-    position: relative;
-    box-sizing: border-box;
+    backdrop-filter: blur(10px);
 }
 
-.from-block {
-    border-color: rgba(255, 215, 0, 0.2);
-}
-
-.to-block {
-    border-color: rgba(0, 255, 255, 0.2);
-}
-
-.swap-block-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 15px;
-}
-
-.swap-left {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    flex: 1;
-}
-
-.swap-right {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    flex: 1;
-    min-width: 150px;
+.swap-section {
+    margin-bottom: 20px;
 }
 
 .swap-label {
+    font-size: 14px;
     color: rgba(255, 255, 255, 0.7);
-    font-size: 12px;
+    margin-bottom: 10px;
     font-weight: 500;
-    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
-.swap-amount {
-    color: white;
-    font-size: 20px;
-    font-weight: 600;
-    margin: 0 0 2px 0;
-    word-break: break-all;
-}
-
-.swap-usd {
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 12px;
-    margin: 0;
-}
-
-.swap-balance {
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 11px;
+.swap-input-group {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    padding: 16px;
     margin-bottom: 8px;
-    text-align: right;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.2s;
 }
 
-.token-selector {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    padding: 8px 10px;
+.swap-input-group:focus-within {
+    border-color: rgba(255, 215, 0, 0.3);
+    box-shadow: 0 0 0 1px rgba(255, 215, 0, 0.1);
+}
+
+.swap-input-wrapper {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    cursor: pointer;
-    transition: all 0.2s;
-    margin-bottom: 8px;
-    width: 100%;
-    box-sizing: border-box;
 }
 
-.token-selector:hover {
-    background: rgba(255, 255, 255, 0.08);
+.swap-input {
+    border: none;
+    background: transparent;
+    font-size: 24px;
+    font-weight: 700;
+    color: white;
+    width: 60%;
+    outline: none;
+    font-family: 'Rubik', sans-serif;
 }
 
-.selected-token-info {
+.swap-input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.swap-input:read-only {
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.swap-currency {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
-.token-icon {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-    background: linear-gradient(135deg, #FFD700, #FFA500);
+.swap-token-info {
     display: flex;
     align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.token-icon-fallback {
-    color: #000;
-    font-size: 11px;
-    font-weight: bold;
-}
-
-.token-info {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    min-width: 0;
-}
-
-.token-symbol {
-    color: white;
-    font-size: 12px;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.token-name {
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 10px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.token-arrow {
-    color: #FFD700;
-    font-size: 14px;
-    font-weight: bold;
-    margin-left: 8px;
-}
-
-.percentage-buttons {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 8px;
-    width: 100%;
-}
-
-.percentage-btn {
-    flex: 1;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-    padding: 6px;
-    color: white;
-    font-size: 11px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    box-sizing: border-box;
-}
-
-.percentage-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.percentage-btn.active {
+    gap: 10px;
+    padding: 6px 12px;
     background: rgba(255, 215, 0, 0.1);
-    border-color: rgba(255, 215, 0, 0.3);
-    color: #FFD700;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 215, 0, 0.2);
 }
 
-.swap-fee {
+.swap-token-logo {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.swap-select {
+    background: transparent;
+    border: none;
+    font-size: 16px;
+    font-weight: 600;
+    color: white;
+    outline: none;
+    cursor: pointer;
+    min-width: 80px;
+    padding: 4px;
+    border-radius: 6px;
+    font-family: 'Rubik', sans-serif;
+}
+
+.swap-select option {
+    background: #1a1a1a;
+    color: white;
+    padding: 8px;
+    font-family: 'Rubik', sans-serif;
+}
+
+.swap-note {
+    font-size: 12px;
     color: rgba(255, 255, 255, 0.5);
-    font-size: 10px;
-    text-align: right;
-    width: 100%;
+    text-align: center;
+    margin-top: 6px;
+    font-style: italic;
 }
 
-/* Exchange Symbol */
-.exchange-symbol-container {
+.swap-divider {
     display: flex;
     justify-content: center;
-    margin: -5px 0;
+    margin: 20px 0;
     position: relative;
-    z-index: 3;
 }
 
-.exchange-symbol {
-    width: 30px;
-    height: 30px;
-    background: linear-gradient(135deg, #FFD700, #FFA500);
-    border: 3px solid #000000;
+.swap-divider::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    z-index: 1;
+}
+
+.swap-arrow {
+    background: rgba(255, 215, 0, 0.2);
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #000;
-    font-size: 16px;
-    font-weight: bold;
+    color: #FFD700;
+    font-size: 20px;
     cursor: pointer;
-    transition: all 0.2s;
+    z-index: 2;
+    transition: all 0.3s;
+    border: 1px solid rgba(255, 215, 0, 0.3);
 }
 
-.exchange-symbol:hover {
-    transform: rotate(180deg);
+.swap-arrow:hover {
+    background: rgba(255, 215, 0, 0.3);
+    transform: scale(1.1) rotate(180deg);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
 }
 
-/* Swap Button */
-.swap-btn {
-    background: linear-gradient(135deg, #FFD700, #FFA500);
-    border: none;
-    border-radius: 10px;
-    padding: 14px;
-    color: #000;
+.swap-rate {
+    text-align: center;
     font-size: 14px;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 20px 0;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    font-weight: 500;
+}
+
+.swap-button {
+    background: rgba(255, 215, 0, 0.2);
+    color: #FFD700;
+    border: none;
+    border-radius: 12px;
+    padding: 16px;
+    font-size: 16px;
     font-weight: 600;
-    cursor: pointer;
     width: 100%;
-    max-width: 400px;
-    margin-top: 10px;
-    box-sizing: border-box;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-family: 'Rubik', sans-serif;
+    letter-spacing: 0.5px;
+    border: 1px solid rgba(255, 215, 0, 0.3);
 }
 
-.swap-btn:hover:not(:disabled) {
-    opacity: 0.9;
+.swap-button:hover:not(:disabled) {
+    background: rgba(255, 215, 0, 0.3);
+    color: #FFD700;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(255, 215, 0, 0.1);
 }
 
-.swap-btn:disabled {
+.swap-button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.swap-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+    color: rgba(255, 215, 0, 0.5);
+    background: rgba(255, 255, 255, 0.05);
 }
 
-/* Transaction Status */
-.transaction-status {
-    padding: 10px;
-    border-radius: 8px;
-    margin-top: 10px;
-    text-align: center;
-    font-size: 12px;
-    font-weight: 500;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.transaction-status.success {
-    background: rgba(0, 255, 0, 0.1);
-    border: 1px solid rgba(0, 255, 0, 0.3);
-    color: #00FF00;
-}
-
-.transaction-status.error {
-    background: rgba(255, 0, 0, 0.1);
-    border: 1px solid rgba(255, 0, 0, 0.3);
-    color: #FF5555;
-}
-
-/* Loading */
-.loading-container {
+.swap-loading {
+    flex: 1;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 300px;
-    width: 100%;
-}
-
-.loader {
-    width: 30px;
-    height: 30px;
-    border: 3px solid rgba(255, 255, 255, 0.1);
-    border-top: 3px solid #FFD700;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-bottom: 15px;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.loading-container p {
     color: rgba(255, 255, 255, 0.7);
-    font-size: 14px;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+/* Animation for token logo */
+@keyframes tokenLogoSpin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.swap-token-logo:hover {
+    animation: tokenLogoSpin 2s linear infinite;
+}
+
+/* Responsive design */
+@media (max-width: 480px) {
+    .swap-container {
+        padding: 10px 0;
+    }
+    
+    .swap-title {
+        font-size: 24px;
+        margin-bottom: 20px;
+    }
+    
+    .swap-card {
+        padding: 20px;
+        border-radius: 14px;
+    }
+    
+    .swap-input {
+        font-size: 20px;
+        width: 55%;
+    }
+    
+    .swap-token-info {
+        padding: 4px 10px;
+        gap: 8px;
+    }
+    
+    .swap-token-logo {
+        width: 20px;
+        height: 20px;
+    }
+    
+    .swap-select {
+        font-size: 14px;
+        min-width: 70px;
+    }
+    
+    .swap-rate {
+        font-size: 13px;
+        padding: 10px;
+        margin: 16px 0;
+    }
+    
+    .swap-button {
+        padding: 14px;
+        font-size: 15px;
+    }
+    
+    .swap-arrow {
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+    }
+}
+
+/* Custom scrollbar for select */
+.swap-select::-webkit-scrollbar {
+    width: 6px;
+}
+
+.swap-select::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+}
+
+.swap-select::-webkit-scrollbar-thumb {
+    background: rgba(255, 215, 0, 0.3);
+    border-radius: 3px;
+}
+
+.swap-select::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 215, 0, 0.5);
+}
+
+/* Focus styles */
+.swap-input:focus,
+.swap-select:focus {
+    outline: 2px solid rgba(255, 215, 0, 0.3);
+    outline-offset: 2px;
+}
+
+/* Number input spinner */
+.swap-input::-webkit-inner-spin-button,
+.swap-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.swap-input[type=number] {
+    -moz-appearance: textfield;
+}
+
+/* Gold glow effect for active elements */
+.swap-arrow.gold-glow,
+.swap-button.gold-glow {
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+}
+
+/* Loading animation */
+@keyframes shimmer {
+    0% {
+        background-position: -200px 0;
+    }
+    100% {
+        background-position: 200px 0;
+    }
+}
+
+.swap-loading-shimmer {
+    background: linear-gradient(90deg, 
+        rgba(255, 255, 255, 0.03) 0%, 
+        rgba(255, 255, 255, 0.08) 50%, 
+        rgba(255, 255, 255, 0.03) 100%);
+    background-size: 200px 100%;
+    animation: shimmer 1.5s infinite;
 }

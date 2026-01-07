@@ -26,13 +26,6 @@ const MAINNET_CONFIG = {
         RPC_URL: 'https://api.mainnet-beta.solana.com',
         NETWORK: 'mainnet-beta'
     },
-    TRON: { 
-        RPC_URL: 'https://api.trongrid.io',
-        FULL_NODE: 'https://api.trongrid.io',
-        SOLIDITY_NODE: 'https://api.trongrid.io',
-        EVENT_SERVER: 'https://api.trongrid.io',
-        NETWORK: 'mainnet'
-    },
     BITCOIN: { 
         EXPLORER_API: 'https://blockstream.info/api',
         NETWORK: bitcoin.networks.bitcoin
@@ -57,13 +50,6 @@ const TESTNET_CONFIG = {
     SOLANA: { 
         RPC_URL: 'https://api.testnet.solana.com',
         NETWORK: 'testnet'
-    },
-    TRON: { 
-        RPC_URL: 'https://api.shasta.trongrid.io',
-        FULL_NODE: 'https://api.shasta.trongrid.io',
-        SOLIDITY_NODE: 'https://api.shasta.trongrid.io',
-        EVENT_SERVER: 'https://api.shasta.trongrid.io',
-        NETWORK: 'shasta'
     },
     BITCOIN: { 
         EXPLORER_API: 'https://blockstream.info/testnet/api',
@@ -130,23 +116,6 @@ export const TOKENS = {
         decimals: 6, 
         isNative: false, 
         contractAddress: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', 
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
-    },
-    TRX: { 
-        symbol: 'TRX', 
-        name: 'TRON', 
-        blockchain: 'Tron', 
-        decimals: 6, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/tron-trx-logo.png' 
-    },
-    USDT_TRX: { 
-        symbol: 'USDT', 
-        name: 'Tether (TRC20)', 
-        blockchain: 'Tron', 
-        decimals: 6, 
-        isNative: false, 
-        contractAddress: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', 
         logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
     },
     BTC: { 
@@ -219,23 +188,6 @@ export const TESTNET_TOKENS = {
         contractAddress: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', 
         logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
     },
-    TRX: { 
-        symbol: 'TRX', 
-        name: 'TRON', 
-        blockchain: 'Tron', 
-        decimals: 6, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/tron-trx-logo.png' 
-    },
-    USDT_TRX: { 
-        symbol: 'USDT', 
-        name: 'Tether (TRC20)', 
-        blockchain: 'Tron', 
-        decimals: 6, 
-        isNative: false, 
-        contractAddress: 'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj', 
-        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
-    },
     BTC: { 
         symbol: 'BTC', 
         name: 'Bitcoin', 
@@ -267,11 +219,10 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
     try {
         if (!seedPhrase) throw new Error('Seed phrase is required');
 
-        const [tonAddress, ethAddress, solAddress, tronAddress, bitcoinAddress, bscAddress] = await Promise.all([
+        const [tonAddress, ethAddress, solAddress, bitcoinAddress, bscAddress] = await Promise.all([
             generateTonAddress(seedPhrase, network),
             generateEthereumAddress(seedPhrase, network),
             generateSolanaAddress(seedPhrase, network),
-            generateTronAddress(seedPhrase, network),
             generateBitcoinAddress(seedPhrase, network),
             generateBSCAddress(seedPhrase, network)
         ]);
@@ -283,7 +234,6 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
         walletArray.push(createWallet(tokens.USDT_TON, tonAddress, network));
         walletArray.push(createWallet(tokens.ETH, ethAddress, network));
         walletArray.push(createWallet(tokens.SOL, solAddress, network));
-        walletArray.push(createWallet(tokens.TRX, tronAddress, network));
         walletArray.push(createWallet(tokens.BTC, bitcoinAddress, network));
         walletArray.push(createWallet(tokens.BNB, bscAddress, network));
         
@@ -342,33 +292,6 @@ const generateSolanaAddress = async (seedPhrase, network = 'mainnet') => {
         return keypair.publicKey.toBase58();
     } catch (error) {
         console.error('Error generating Solana address:', error);
-        return '';
-    }
-};
-
-const generateTronAddress = async (seedPhrase, network = 'mainnet') => {
-    try {
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const wallet = masterNode.derivePath("m/44'/195'/0'/0/0");
-        const privateKeyHex = wallet.privateKey.substring(2);
-        
-        const privateKeyBuffer = Buffer.from(privateKeyHex, 'hex');
-        const publicKey = ecc.pointFromScalar(privateKeyBuffer, true);
-        
-        // Используем ethers для хэширования
-        const keccakHash = Buffer.from(ethers.sha256(publicKey).slice(2), 'hex');
-        const addressBytes = keccakHash.subarray(keccakHash.length - 20);
-        const addressWithPrefix = Buffer.concat([Buffer.from([0x41]), addressBytes]);
-        
-        const hash1 = Buffer.from(ethers.sha256(addressWithPrefix).slice(2), 'hex');
-        const hash2 = Buffer.from(ethers.sha256(hash1).slice(2), 'hex');
-        const checksum = hash2.subarray(0, 4);
-        
-        const addressWithChecksum = Buffer.concat([addressWithPrefix, checksum]);
-        return base58.encode(addressWithChecksum);
-    } catch (error) {
-        console.error('Error generating Tron address:', error);
         return '';
     }
 };
@@ -745,68 +668,6 @@ const getSPLBalance = async (address, tokenAddress, network = 'mainnet') => {
     }
 };
 
-const getTronBalance = async (address, network = 'mainnet') => {
-    try {
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const baseUrl = config.TRON.RPC_URL;
-        
-        const response = await fetch(`${baseUrl}/wallet/getaccount`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                address: address.startsWith('T') ? address : undefined,
-                address_hex: address.startsWith('41') ? address : undefined,
-                visible: address.startsWith('T')
-            })
-        });
-
-        if (!response.ok) return '0';
-        
-        const data = await response.json();
-        
-        if (data.balance !== undefined) {
-            const balanceTRX = (parseInt(data.balance) / 1_000_000).toFixed(6);
-            return balanceTRX;
-        }
-        return '0';
-    } catch (error) {
-        console.error('TRON balance error:', error);
-        return '0';
-    }
-};
-
-const getTRC20Balance = async (address, contractAddress, network = 'mainnet') => {
-    try {
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const baseUrl = config.TRON.RPC_URL;
-        
-        const response = await fetch(`${baseUrl}/wallet/triggerconstantcontract`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                owner_address: address,
-                contract_address: contractAddress,
-                function_selector: 'balanceOf(address)',
-                parameter: address.replace('T', '').padStart(64, '0')
-            })
-        });
-
-        if (!response.ok) return '0';
-        
-        const data = await response.json();
-        
-        if (data.constant_result && data.constant_result.length > 0) {
-            const balanceHex = data.constant_result[0];
-            const balance = parseInt(balanceHex, 16);
-            return (balance / 1_000_000).toString();
-        }
-        return '0';
-    } catch (error) {
-        console.error('TRC20 balance error:', error);
-        return '0';
-    }
-};
-
 const getBitcoinBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -862,11 +723,6 @@ export const getRealBalances = async (wallets) => {
                                 await getSolBalance(wallet.address, wallet.network) :
                                 await getSPLBalance(wallet.address, wallet.contractAddress, wallet.network);
                             break;
-                        case 'Tron':
-                            balance = wallet.isNative ?
-                                await getTronBalance(wallet.address, wallet.network) :
-                                await getTRC20Balance(wallet.address, wallet.contractAddress, wallet.network);
-                            break;
                         case 'Bitcoin':
                             balance = await getBitcoinBalance(wallet.address, wallet.network);
                             break;
@@ -897,7 +753,7 @@ export const getRealBalances = async (wallets) => {
 
 export const getTokenPrices = async () => {
     try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ethereum,solana,binancecoin,tron,bitcoin,tether&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true');
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ethereum,solana,binancecoin,bitcoin,tether&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true');
         
         if (response.ok) {
             const data = await response.json();
@@ -906,7 +762,6 @@ export const getTokenPrices = async () => {
                 'ETH': data.ethereum?.usd || 3500.00,
                 'SOL': data.solana?.usd || 172.34,
                 'BNB': data.binancecoin?.usd || 600.00,
-                'TRX': data.tron?.usd || 0.12,
                 'BTC': data.bitcoin?.usd || 68000.00,
                 'USDT': data.tether?.usd || 1.00,
                 lastUpdated: Date.now()
@@ -918,7 +773,6 @@ export const getTokenPrices = async () => {
             'ETH': 3500.00,
             'SOL': 172.34,
             'BNB': 600.00,
-            'TRX': 0.12,
             'BTC': 68000.00,
             'USDT': 1.00,
             lastUpdated: Date.now()
@@ -930,7 +784,6 @@ export const getTokenPrices = async () => {
             'ETH': 3500.00,
             'SOL': 172.34,
             'BNB': 600.00,
-            'TRX': 0.12,
             'BTC': 68000.00,
             'USDT': 1.00,
             lastUpdated: Date.now()
@@ -992,26 +845,6 @@ export const validateAddress = async (blockchain, address, network = 'mainnet') 
                     return true;
                 } catch { 
                     return false; 
-                }
-                
-            case 'Tron':
-                const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$|^41[0-9a-fA-F]{40}$/;
-                if (!tronRegex.test(address)) return false;
-                
-                try {
-                    const response = await fetch(`${config.TRON.RPC_URL}/wallet/validateaddress`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ address })
-                    });
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        return data.result || data.message === 'SUCCESS';
-                    }
-                    return true;
-                } catch {
-                    return true;
                 }
                 
             case 'Bitcoin':
@@ -1084,9 +917,7 @@ export const sendTransaction = async (transactionData) => {
             network
         };
         
-        if (blockchain === 'Tron' && contractAddress && contractAddress.includes('TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t')) {
-            txParams.contractAddress = contractAddress;
-        } else if (contractAddress && blockchain !== 'Tron' && blockchain !== 'Bitcoin' && blockchain !== 'Litecoin') {
+        if (contractAddress && blockchain !== 'Bitcoin') {
             txParams.contractAddress = contractAddress;
         }
         
@@ -1125,7 +956,6 @@ export const estimateTransactionFee = async (blockchain, network = 'mainnet') =>
         'Ethereum': '0.001',
         'BSC': '0.0001',
         'Solana': '0.000005',
-        'Tron': '0.1',
         'Bitcoin': '0.0001'
     };
     
@@ -1143,7 +973,6 @@ export const getTokenPricesFromRPC = async () => {
             'ETH': 3500.00,
             'SOL': 172.34,
             'BNB': 600.00,
-            'TRX': 0.12,
             'BTC': 68000.00,
             'USDT': 1.00
         };
@@ -1201,11 +1030,10 @@ export const getUSDTTokensForDetail = async (userData, network = 'mainnet') => {
         const addresses = await Promise.all([
             generateTonAddress(userData.seed_phrases, network),
             generateEthereumAddress(userData.seed_phrases, network),
-            generateSolanaAddress(userData.seed_phrases, network),
-            generateTronAddress(userData.seed_phrases, network)
+            generateSolanaAddress(userData.seed_phrases, network)
         ]);
         
-        const [tonAddress, ethAddress, solAddress, tronAddress] = addresses;
+        const [tonAddress, ethAddress, solAddress] = addresses;
         
         const tokens = network === 'mainnet' ? TOKENS : TESTNET_TOKENS;
         
@@ -1236,15 +1064,6 @@ export const getUSDTTokensForDetail = async (userData, network = 'mainnet') => {
                 displayName: 'SPL USDT',
                 showBlockchain: true,
                 showUSDTBadge: true
-            },
-            {
-                ...tokens.USDT_TRX,
-                address: tronAddress,
-                blockchain: 'Tron',
-                name: 'Tether (TRC20)',
-                displayName: 'TRC20 USDT',
-                showBlockchain: true,
-                showUSDTBadge: true
             }
         ];
         
@@ -1270,7 +1089,6 @@ export const getBlockchainIcon = (blockchain) => {
         'TON': 'https://cryptologos.cc/logos/toncoin-ton-logo.png',
         'Ethereum': 'https://cryptologos.cc/logos/ethereum-eth-logo.png',
         'Solana': 'https://cryptologos.cc/logos/solana-sol-logo.png',
-        'Tron': 'https://cryptologos.cc/logos/tron-trx-logo.png',
         'Bitcoin': 'https://cryptologos.cc/logos/bitcoin-btc-logo.png',
         'BSC': 'https://cryptologos.cc/logos/bnb-bnb-logo.png'
     };
