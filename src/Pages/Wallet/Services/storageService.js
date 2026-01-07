@@ -43,7 +43,9 @@ const MAINNET_CONFIG = {
         CHAIN_ID: 56
     },
     LITECOIN: {
-        EXPLORER_API: 'https://blockstream.info/litecoin/api',
+        EXPLORER_API: 'https://blockchain.info',
+        BLOCKCYPHER_API: 'https://api.blockcypher.com/v1/ltc/main',
+        SOCHAIN_API: 'https://sochain.com/api/v2',
         NETWORK: {
             messagePrefix: '\x19Litecoin Signed Message:\n',
             bech32: 'ltc',
@@ -86,7 +88,9 @@ const TESTNET_CONFIG = {
         CHAIN_ID: 97
     },
     LITECOIN: {
-        EXPLORER_API: 'https://blockstream.info/litecoin/testnet/api',
+        EXPLORER_API: 'https://blockchain.info',
+        BLOCKCYPHER_API: 'https://api.blockcypher.com/v1/ltc/test3',
+        SOCHAIN_API: 'https://sochain.com/api/v2',
         NETWORK: {
             messagePrefix: '\x19Litecoin Signed Message:\n',
             bech32: 'tltc',
@@ -397,12 +401,13 @@ const generateTronAddress = async (seedPhrase, network = 'mainnet') => {
         const privateKeyBuffer = Buffer.from(privateKeyHex, 'hex');
         const publicKey = ecc.pointFromScalar(privateKeyBuffer, true);
         
-        const keccakHash = crypto.createHash('sha256').update(publicKey).digest();
+        // Используем ethers для хэширования вместо crypto
+        const keccakHash = Buffer.from(ethers.sha256(publicKey).slice(2), 'hex');
         const addressBytes = keccakHash.subarray(keccakHash.length - 20);
         const addressWithPrefix = Buffer.concat([Buffer.from([0x41]), addressBytes]);
         
-        const hash1 = crypto.createHash('sha256').update(addressWithPrefix).digest();
-        const hash2 = crypto.createHash('sha256').update(hash1).digest();
+        const hash1 = Buffer.from(ethers.sha256(addressWithPrefix).slice(2), 'hex');
+        const hash2 = Buffer.from(ethers.sha256(hash1).slice(2), 'hex');
         const checksum = hash2.subarray(0, 4);
         
         const addressWithChecksum = Buffer.concat([addressWithPrefix, checksum]);
@@ -886,14 +891,33 @@ const getBitcoinBalance = async (address, network = 'mainnet') => {
 const getLitecoinBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const response = await fetch(`${config.LITECOIN.EXPLORER_API}/address/${address}`);
-        if (!response.ok) throw new Error('Network response was not ok');
-        const data = await response.json();
         
-        const funded = data.chain_stats?.funded_txo_sum || 0;
-        const spent = data.chain_stats?.spent_txo_sum || 0;
-        const balance = (funded - spent) / 1e8;
-        return balance.toString();
+        // Используем Sochain API для получения баланса LTC
+        const apiUrl = network === 'testnet'
+            ? `${config.LITECOIN.SOCHAIN_API}/get_address_balance/LTCTEST/${address}`
+            : `${config.LITECOIN.SOCHAIN_API}/get_address_balance/LTC/${address}`;
+        
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+            // Fallback на Blockcypher
+            const fallbackUrl = network === 'testnet'
+                ? `${config.LITECOIN.BLOCKCYPHER_API}/addrs/${address}/balance`
+                : `https://api.blockcypher.com/v1/ltc/main/addrs/${address}/balance`;
+            
+            const fallbackResponse = await fetch(fallbackUrl);
+            if (!fallbackResponse.ok) {
+                throw new Error('Network response was not ok');
+            }
+            const data = await fallbackResponse.json();
+            return (data.balance / 1e8).toString();
+        }
+        
+        const data = await response.json();
+        if (data.status === 'success' && data.data) {
+            return data.data.confirmed_balance.toString();
+        }
+        
+        return '0';
     } catch (error) {
         console.error('LTC balance error:', error);
         return '0';

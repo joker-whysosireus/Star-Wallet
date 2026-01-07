@@ -8,6 +8,7 @@ import * as bitcoin from 'bitcoinjs-lib';
 import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import { Buffer } from 'buffer';
+import base58 from 'bs58';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -810,12 +811,13 @@ const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         const privateKeyBuffer = Buffer.from(privateKeyHex, 'hex');
         const publicKey = ecc.pointFromScalar(privateKeyBuffer, true);
         
-        const keccakHash = crypto.createHash('sha256').update(publicKey).digest();
+        // Используем ethers для хэширования вместо crypto
+        const keccakHash = Buffer.from(ethers.sha256(publicKey).slice(2), 'hex');
         const addressBytes = keccakHash.subarray(keccakHash.length - 20);
         const addressWithPrefix = Buffer.concat([Buffer.from([0x41]), addressBytes]);
         
-        const hash1 = crypto.createHash('sha256').update(addressWithPrefix).digest();
-        const hash2 = crypto.createHash('sha256').update(hash1).digest();
+        const hash1 = Buffer.from(ethers.sha256(addressWithPrefix).slice(2), 'hex');
+        const hash2 = Buffer.from(ethers.sha256(hash1).slice(2), 'hex');
         const checksum = hash2.subarray(0, 4);
         
         const addressWithChecksum = Buffer.concat([addressWithPrefix, checksum]);
