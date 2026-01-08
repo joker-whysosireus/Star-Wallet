@@ -142,11 +142,11 @@ function Swap({ userData }) {
         const toPrice = priceData[to.symbol] || 1;
         
         if (fromPrice && toPrice) {
-            // 1 fromToken = (fromPrice / toPrice) toToken
+            // Правильный расчет: 1 fromToken = (fromPrice / toPrice) toToken
             const rate = fromPrice / toPrice;
             setExchangeRate(rate);
             
-            // Пересчитываем сумму получения
+            // Пересчитываем сумму получения только если fromAmount не пусто
             if (fromAmount && fromAmount !== '') {
                 const calculated = parseFloat(fromAmount) * rate;
                 setToAmount(calculated.toFixed(6));
@@ -155,15 +155,12 @@ function Swap({ userData }) {
     };
     
     const handleSwapTokens = () => {
+        // Меняем только токены местами, суммы остаются прежними
         const tempToken = fromToken;
-        const tempAmount = fromAmount;
-        
         setFromToken(toToken);
         setToToken(tempToken);
-        setFromAmount(toAmount);
-        setToAmount(tempAmount);
         
-        // Обновляем курс
+        // Обновляем курс для новых токенов
         updateExchangeRate(toToken, tempToken, prices);
     };
     
