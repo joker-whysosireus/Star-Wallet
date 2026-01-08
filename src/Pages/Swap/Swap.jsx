@@ -186,8 +186,6 @@ function Swap({ userData }) {
             
             <div className="page-content">
                 <div className="swap-container">
-                    <h1 className="swap-title">Swap</h1>
-                    
                     {/* Upper Block - You Pay */}
                     <div className="swap-block">
                         <div className="swap-block-header">
@@ -211,6 +209,13 @@ function Swap({ userData }) {
                             </div>
                         </div>
                         
+                        <div className="swap-horizontal-divider">
+                            <div className="swap-divider-line"></div>
+                            <button className="swap-swap-button" onClick={handleSwapTokens}>
+                                ⇅
+                            </button>
+                        </div>
+                        
                         <div className="swap-block-content">
                             <div className="swap-amount-section">
                                 <input 
@@ -222,14 +227,6 @@ function Swap({ userData }) {
                                     min="0"
                                     step="0.000001"
                                 />
-                            </div>
-                            
-                            {/* Vertical divider with swap button */}
-                            <div className="swap-vertical-divider">
-                                <div className="swap-divider-line"></div>
-                                <div className="swap-vertical-button" onClick={handleSwapTokens}>
-                                    ⇅
-                                </div>
                             </div>
                             
                             <div className="swap-token-selector">
@@ -265,6 +262,10 @@ function Swap({ userData }) {
                             </div>
                         </div>
                         
+                        <div className="swap-horizontal-divider">
+                            <div className="swap-divider-line"></div>
+                        </div>
+                        
                         <div className="swap-block-content">
                             <div className="swap-amount-section">
                                 <input 
@@ -289,12 +290,12 @@ function Swap({ userData }) {
                             </div>
                         </div>
                     </div>
-                    
-                    {/* Exchange Rate */}
-                    <div className="swap-rate-display">
-                        1 {toToken?.symbol} ≈ {exchangeRate.toFixed(2)} {fromToken?.symbol}
-                    </div>
                 </div>
+            </div>
+            
+            {/* Exchange Rate */}
+            <div className="swap-rate-display">
+                1 {toToken?.symbol} ≈ {exchangeRate.toFixed(2)} {fromToken?.symbol}
             </div>
             
             {/* Check Deal Button - Fixed above Menu */}

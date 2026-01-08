@@ -9,12 +9,25 @@
     animation: backdropFadeIn 0.3s ease;
 }
 
+.token-selector-backdrop.closing {
+    animation: backdropFadeOut 0.3s ease forwards;
+}
+
 @keyframes backdropFadeIn {
     from {
         opacity: 0;
     }
     to {
         opacity: 1;
+    }
+}
+
+@keyframes backdropFadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
     }
 }
 
@@ -34,12 +47,25 @@
     box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
 }
 
+.token-selector-modal.closing {
+    animation: modalSlideDown 0.3s ease forwards;
+}
+
 @keyframes modalSlideUp {
     from {
         transform: translateY(100%);
     }
     to {
         transform: translateY(0);
+    }
+}
+
+@keyframes modalSlideDown {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(100%);
     }
 }
 
@@ -78,31 +104,6 @@
     color: white;
 }
 
-.token-selector-search {
-    padding: 15px 20px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.token-search-input {
-    width: 100%;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    padding: 12px 15px;
-    color: white;
-    font-size: 14px;
-    font-family: 'Rubik', sans-serif;
-    outline: none;
-}
-
-.token-search-input::placeholder {
-    color: rgba(255, 255, 255, 0.3);
-}
-
-.token-search-input:focus {
-    border-color: rgba(255, 215, 0, 0.3);
-}
-
 .token-selector-list {
     flex: 1;
     overflow-y: auto;
@@ -125,7 +126,7 @@
 }
 
 .token-selector-item.selected {
-    background: rgba(255, 215, 0, 0.1);
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .token-left {

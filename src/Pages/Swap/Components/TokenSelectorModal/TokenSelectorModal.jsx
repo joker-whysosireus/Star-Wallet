@@ -3,14 +3,12 @@ import { getTokenPrices } from '../../../Wallet/Services/storageService';
 import './TokenSelectorModal.css';
 
 const TokenSelectorModal = ({ tokens, onSelect, onClose, selectedToken }) => {
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filteredTokens, setFilteredTokens] = useState(tokens);
+    const [isClosing, setIsClosing] = useState(false);
     const [prices, setPrices] = useState({});
     
     useEffect(() => {
         loadPrices();
-        setFilteredTokens(tokens);
-    }, [tokens]);
+    }, []);
     
     const loadPrices = async () => {
         try {
@@ -18,21 +16,6 @@ const TokenSelectorModal = ({ tokens, onSelect, onClose, selectedToken }) => {
             setPrices(priceData);
         } catch (error) {
             console.error('Error loading prices:', error);
-        }
-    };
-    
-    const handleSearch = (e) => {
-        const term = e.target.value.toLowerCase();
-        setSearchTerm(term);
-        
-        if (!term.trim()) {
-            setFilteredTokens(tokens);
-        } else {
-            const filtered = tokens.filter(token =>
-                token.symbol.toLowerCase().includes(term) ||
-                token.name.toLowerCase().includes(term)
-            );
-            setFilteredTokens(filtered);
         }
     };
     
@@ -73,28 +56,34 @@ const TokenSelectorModal = ({ tokens, onSelect, onClose, selectedToken }) => {
         onSelect(token);
     };
     
+    const handleClose = () => {
+        setIsClosing(true);
+        setTimeout(() => {
+            onClose();
+        }, 300);
+    };
+    
+    const getSortedTokens = () => {
+        // USDT в начало списка, остальные по алфавиту
+        const usdtTokens = tokens.filter(token => token.symbol === 'USDT');
+        const otherTokens = tokens.filter(token => token.symbol !== 'USDT')
+            .sort((a, b) => a.symbol.localeCompare(b.symbol));
+        return [...usdtTokens, ...otherTokens];
+    };
+    
+    const sortedTokens = getSortedTokens();
+    
     return (
         <>
-            <div className="token-selector-backdrop" onClick={onClose}></div>
-            <div className="token-selector-modal">
+            <div className={`token-selector-backdrop ${isClosing ? 'closing' : ''}`} onClick={handleClose}></div>
+            <div className={`token-selector-modal ${isClosing ? 'closing' : ''}`}>
                 <div className="token-selector-header">
                     <h3>Select Token</h3>
-                    <button className="token-selector-close" onClick={onClose}>✕</button>
-                </div>
-                
-                <div className="token-selector-search">
-                    <input
-                        type="text"
-                        placeholder="Search token"
-                        value={searchTerm}
-                        onChange={handleSearch}
-                        className="token-search-input"
-                        autoFocus
-                    />
+                    <button className="token-selector-close" onClick={handleClose}>✕</button>
                 </div>
                 
                 <div className="token-selector-list">
-                    {filteredTokens.map(token => {
+                    {sortedTokens.map(token => {
                         const badge = getBlockchainBadge(token.blockchain);
                         const formattedBalance = formatBalance(token.balance);
                         const price = prices[token.symbol] || 0;
@@ -145,7 +134,7 @@ const TokenSelectorModal = ({ tokens, onSelect, onClose, selectedToken }) => {
                         );
                     })}
                     
-                    {filteredTokens.length === 0 && (
+                    {sortedTokens.length === 0 && (
                         <div className="no-tokens-found">
                             No tokens found
                         </div>
