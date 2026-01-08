@@ -1,27 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import Menu from "../../assets/Menus/Menu/Menu";
 import Header from "../../assets/Header/Header";
 import TokenSelectorModal from './Components/TokenSelectorModal/TokenSelectorModal';
 import { 
-  getAllTokens,
-  getBalances,
+  getAllTokens, 
   getTokenPrices, 
   getCurrentPrices,
   startPriceUpdates,
   stopPriceUpdates,
   TOKENS,
-  getBlockchainIcon,
-  calculateTotalBalance
+  getBlockchainIcon
 } from '../Wallet/Services/storageService';
 import './Swap.css';
 
-function Swap() {
-    const location = useLocation();
-    const navigate = useNavigate();
-    const { userData, network = 'mainnet' } = location.state || {};
-    
+function Swap({ userData }) {
     const [tokens, setTokens] = useState([]);
+    const [userWallets, setUserWallets] = useState([]);
     const [fromToken, setFromToken] = useState(null);
     const [toToken, setToToken] = useState(null);
     const [fromAmount, setFromAmount] = useState('');
@@ -30,18 +24,14 @@ function Swap() {
     const [loading, setLoading] = useState(true);
     const [prices, setPrices] = useState({});
     const [showTokenSelector, setShowTokenSelector] = useState(false);
-    const [selectorType, setSelectorType] = useState(''); // 'from' or 'to'
-    const [userWallets, setUserWallets] = useState([]);
-    const [totalBalance, setTotalBalance] = useState('$0.00');
-    const [currentNetwork, setCurrentNetwork] = useState(network);
+    const [selectorType, setSelectorType] = useState('');
+    const [currentNetwork, setCurrentNetwork] = useState(() => {
+        const savedNetwork = localStorage.getItem('selected_network');
+        return savedNetwork || 'mainnet';
+    });
     
     useEffect(() => {
-        if (!userData) {
-            navigate('/wallet');
-            return;
-        }
-        
-        loadUserWallets();
+        loadTokens();
         loadPrices();
         
         // Подписываемся на обновления цен
@@ -56,60 +46,60 @@ function Swap() {
             stopUpdates();
             stopPriceUpdates();
         };
-    }, [userData, currentNetwork]);
+    }, [currentNetwork]);
     
-    const loadUserWallets = async () => {
+    const loadTokens = async () => {
         try {
-            setLoading(true);
+            // Получаем токены пользователя для текущей сети
+            const userTokens = await getAllTokens(userData, currentNetwork);
+            setUserWallets(userTokens);
             
-            // Получаем все токены пользователя с балансами
-            let allTokens = await getAllTokens(userData, currentNetwork);
+            // Создаем список токенов из TOKENS для выбора
+            const tokenList = Object.values(TOKENS)
+                .filter(token => !token.symbol.includes('_')) // Фильтруем дубликаты USDT
+                .map(token => ({
+                    id: `token_${token.symbol}_${Date.now()}`,
+                    name: token.name,
+                    symbol: token.symbol,
+                    blockchain: token.blockchain,
+                    decimals: token.decimals,
+                    isNative: token.isNative,
+                    contractAddress: token.contractAddress || '',
+                    logo: token.logo,
+                    balance: '0', // Изначально 0
+                    isActive: true,
+                    network: 'mainnet'
+                }));
             
-            // Получаем актуальные балансы
-            if (allTokens && allTokens.length > 0) {
-                const walletsWithBalances = await getBalances(allTokens);
-                setUserWallets(walletsWithBalances);
+            // Объединяем с пользовательскими кошельками для отображения балансов
+            const mergedTokens = tokenList.map(token => {
+                // Ищем соответствующий токен у пользователя
+                const userToken = userTokens.find(wallet => 
+                    wallet.symbol === token.symbol && 
+                    wallet.blockchain === token.blockchain
+                );
                 
-                // Создаем список всех доступных токенов из TOKENS
-                const tokenList = Object.values(TOKENS)
-                    .filter(token => !token.symbol.includes('_')) // Фильтруем дубликаты USDT
-                    .map(token => {
-                        // Находим соответствующий кошелек пользователя для этого токена
-                        const userWallet = walletsWithBalances.find(wallet => 
-                            wallet.symbol === token.symbol
-                        );
-                        
-                        return {
-                            id: `token_${token.symbol}_${Date.now()}`,
-                            name: token.name,
-                            symbol: token.symbol,
-                            blockchain: token.blockchain,
-                            decimals: token.decimals,
-                            isNative: token.isNative,
-                            contractAddress: token.contractAddress || '',
-                            logo: token.logo,
-                            balance: userWallet ? userWallet.balance : '0',
-                            isActive: true,
-                            network: currentNetwork,
-                            userWallet: userWallet || null
-                        };
-                    });
+                if (userToken) {
+                    return {
+                        ...token,
+                        id: userToken.id || token.id,
+                        balance: userToken.balance || '0'
+                    };
+                }
                 
-                setTokens(tokenList);
-                
-                // Устанавливаем начальные токены: USDT и TON
-                const usdtToken = tokenList.find(token => token.symbol === 'USDT');
-                const tonToken = tokenList.find(token => token.symbol === 'TON');
-                
-                setFromToken(usdtToken || tokenList[0]);
-                setToToken(tonToken || tokenList[1]);
-                
-                // Рассчитываем общий баланс
-                const total = await calculateTotalBalance(walletsWithBalances);
-                setTotalBalance(`$${total}`);
-            }
+                return token;
+            });
+            
+            setTokens(mergedTokens);
+            
+            // Устанавливаем начальные токены: USDT и TON
+            const usdtToken = mergedTokens.find(token => token.symbol === 'USDT');
+            const tonToken = mergedTokens.find(token => token.symbol === 'TON');
+            
+            setFromToken(usdtToken || mergedTokens[0]);
+            setToToken(tonToken || mergedTokens[1]);
         } catch (error) {
-            console.error('Error loading user wallets:', error);
+            console.error('Error loading tokens:', error);
         } finally {
             setLoading(false);
         }
@@ -207,45 +197,12 @@ function Swap() {
     };
     
     const handleNetworkChange = (newNetwork) => {
+        localStorage.setItem('selected_network', newNetwork);
         setCurrentNetwork(newNetwork);
-        // Перезагружаем кошельки для новой сети
-        loadUserWallets();
+        setLoading(true);
+        // Перезагружаем токены для новой сети
+        loadTokens();
     };
-    
-    const handleActionClick = (action) => {
-        if (action === 'receive') {
-            navigate('/select-token', { 
-                state: { 
-                    mode: 'receive',
-                    userData: userData,
-                    network: currentNetwork
-                } 
-            });
-        } else if (action === 'send') {
-            navigate('/select-token', { 
-                state: { 
-                    mode: 'send',
-                    userData: userData,
-                    network: currentNetwork
-                } 
-            });
-        } else if (action === 'stake') {
-            navigate('/stake', { state: { userData, network: currentNetwork } });
-        } else if (action === 'swap') {
-            // Already on swap page
-        }
-    };
-    
-    if (!userData) {
-        return (
-            <div className="wallet-page-wallet">
-                <div className="page-content">
-                    <div className="swap-loading">Redirecting to wallet...</div>
-                </div>
-                <Menu />
-            </div>
-        );
-    }
     
     if (loading) {
         return (
@@ -254,7 +211,6 @@ function Swap() {
                     userData={userData} 
                     onNetworkChange={handleNetworkChange}
                     currentNetwork={currentNetwork}
-                    totalBalance={totalBalance}
                 />
                 <div className="page-content">
                     <div className="swap-loading">Loading...</div>
@@ -270,7 +226,6 @@ function Swap() {
                 userData={userData} 
                 onNetworkChange={handleNetworkChange}
                 currentNetwork={currentNetwork}
-                totalBalance={totalBalance}
             />
             
             <div className="page-content">
@@ -293,9 +248,7 @@ function Swap() {
                                 <span className="swap-header-text">You pay</span>
                             </div>
                             <div className="swap-header-right">
-                                <span className="swap-balance">
-                                    {fromToken?.userWallet?.balance ? formatCurrency(fromToken.userWallet.balance) : '0'}
-                                </span>
+                                <span className="swap-balance">0</span>
                                 <span className="swap-token-name">{fromToken?.symbol}</span>
                             </div>
                         </div>
@@ -313,6 +266,10 @@ function Swap() {
                                 />
                             </div>
                             
+                            <button className="swap-swap-button" onClick={handleSwapTokens}>
+                                ⇅
+                            </button>
+                            
                             <div className="swap-token-selector">
                                 <button 
                                     className="swap-token-button"
@@ -327,12 +284,9 @@ function Swap() {
                         </div>
                     </div>
                     
-                    {/* Horizontal divider between pay and receive blocks WITH SWAP BUTTON */}
+                    {/* Horizontal divider between pay and receive blocks */}
                     <div className="swap-blocks-divider">
                         <div className="swap-blocks-divider-line"></div>
-                        <button className="swap-swap-button" onClick={handleSwapTokens}>
-                            ⇅
-                        </button>
                     </div>
                     
                     {/* Lower Block - You Receive */}
@@ -402,6 +356,7 @@ function Swap() {
                 <TokenSelectorModal
                     tokens={tokens}
                     userWallets={userWallets}
+                    prices={prices}
                     onSelect={(token) => handleTokenSelect(token, selectorType)}
                     onClose={() => setShowTokenSelector(false)}
                     selectedToken={selectorType === 'from' ? fromToken : toToken}
