@@ -209,14 +209,6 @@ function Swap({ userData }) {
                             </div>
                         </div>
                         
-                        {/* Horizontal divider line */}
-                        <div className="swap-horizontal-divider">
-                            <div className="swap-divider-line"></div>
-                            <button className="swap-swap-button" onClick={handleSwapTokens}>
-                                ⇅
-                            </button>
-                        </div>
-                        
                         <div className="swap-block-content">
                             <div className="swap-amount-section">
                                 <input 
@@ -229,6 +221,10 @@ function Swap({ userData }) {
                                     step="0.000001"
                                 />
                             </div>
+                            
+                            <button className="swap-swap-button" onClick={handleSwapTokens}>
+                                ⇅
+                            </button>
                             
                             <div className="swap-token-selector">
                                 <button 
@@ -244,8 +240,8 @@ function Swap({ userData }) {
                         </div>
                     </div>
                     
-                    {/* Vertical divider between pay and receive blocks */}
-                    <div className="swap-vertical-divider">
+                    {/* Horizontal divider between pay and receive blocks */}
+                    <div className="swap-blocks-divider">
                         <div className="swap-blocks-divider-line"></div>
                     </div>
                     
@@ -266,11 +262,6 @@ function Swap({ userData }) {
                                 )}
                                 <span className="swap-header-text">You receive</span>
                             </div>
-                        </div>
-                        
-                        {/* Horizontal divider line - without button for receive block */}
-                        <div className="swap-horizontal-divider">
-                            <div className="swap-divider-line"></div>
                         </div>
                         
                         <div className="swap-block-content">

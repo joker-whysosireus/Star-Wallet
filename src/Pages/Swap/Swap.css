@@ -8,7 +8,7 @@
     display: flex;
     flex-direction: column;
     position: relative;
-    padding-top: 80px;
+    padding-top: 120px;
     padding-bottom: 60px;
 }
 
@@ -37,7 +37,7 @@
 
 .swap-block {
     width: 100%;
-    margin-bottom: 5px;
+    margin-bottom: 0;
     padding: 0;
     background: transparent;
 }
@@ -86,15 +86,15 @@
     font-weight: 600;
 }
 
-/* Horizontal divider between header and content */
-.swap-horizontal-divider {
-    position: relative;
+/* Horizontal divider between pay and receive blocks */
+.swap-blocks-divider {
     width: 100%;
     height: 1px;
-    margin: 10px 0 20px 0;
+    margin: 20px 0;
+    position: relative;
 }
 
-.swap-divider-line {
+.swap-blocks-divider-line {
     width: 100%;
     height: 1px;
     background: rgba(255, 255, 255, 0.2);
@@ -125,20 +125,6 @@
     background: linear-gradient(135deg, #FFE033, #FFB833);
     transform: translateY(-50%) scale(1.1);
     box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
-}
-
-/* Vertical divider between pay and receive blocks */
-.swap-vertical-divider {
-    width: 100%;
-    height: 1px;
-    margin: 10px 0;
-    position: relative;
-}
-
-.swap-blocks-divider-line {
-    width: 100%;
-    height: 1px;
-    background: rgba(255, 255, 255, 0.2);
 }
 
 .swap-block-content {
@@ -189,24 +175,24 @@
 .swap-token-selector {
     position: relative;
     min-width: 120px;
-    background: transparent; /* Убран фон */
+    background: transparent;
 }
 
 .swap-token-button {
     width: 100%;
-    background: transparent; /* Убран фон */
-    border: none; /* Убрана граница */
-    padding: 10px 5px; /* Уменьшены отступы */
+    background: transparent;
+    border: none;
+    padding: 10px 0;
     color: #FFD700;
-    font-size: 20px; /* Увеличен размер шрифта */
+    font-size: 20px;
     font-weight: 600;
     cursor: pointer;
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
     transition: all 0.3s;
     font-family: 'Rubik', sans-serif;
-    gap: 5px; /* Минимальный отступ между символами */
+    gap: 2px; /* Минимальный отступ между символами */
 }
 
 .swap-token-button:hover {
@@ -215,13 +201,14 @@
 
 .swap-selected-token {
     color: #FFD700;
-    font-size: 20px; /* Увеличен размер шрифта */
+    font-size: 20px;
 }
 
 .swap-selector-arrow {
     color: #FFD700;
-    font-size: 24px; /* Увеличен размер шрифта */
+    font-size: 24px;
     transform: rotate(90deg);
+    margin-left: 2px; /* Минимальный отступ */
 }
 
 .swap-rate-display {
