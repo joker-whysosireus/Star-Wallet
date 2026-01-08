@@ -8,7 +8,7 @@
     display: flex;
     flex-direction: column;
     position: relative;
-    padding-top: 90px;
+    padding-top: 80px;
     padding-bottom: 60px;
 }
 
@@ -37,7 +37,7 @@
 
 .swap-block {
     width: 100%;
-    margin-bottom: 20px;
+    margin-bottom: 5px;
     padding: 0;
     background: transparent;
 }
@@ -91,7 +91,7 @@
     position: relative;
     width: 100%;
     height: 1px;
-    margin: 10px 0 15px 0;
+    margin: 10px 0 20px 0;
 }
 
 .swap-divider-line {
@@ -127,6 +127,20 @@
     box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
 }
 
+/* Vertical divider between pay and receive blocks */
+.swap-vertical-divider {
+    width: 100%;
+    height: 1px;
+    margin: 10px 0;
+    position: relative;
+}
+
+.swap-blocks-divider-line {
+    width: 100%;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.2);
+}
+
 .swap-block-content {
     position: relative;
     display: flex;
@@ -144,7 +158,7 @@
     width: 100%;
     background: transparent;
     border: none;
-    font-size: 32px;
+    font-size: 36px; /* Увеличен размер шрифта */
     font-weight: 700;
     color: white;
     outline: none;
@@ -175,16 +189,16 @@
 .swap-token-selector {
     position: relative;
     min-width: 120px;
+    background: transparent; /* Убран фон */
 }
 
 .swap-token-button {
     width: 100%;
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 8px;
-    padding: 10px 15px;
-    color: white;
-    font-size: 16px;
+    background: transparent; /* Убран фон */
+    border: none; /* Убрана граница */
+    padding: 10px 5px; /* Уменьшены отступы */
+    color: #FFD700;
+    font-size: 20px; /* Увеличен размер шрифта */
     font-weight: 600;
     cursor: pointer;
     display: flex;
@@ -192,20 +206,21 @@
     align-items: center;
     transition: all 0.3s;
     font-family: 'Rubik', sans-serif;
+    gap: 5px; /* Минимальный отступ между символами */
 }
 
 .swap-token-button:hover {
-    border-color: rgba(255, 215, 0, 0.4);
-    background: rgba(255, 215, 0, 0.05);
+    color: #FFE033;
 }
 
 .swap-selected-token {
     color: #FFD700;
+    font-size: 20px; /* Увеличен размер шрифта */
 }
 
 .swap-selector-arrow {
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 18px;
+    color: #FFD700;
+    font-size: 24px; /* Увеличен размер шрифта */
     transform: rotate(90deg);
 }
 

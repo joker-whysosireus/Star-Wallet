@@ -209,6 +209,7 @@ function Swap({ userData }) {
                             </div>
                         </div>
                         
+                        {/* Horizontal divider line */}
                         <div className="swap-horizontal-divider">
                             <div className="swap-divider-line"></div>
                             <button className="swap-swap-button" onClick={handleSwapTokens}>
@@ -243,6 +244,11 @@ function Swap({ userData }) {
                         </div>
                     </div>
                     
+                    {/* Vertical divider between pay and receive blocks */}
+                    <div className="swap-vertical-divider">
+                        <div className="swap-blocks-divider-line"></div>
+                    </div>
+                    
                     {/* Lower Block - You Receive */}
                     <div className="swap-block">
                         <div className="swap-block-header">
@@ -262,6 +268,7 @@ function Swap({ userData }) {
                             </div>
                         </div>
                         
+                        {/* Horizontal divider line - without button for receive block */}
                         <div className="swap-horizontal-divider">
                             <div className="swap-divider-line"></div>
                         </div>
