@@ -2,14 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Menu from "../../assets/Menus/Menu/Menu";
 import Header from "../../assets/Header/Header";
 import './History.css';
-import { 
-    generateTonAddress,
-    generateEthereumAddress,
-    generateSolanaAddress,
-    generateBitcoinAddress,
-    generateBSCAddress,
-    getTokenPrices
-} from '../Wallet/Services/storageService';
+import { generateWalletsFromSeed, getTokenPrices, getBlockchainIcon } from '../Wallet/Services/storageService';
 
 function History({ userData }) {
     const [currentNetwork, setCurrentNetwork] = useState(() => {
@@ -23,15 +16,20 @@ function History({ userData }) {
     const [tokenPrices, setTokenPrices] = useState({});
     const [selectedFilter, setSelectedFilter] = useState('all');
 
+    // API ключи (позже вынести в .env)
+    const API_KEYS = {
+        ETHERSCAN_API_KEY: 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6', // Получить на https://etherscan.io/apis
+        BSCSCAN_API_KEY: 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6', // Получить на https://bscscan.com/apis
+        SOLANA_RPC_URL: 'e1a20296-3d29-4edb-bc41-c709a187fbc9' // Или https://docs.helius.dev/ для лучшего API
+    };
+
     useEffect(() => {
         if (userData?.seed_phrases) {
             loadTransactions();
         }
         
-        // Загружаем цены токенов
         loadTokenPrices();
         
-        // Обновляем цены каждую минуту
         const priceInterval = setInterval(loadTokenPrices, 60000);
         
         return () => clearInterval(priceInterval);
@@ -52,31 +50,21 @@ function History({ userData }) {
             if (!userData?.seed_phrases) return;
             
             const seedPhrase = userData.seed_phrases;
+            const wallets = await generateWalletsFromSeed(seedPhrase, currentNetwork);
             
-            // Генерируем адреса для всех блокчейнов
-            const addresses = await Promise.all([
-                generateTonAddress(seedPhrase, currentNetwork),
-                generateEthereumAddress(seedPhrase, currentNetwork),
-                generateSolanaAddress(seedPhrase, currentNetwork),
-                generateBitcoinAddress(seedPhrase, currentNetwork),
-                generateBSCAddress(seedPhrase, currentNetwork)
-            ]);
-            
-            const [tonAddress, ethAddress, solAddress, btcAddress, bscAddress] = addresses;
-            
-            // Загружаем транзакции для каждого блокчейна
+            // Загружаем транзакции только для основных блокчейнов
             const allTransactions = await Promise.all([
-                fetchTonTransactions(tonAddress),
-                fetchEthTransactions(ethAddress),
-                fetchSolTransactions(solAddress),
-                fetchBtcTransactions(btcAddress),
-                fetchBscTransactions(bscAddress)
+                fetchTonTransactions(wallets.find(w => w.blockchain === 'TON')?.address || ''),
+                fetchEthTransactions(wallets.find(w => w.blockchain === 'Ethereum')?.address || ''),
+                fetchBscTransactions(wallets.find(w => w.blockchain === 'BSC')?.address || ''),
+                fetchBtcTransactions(wallets.find(w => w.blockchain === 'Bitcoin')?.address || ''),
+                fetchSolTransactions(wallets.find(w => w.blockchain === 'Solana')?.address || '')
             ]);
             
             // Объединяем все транзакции
             let combinedTransactions = [];
             allTransactions.forEach(txList => {
-                if (Array.isArray(txList)) {
+                if (Array.isArray(txList) && txList.length > 0) {
                     combinedTransactions = [...combinedTransactions, ...txList];
                 }
             });
@@ -109,7 +97,7 @@ function History({ userData }) {
                 groupKey = 'Yesterday';
             } else {
                 groupKey = date.toLocaleDateString('en-US', { 
-                    month: 'long', 
+                    month: 'short', 
                     day: 'numeric',
                     year: 'numeric'
                 });
@@ -124,113 +112,220 @@ function History({ userData }) {
         setGroupedTransactions(groups);
     };
 
-    // Функции для загрузки транзакций из разных блокчейнов
+    // TON транзакции (публичный API, не требует ключа)
     const fetchTonTransactions = async (address) => {
+        if (!address) return [];
+        
         try {
-            const config = currentNetwork === 'testnet' 
-                ? { API_URL: 'https://testnet.tonapi.io/v2' }
-                : { API_URL: 'https://tonapi.io/v2' };
+            const baseUrl = currentNetwork === 'testnet' 
+                ? 'https://testnet.tonapi.io/v2'
+                : 'https://tonapi.io/v2';
             
-            const response = await fetch(`${config.API_URL}/accounts/${address}/events?limit=100`);
-            if (!response.ok) return [];
+            const response = await fetch(`${baseUrl}/accounts/${address}/events?limit=20`);
+            if (!response.ok) {
+                console.warn('TON API error, using fallback');
+                return [];
+            }
             
             const data = await response.json();
+            const transactions = [];
             
-            return (data.events || []).map(event => {
-                const tonTransfer = event.actions?.find(action => action.type === 'TonTransfer');
-                const jettonTransfer = event.actions?.find(action => action.type === 'JettonTransfer');
-                
-                let amount = '0';
-                let symbol = 'TON';
-                let type = 'unknown';
+            (data.events || []).forEach(event => {
+                // Только TonTransfer транзакции (отправка/получение TON)
+                const tonTransfer = event.actions?.find(action => 
+                    action.type === 'TonTransfer' && action.TonTransfer
+                );
                 
                 if (tonTransfer?.TonTransfer) {
-                    amount = (tonTransfer.TonTransfer.amount / 1e9).toFixed(4);
-                    const from = tonTransfer.TonTransfer.sender?.address;
-                    const to = tonTransfer.TonTransfer.recipient?.address;
-                    type = to === address ? 'received' : 'sent';
-                } else if (jettonTransfer?.JettonTransfer) {
-                    amount = (jettonTransfer.JettonTransfer.amount / 1e6).toFixed(2); // USDT обычно 6 decimals
-                    symbol = jettonTransfer.JettonTransfer.jetton?.symbol || 'JETTON';
-                    const from = jettonTransfer.JettonTransfer.sender?.address;
-                    const to = jettonTransfer.JettonTransfer.recipient?.address;
-                    type = to === address ? 'received' : 'sent';
+                    const transfer = tonTransfer.TonTransfer;
+                    const amount = (transfer.amount / 1e9).toFixed(4);
+                    const isIncoming = transfer.recipient?.address === address;
+                    
+                    transactions.push({
+                        id: event.event_id,
+                        blockchain: 'TON',
+                        type: isIncoming ? 'received' : 'sent',
+                        amount,
+                        symbol: 'TON',
+                        timestamp: event.timestamp * 1000,
+                        status: 'completed',
+                        explorerUrl: currentNetwork === 'testnet'
+                            ? `https://testnet.tonscan.org/tx/${event.event_id}`
+                            : `https://tonscan.org/tx/${event.event_id}`
+                    });
                 }
-                
-                return {
-                    id: event.event_id,
-                    blockchain: 'TON',
-                    type,
-                    amount,
-                    symbol,
-                    address: tonTransfer?.TonTransfer?.sender?.address || jettonTransfer?.JettonTransfer?.sender?.address,
-                    timestamp: event.timestamp * 1000,
-                    status: 'completed',
-                    explorerUrl: currentNetwork === 'testnet'
-                        ? `https://testnet.tonscan.org/tx/${event.event_id}`
-                        : `https://tonscan.org/tx/${event.event_id}`
-                };
-            }).filter(tx => tx.type !== 'unknown');
+            });
+            
+            return transactions;
         } catch (error) {
             console.error('Error fetching TON transactions:', error);
             return [];
         }
     };
 
+    // Ethereum транзакции (требует API ключ)
     const fetchEthTransactions = async (address) => {
+        if (!address || !API_KEYS.ETHERSCAN_API_KEY || API_KEYS.ETHERSCAN_API_KEY === 'YOUR_ETHERSCAN_API_KEY') {
+            console.warn('Ethereum API key not configured');
+            return [];
+        }
+        
         try {
-            const config = currentNetwork === 'testnet'
-                ? { RPC_URL: 'https://ethereum-sepolia-rpc.publicnode.com' }
-                : { RPC_URL: 'https://eth.llamarpc.com' };
-            
-            // Для простоты используем Etherscan API (в реальном приложении нужен API ключ)
-            const apiKey = 'demo'; // Замените на реальный API ключ
             const baseUrl = currentNetwork === 'testnet'
                 ? 'https://api-sepolia.etherscan.io/api'
                 : 'https://api.etherscan.io/api';
             
+            // Получаем только обычные транзакции (не контрактные вызовы)
             const response = await fetch(
-                `${baseUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`
+                `${baseUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=15&sort=desc&apikey=${API_KEYS.ETHERSCAN_API_KEY}`
             );
             
             if (!response.ok) return [];
             const data = await response.json();
             
-            if (data.status !== '1') return [];
+            if (data.status !== '1') {
+                console.warn('Etherscan API error:', data.message);
+                return [];
+            }
             
-            return data.result.map(tx => ({
-                id: tx.hash,
-                blockchain: 'Ethereum',
-                type: tx.to.toLowerCase() === address.toLowerCase() ? 'received' : 'sent',
-                amount: (parseInt(tx.value) / 1e18).toFixed(6),
-                symbol: 'ETH',
-                address: tx.from,
-                timestamp: parseInt(tx.timeStamp) * 1000,
-                status: parseInt(tx.isError) === 0 ? 'completed' : 'failed',
-                explorerUrl: currentNetwork === 'testnet'
-                    ? `https://sepolia.etherscan.io/tx/${tx.hash}`
-                    : `https://etherscan.io/tx/${tx.hash}`
-            }));
+            return data.result.map(tx => {
+                // Фильтруем только простые переводы (value > 0)
+                if (parseInt(tx.value) === 0) return null;
+                
+                const isIncoming = tx.to.toLowerCase() === address.toLowerCase();
+                
+                return {
+                    id: tx.hash,
+                    blockchain: 'Ethereum',
+                    type: isIncoming ? 'received' : 'sent',
+                    amount: (parseInt(tx.value) / 1e18).toFixed(6),
+                    symbol: 'ETH',
+                    timestamp: parseInt(tx.timeStamp) * 1000,
+                    status: parseInt(tx.isError) === 0 ? 'completed' : 'failed',
+                    explorerUrl: currentNetwork === 'testnet'
+                        ? `https://sepolia.etherscan.io/tx/${tx.hash}`
+                        : `https://etherscan.io/tx/${tx.hash}`
+                };
+            }).filter(tx => tx !== null);
         } catch (error) {
             console.error('Error fetching ETH transactions:', error);
             return [];
         }
     };
 
-    const fetchSolTransactions = async (address) => {
+    // BSC транзакции (аналогично Ethereum)
+    const fetchBscTransactions = async (address) => {
+        if (!address || !API_KEYS.BSCSCAN_API_KEY || API_KEYS.BSCSCAN_API_KEY === 'YOUR_BSCSCAN_API_KEY') {
+            console.warn('BSC API key not configured');
+            return [];
+        }
+        
         try {
-            const config = currentNetwork === 'testnet'
-                ? { RPC_URL: 'https://api.testnet.solana.com' }
-                : { RPC_URL: 'https://api.mainnet-beta.solana.com' };
+            const baseUrl = currentNetwork === 'testnet'
+                ? 'https://api-testnet.bscscan.com/api'
+                : 'https://api.bscscan.com/api';
             
-            const response = await fetch(config.RPC_URL, {
+            const response = await fetch(
+                `${baseUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=15&sort=desc&apikey=${API_KEYS.BSCSCAN_API_KEY}`
+            );
+            
+            if (!response.ok) return [];
+            const data = await response.json();
+            
+            if (data.status !== '1') {
+                console.warn('BscScan API error:', data.message);
+                return [];
+            }
+            
+            return data.result.map(tx => {
+                if (parseInt(tx.value) === 0) return null;
+                
+                const isIncoming = tx.to.toLowerCase() === address.toLowerCase();
+                
+                return {
+                    id: tx.hash,
+                    blockchain: 'BSC',
+                    type: isIncoming ? 'received' : 'sent',
+                    amount: (parseInt(tx.value) / 1e18).toFixed(6),
+                    symbol: 'BNB',
+                    timestamp: parseInt(tx.timeStamp) * 1000,
+                    status: parseInt(tx.isError) === 0 ? 'completed' : 'failed',
+                    explorerUrl: currentNetwork === 'testnet'
+                        ? `https://testnet.bscscan.com/tx/${tx.hash}`
+                        : `https://bscscan.com/tx/${tx.hash}`
+                };
+            }).filter(tx => tx !== null);
+        } catch (error) {
+            console.error('Error fetching BSC transactions:', error);
+            return [];
+        }
+    };
+
+    // Bitcoin транзакции (публичный API)
+    const fetchBtcTransactions = async (address) => {
+        if (!address) return [];
+        
+        try {
+            const baseUrl = currentNetwork === 'testnet'
+                ? 'https://blockstream.info/testnet/api'
+                : 'https://blockstream.info/api';
+            
+            const response = await fetch(`${baseUrl}/address/${address}/txs`);
+            if (!response.ok) return [];
+            
+            const data = await response.json();
+            
+            return data.slice(0, 15).map(tx => {
+                const isIncoming = tx.vout.some(output => 
+                    output.scriptpubkey_address === address
+                );
+                
+                // Если не входящая и не исходящая (внутренние), пропускаем
+                if (!isIncoming && !tx.vout.some(output => output.value > 0)) return null;
+                
+                const amount = isIncoming
+                    ? (tx.vout
+                        .filter(output => output.scriptpubkey_address === address)
+                        .reduce((sum, output) => sum + output.value, 0) / 1e8).toFixed(8)
+                    : (tx.vout.reduce((sum, output) => sum + output.value, 0) / 1e8).toFixed(8);
+                
+                return {
+                    id: tx.txid,
+                    blockchain: 'Bitcoin',
+                    type: isIncoming ? 'received' : 'sent',
+                    amount,
+                    symbol: 'BTC',
+                    timestamp: tx.status.block_time * 1000,
+                    status: tx.status.confirmed ? 'completed' : 'pending',
+                    explorerUrl: currentNetwork === 'testnet'
+                        ? `https://blockstream.info/testnet/tx/${tx.txid}`
+                        : `https://blockstream.info/tx/${tx.txid}`
+                };
+            }).filter(tx => tx !== null);
+        } catch (error) {
+            console.error('Error fetching BTC transactions:', error);
+            return [];
+        }
+    };
+
+    // Solana транзакции (публичный RPC)
+    const fetchSolTransactions = async (address) => {
+        if (!address) return [];
+        
+        try {
+            const rpcUrl = currentNetwork === 'testnet'
+                ? 'https://api.testnet.solana.com'
+                : API_KEYS.SOLANA_RPC_URL;
+            
+            // Получаем список подписей транзакций
+            const response = await fetch(rpcUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     jsonrpc: '2.0',
                     id: 1,
-                    method: 'getConfirmedSignaturesForAddress2',
-                    params: [address, { limit: 50 }]
+                    method: 'getSignaturesForAddress',
+                    params: [address, { limit: 10 }]
                 })
             });
             
@@ -239,34 +334,43 @@ function History({ userData }) {
             
             const transactions = [];
             
-            // Для каждой подписи получаем детали транзакции
-            for (const signature of data.result || []) {
-                const txResponse = await fetch(config.RPC_URL, {
+            // Для каждой подписи получаем детали
+            for (const sig of data.result || []) {
+                const txResponse = await fetch(rpcUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         jsonrpc: '2.0',
                         id: 1,
                         method: 'getTransaction',
-                        params: [signature.signature]
+                        params: [sig.signature, { encoding: 'jsonParsed', maxSupportedTransactionVersion: 0 }]
                     })
                 });
                 
                 if (txResponse.ok) {
                     const txData = await txResponse.json();
                     if (txData.result) {
-                        transactions.push({
-                            id: signature.signature,
-                            blockchain: 'Solana',
-                            type: 'transfer', // Нужно определить по аккаунтам
-                            amount: '0', // Нужно вычислить из инструкций
-                            symbol: 'SOL',
-                            timestamp: signature.blockTime * 1000,
-                            status: 'completed',
-                            explorerUrl: currentNetwork === 'testnet'
-                                ? `https://explorer.solana.com/tx/${signature.signature}?cluster=testnet`
-                                : `https://solscan.io/tx/${signature.signature}`
-                        });
+                        // Парсим инструкции для определения типа транзакции
+                        const instructions = txData.result.transaction?.message?.instructions || [];
+                        const isTransfer = instructions.some(ix => 
+                            ix.program === 'system' && (ix.parsed?.type === 'transfer' || ix.parsed?.type === 'transferChecked')
+                        );
+                        
+                        if (isTransfer) {
+                            // Упрощённо - в реальном приложении нужно парсить amount из инструкций
+                            transactions.push({
+                                id: sig.signature,
+                                blockchain: 'Solana',
+                                type: 'transfer', // Требуется детальный анализ
+                                amount: '0', // Нужно вычислить из инструкций
+                                symbol: 'SOL',
+                                timestamp: sig.blockTime * 1000,
+                                status: 'completed',
+                                explorerUrl: currentNetwork === 'testnet'
+                                    ? `https://explorer.solana.com/tx/${sig.signature}?cluster=testnet`
+                                    : `https://solscan.io/tx/${sig.signature}`
+                            });
+                        }
                     }
                 }
             }
@@ -278,62 +382,14 @@ function History({ userData }) {
         }
     };
 
-    const fetchBtcTransactions = async (address) => {
-        try {
-            const config = currentNetwork === 'testnet'
-                ? { EXPLORER_API: 'https://blockstream.info/testnet/api' }
-                : { EXPLORER_API: 'https://blockstream.info/api' };
-            
-            const response = await fetch(`${config.EXPLORER_API}/address/${address}/txs`);
-            if (!response.ok) return [];
-            
-            const data = await response.json();
-            
-            return data.map(tx => {
-                // Определяем тип транзакции (получение/отправка)
-                let totalReceived = 0;
-                let totalSent = 0;
-                
-                tx.vout.forEach(output => {
-                    if (output.scriptpubkey_address === address) {
-                        totalReceived += output.value;
-                    }
-                });
-                
-                let type = totalReceived > 0 ? 'received' : 'sent';
-                let amount = totalReceived > 0 
-                    ? (totalReceived / 1e8).toFixed(8)
-                    : (tx.vout.reduce((sum, out) => sum + out.value, 0) / 1e8).toFixed(8);
-                
-                return {
-                    id: tx.txid,
-                    blockchain: 'Bitcoin',
-                    type,
-                    amount,
-                    symbol: 'BTC',
-                    timestamp: tx.status.block_time * 1000,
-                    status: tx.status.confirmed ? 'completed' : 'pending',
-                    explorerUrl: currentNetwork === 'testnet'
-                        ? `https://blockstream.info/testnet/tx/${tx.txid}`
-                        : `https://blockstream.info/tx/${tx.txid}`
-                };
-            });
-        } catch (error) {
-            console.error('Error fetching BTC transactions:', error);
-            return [];
-        }
-    };
-
-    const fetchBscTransactions = async (address) => {
-        // BSC использует тот же формат, что и Ethereum
-        return fetchEthTransactions(address);
-    };
-
     const handleNetworkChange = (newNetwork) => {
         localStorage.setItem('selected_network', newNetwork);
         setCurrentNetwork(newNetwork);
         setTransactions([]);
         setGroupedTransactions({});
+        if (userData?.seed_phrases) {
+            loadTransactions();
+        }
     };
 
     const handleRefresh = () => {
@@ -353,15 +409,36 @@ function History({ userData }) {
             (selectedFilter === 'received' && tx.type === 'received')
         );
 
-    const getBlockchainIcon = (blockchain) => {
-        const icons = {
-            'TON': 'https://cryptologos.cc/logos/toncoin-ton-logo.png',
-            'Ethereum': 'https://cryptologos.cc/logos/ethereum-eth-logo.png',
-            'Solana': 'https://cryptologos.cc/logos/solana-sol-logo.png',
-            'Bitcoin': 'https://cryptologos.cc/logos/bitcoin-btc-logo.png',
-            'BSC': 'https://cryptologos.cc/logos/bnb-bnb-logo.png'
-        };
-        return icons[blockchain] || '';
+    // Функция для группировки транзакций по датам для отображения
+    const groupTransactionsByDateFiltered = (txs) => {
+        const groups = {};
+        
+        txs.forEach(tx => {
+            const date = new Date(tx.timestamp);
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            
+            let groupKey;
+            if (date.toDateString() === today.toDateString()) {
+                groupKey = 'Today';
+            } else if (date.toDateString() === yesterday.toDateString()) {
+                groupKey = 'Yesterday';
+            } else {
+                groupKey = date.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric',
+                    year: 'numeric'
+                });
+            }
+            
+            if (!groups[groupKey]) {
+                groups[groupKey] = [];
+            }
+            groups[groupKey].push(tx);
+        });
+        
+        return groups;
     };
 
     const getStatusColor = (status) => {
@@ -375,8 +452,11 @@ function History({ userData }) {
 
     const getUSDValue = (amount, symbol) => {
         const price = tokenPrices[symbol] || 0;
-        return (parseFloat(amount) * price).toFixed(2);
+        const usdValue = (parseFloat(amount) * price).toFixed(2);
+        return usdValue === '0.00' ? '0.00' : usdValue;
     };
+
+    const groupedFilteredTransactions = groupTransactionsByDateFiltered(filteredTransactions);
 
     return (
         <div className="history-page">
@@ -421,7 +501,7 @@ function History({ userData }) {
                 
                 <div className="transactions-container">
                     {isLoading ? (
-                        Array.from({ length: 8 }).map((_, index) => (
+                        Array.from({ length: 5 }).map((_, index) => (
                             <div key={index} className="transaction-skeleton">
                                 <div className="skeleton-icon"></div>
                                 <div className="skeleton-details">
@@ -434,7 +514,7 @@ function History({ userData }) {
                             </div>
                         ))
                     ) : filteredTransactions.length > 0 ? (
-                        Object.entries(groupTransactionsByDate(filteredTransactions)).map(([date, txList]) => (
+                        Object.entries(groupedFilteredTransactions).map(([date, txList]) => (
                             <div key={date} className="transaction-group">
                                 <div className="transaction-date">{date}</div>
                                 {txList.map(tx => (
@@ -448,6 +528,11 @@ function History({ userData }) {
                                                 src={getBlockchainIcon(tx.blockchain)} 
                                                 alt={tx.blockchain}
                                                 className="blockchain-icon"
+                                                onError={(e) => {
+                                                    e.target.style.display = 'none';
+                                                    e.target.parentElement.innerHTML = 
+                                                        `<div class="blockchain-fallback">${tx.blockchain.charAt(0)}</div>`;
+                                                }}
                                             />
                                             <div className={`type-indicator ${tx.type}`}>
                                                 {tx.type === 'received' ? '↓' : '↑'}
@@ -459,14 +544,6 @@ function History({ userData }) {
                                             </div>
                                             <div className="transaction-blockchain">
                                                 {tx.blockchain}
-                                                {tx.address && (
-                                                    <span className="transaction-address">
-                                                        {tx.type === 'received' 
-                                                            ? ` from ${tx.address.substring(0, 6)}...${tx.address.substring(tx.address.length - 4)}`
-                                                            : ` to ${tx.address.substring(0, 6)}...${tx.address.substring(tx.address.length - 4)}`
-                                                        }
-                                                    </span>
-                                                )}
                                             </div>
                                             <div className="transaction-time">
                                                 {new Date(tx.timestamp).toLocaleTimeString([], { 
