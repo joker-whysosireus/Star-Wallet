@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getTokenPrices } from '../../../Wallet/Services/storageService';
+import { getTokenPrices, getBlockchainIcon } from '../../../Wallet/Services/storageService';
 import './TokenSelectorModal.css';
 
 const TokenSelectorModal = ({ tokens, userWallets, onSelect, onClose, selectedToken }) => {
@@ -73,10 +73,17 @@ const TokenSelectorModal = ({ tokens, userWallets, onSelect, onClose, selectedTo
     
     const sortedTokens = getSortedTokens();
     
-    // Проверяем, есть ли у пользователя баланс для токена
+    // Получаем баланс пользователя для токена
     const getUserBalanceForToken = (token) => {
-        const userWallet = userWallets.find(wallet => wallet.symbol === token.symbol);
-        return userWallet ? userWallet.balance : token.balance || '0';
+        if (!userWallets || userWallets.length === 0) return '0';
+        
+        // Ищем токен по символу и блокчейну
+        const userWallet = userWallets.find(wallet => 
+            wallet.symbol === token.symbol && 
+            wallet.blockchain === token.blockchain
+        );
+        
+        return userWallet ? userWallet.balance || '0' : '0';
     };
     
     return (
@@ -95,6 +102,7 @@ const TokenSelectorModal = ({ tokens, userWallets, onSelect, onClose, selectedTo
                         const formattedBalance = formatBalance(userBalance);
                         const price = prices[token.symbol] || 0;
                         const tokenPrice = price >= 1 ? `$${price.toFixed(2)}` : `$${price.toFixed(4)}`;
+                        const usdBalance = (parseFloat(userBalance) * price).toFixed(2);
                         
                         return (
                             <div 
@@ -110,11 +118,7 @@ const TokenSelectorModal = ({ tokens, userWallets, onSelect, onClose, selectedTo
                                             className="token-logo"
                                             onError={(e) => {
                                                 e.target.onerror = null;
-                                                e.target.style.display = 'none';
-                                                const fallback = document.createElement('div');
-                                                fallback.className = 'token-logo-fallback';
-                                                fallback.textContent = token.symbol.substring(0, 2);
-                                                e.target.parentNode.appendChild(fallback);
+                                                e.target.src = getBlockchainIcon(token.blockchain);
                                             }}
                                         />
                                     </div>
@@ -127,11 +131,11 @@ const TokenSelectorModal = ({ tokens, userWallets, onSelect, onClose, selectedTo
                                 <div className="token-right">
                                     <div className="token-balance">{formattedBalance}</div>
                                     <div className="token-usd-balance">
-                                        ${(parseFloat(userBalance) * price).toFixed(2)}
+                                        ${usdBalance}
                                     </div>
                                     <div 
                                         className="blockchain-badge-tokencard" 
-                                        style={{ backgroundColor: badge.color }}
+                                        style={{ backgroundColor: badge.bg, color: badge.color }}
                                         title={token.blockchain}
                                     >
                                         {badge.text}
