@@ -1,159 +1,311 @@
-.token-card {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px;
-    width: 100%;
-    box-sizing: border-box;
-}
+@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap');
 
-.token-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-}
-
-.token-icon {
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 215, 0, 0.1);
-    border-radius: 10px;
-    flex-shrink: 0;
-}
-
-.token-logo {
-    width: 24px;
-    height: 24px;
-    object-fit: contain;
-    border-radius: 50%;
-}
-
-.token-logo-fallback {
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 215, 0, 0.2);
-    border-radius: 50%;
-    color: #FFD700;
-    font-size: 10px;
-    font-weight: bold;
-}
-
-.token-names {
+.wallet-page-wallet {
+    min-height: 100vh;
+    background-color: #000000;
+    color: white;
+    font-family: 'Rubik', sans-serif;
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    min-width: 0;
-    flex: 1;
-}
-
-.token-name {
-    font-size: 13px;
-    color: rgba(255, 255, 255, 0.7);
-    margin-bottom: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 150px;
-}
-
-.token-symbol {
-    font-size: 16px;
-    font-weight: 600;
-    color: white;
-    white-space: nowrap;
-}
-
-.token-right {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    flex-shrink: 0;
-    min-width: 0;
-    max-width: 140px;
-    text-align: right;
-    overflow: hidden;
-}
-
-.token-balance {
-    font-size: 16px;
-    font-weight: 600;
-    color: white;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 120px;
-}
-
-.token-usd-balance {
-    font-size: 13px;
-    color: rgba(255, 255, 255, 0.5);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 120px;
-}
-
-.token-price {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.5);
-    white-space: nowrap;
-    margin-top: 2px;
-}
-
-.blockchain-badge-tokencard {
-    padding: 2px 8px;
-    border-radius: 10px;
-    font-size: 8px;
-    font-weight: 600;
-    color: white;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-top: 4px;
-    display: inline-block;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 80px;
-    border: none;
-    box-shadow: none;
-}
-
-/* Стили для скелетонов */
-.skeleton-loader {
-    background: rgba(255, 255, 255, 0.03) !important;
-    border-radius: 4px;
-    overflow: hidden;
     position: relative;
+    padding-top: 120px;
+    padding-bottom: 60px;
 }
 
-.skeleton-loader::before {
-    content: '';
+.page-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 20px;
+    padding-bottom: 80px;
+    box-sizing: border-box;
+    flex: 1;
+    width: 100%;
+    transition: margin-top 0.3s ease;
+}
+
+.swap-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 0;
+    width: 100%;
+    max-width: 400px;
+}
+
+.swap-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: white;
+    margin: 0;
+    text-align: center;
+    margin-bottom: 30px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.swap-block {
+    width: 100%;
+    margin-bottom: 20px;
+    padding: 0;
+    background: transparent;
+}
+
+.swap-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding: 0 5px;
+}
+
+.swap-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.swap-token-icon-small {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.swap-header-text {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 500;
+}
+
+.swap-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.swap-balance {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.swap-token-name {
+    font-size: 14px;
+    color: #FFD700;
+    font-weight: 600;
+}
+
+.swap-block-content {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    width: 100%;
+}
+
+.swap-amount-section {
+    flex: 1;
+    min-width: 0;
+}
+
+.swap-amount-input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    font-size: 32px;
+    font-weight: 700;
+    color: white;
+    outline: none;
+    padding: 5px 0;
+    font-family: 'Rubik', sans-serif;
+}
+
+.swap-amount-input::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.swap-amount-input:read-only {
+    cursor: default;
+    opacity: 0.8;
+}
+
+/* Remove number input spinners */
+.swap-amount-input::-webkit-inner-spin-button,
+.swap-amount-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.swap-amount-input[type=number] {
+    -moz-appearance: textfield;
+}
+
+/* Vertical divider with swap button */
+.swap-vertical-divider {
+    position: relative;
+    height: 100%;
+    width: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 10px;
+}
+
+.swap-divider-line {
     position: absolute;
     top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, 
-        transparent, 
-        rgba(255, 255, 255, 0.05), 
-        transparent);
-    animation: shimmer 1.5s infinite;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    background: rgba(255, 255, 255, 0.2);
 }
 
-@keyframes shimmer {
-    0% {
-        left: -100%;
+.swap-vertical-button {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 215, 0, 0.1);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    color: #FFD700;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s;
+    z-index: 10;
+}
+
+.swap-vertical-button:hover {
+    background: rgba(255, 215, 0, 0.2);
+    transform: translate(-50%, -50%) scale(1.1);
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
+}
+
+.swap-token-selector {
+    position: relative;
+    min-width: 120px;
+}
+
+.swap-token-button {
+    width: 100%;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 10px 15px;
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.3s;
+    font-family: 'Rubik', sans-serif;
+}
+
+.swap-token-button:hover {
+    border-color: rgba(255, 215, 0, 0.4);
+    background: rgba(255, 215, 0, 0.05);
+}
+
+.swap-selected-token {
+    color: #FFD700;
+}
+
+.swap-selector-arrow {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 18px;
+    transform: rotate(90deg);
+}
+
+.swap-rate-display {
+    text-align: center;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 25px 0;
+    padding: 10px 15px;
+    background: transparent;
+    border-radius: 8px;
+    width: 100%;
+}
+
+.swap-deal-button {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 40px);
+    max-width: 350px;
+    z-index: 100;
+    background: rgba(255, 215, 0, 0.2);
+    color: #FFD700;
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: 12px;
+    padding: 16px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-family: 'Rubik', sans-serif;
+    letter-spacing: 0.5px;
+    margin: 0;
+}
+
+.swap-deal-button:hover:not(:disabled) {
+    background: rgba(255, 215, 0, 0.3);
+    transform: translateX(-50%) translateY(-2px);
+    box-shadow: 0 4px 15px rgba(255, 215, 0, 0.1);
+}
+
+.swap-deal-button:active:not(:disabled) {
+    transform: translateX(-50%);
+}
+
+.swap-deal-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    color: rgba(255, 215, 0, 0.5);
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.swap-loading {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 16px;
+    font-weight: 500;
+}
+
+/* Animation for token icons */
+@keyframes tokenIconSpin {
+    from {
+        transform: rotate(0deg);
     }
-    100% {
-        left: 100%;
+    to {
+        transform: rotate(360deg);
     }
+}
+
+.swap-token-icon-small:hover {
+    animation: tokenIconSpin 2s linear infinite;
+}
+
+/* Focus styles */
+.swap-amount-input:focus {
+    outline: none;
+}
+
+.swap-token-button:focus {
+    outline: 2px solid rgba(255, 215, 0, 0.3);
+    outline-offset: 2px;
 }

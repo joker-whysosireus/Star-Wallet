@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Menu from "../../assets/Menus/Menu/Menu";
 import Header from "../../assets/Header/Header";
+import TokenSelectorModal from './Components/TokenSelectorModal/TokenSelectorModal';
 import { 
   getAllTokens, 
   getTokenPrices, 
@@ -21,10 +22,8 @@ function Swap({ userData }) {
     const [exchangeRate, setExchangeRate] = useState(1.62);
     const [loading, setLoading] = useState(true);
     const [prices, setPrices] = useState({});
-    const [showFromSelector, setShowFromSelector] = useState(false);
-    const [showToSelector, setShowToSelector] = useState(false);
-    const fromSelectorRef = useRef(null);
-    const toSelectorRef = useRef(null);
+    const [showTokenSelector, setShowTokenSelector] = useState(false);
+    const [selectorType, setSelectorType] = useState(''); // 'from' or 'to'
     
     useEffect(() => {
         loadTokens();
@@ -38,22 +37,9 @@ function Swap({ userData }) {
             }
         }, 30000);
         
-        // Закрытие селекторов при клике вне их области
-        const handleClickOutside = (event) => {
-            if (fromSelectorRef.current && !fromSelectorRef.current.contains(event.target)) {
-                setShowFromSelector(false);
-            }
-            if (toSelectorRef.current && !toSelectorRef.current.contains(event.target)) {
-                setShowToSelector(false);
-            }
-        };
-        
-        document.addEventListener('mousedown', handleClickOutside);
-        
         return () => {
             stopUpdates();
             stopPriceUpdates();
-            document.removeEventListener('mousedown', handleClickOutside);
         };
     }, []);
     
@@ -110,16 +96,15 @@ function Swap({ userData }) {
         }
     };
     
-    const handleFromTokenSelect = (token) => {
-        setFromToken(token);
-        setShowFromSelector(false);
-        updateExchangeRate(token, toToken, prices);
-    };
-    
-    const handleToTokenSelect = (token) => {
-        setToToken(token);
-        setShowToSelector(false);
-        updateExchangeRate(fromToken, token, prices);
+    const handleTokenSelect = (token, type) => {
+        if (type === 'from') {
+            setFromToken(token);
+            updateExchangeRate(token, toToken, prices);
+        } else {
+            setToToken(token);
+            updateExchangeRate(fromToken, token, prices);
+        }
+        setShowTokenSelector(false);
     };
     
     const updateExchangeRate = (from, to, priceData = prices) => {
@@ -178,6 +163,11 @@ function Swap({ userData }) {
         }
     };
     
+    const openTokenSelector = (type) => {
+        setSelectorType(type);
+        setShowTokenSelector(true);
+    };
+    
     if (loading) {
         return (
             <div className="wallet-page-wallet">
@@ -196,6 +186,7 @@ function Swap({ userData }) {
             
             <div className="page-content">
                 <div className="swap-container">
+                    <h1 className="swap-title">Swap</h1>
                     
                     {/* Upper Block - You Pay */}
                     <div className="swap-block">
@@ -233,46 +224,24 @@ function Swap({ userData }) {
                                 />
                             </div>
                             
-                            <div className="swap-divider-line">
-                                <div className="swap-divider-button" onClick={handleSwapTokens}>
+                            {/* Vertical divider with swap button */}
+                            <div className="swap-vertical-divider">
+                                <div className="swap-divider-line"></div>
+                                <div className="swap-vertical-button" onClick={handleSwapTokens}>
                                     ⇅
                                 </div>
                             </div>
                             
-                            <div className="swap-token-selector" ref={fromSelectorRef}>
+                            <div className="swap-token-selector">
                                 <button 
                                     className="swap-token-button"
-                                    onClick={() => setShowFromSelector(!showFromSelector)}
+                                    onClick={() => openTokenSelector('from')}
                                 >
                                     <span className="swap-selected-token">
                                         {fromToken?.symbol}
                                     </span>
                                     <span className="swap-selector-arrow">›</span>
                                 </button>
-                                
-                                {showFromSelector && (
-                                    <div className="swap-selector-dropdown">
-                                        {tokens.map(token => (
-                                            <div 
-                                                key={token.id}
-                                                className="swap-selector-option"
-                                                onClick={() => handleFromTokenSelect(token)}
-                                            >
-                                                <img 
-                                                    src={token.logo} 
-                                                    alt={token.symbol}
-                                                    className="swap-option-icon"
-                                                    onError={(e) => {
-                                                        e.target.onerror = null;
-                                                        e.target.src = getBlockchainIcon(token.blockchain);
-                                                    }}
-                                                />
-                                                <span className="swap-option-symbol">{token.symbol}</span>
-                                                <span className="swap-option-name">{token.name}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </div>
@@ -307,40 +276,16 @@ function Swap({ userData }) {
                                 />
                             </div>
                             
-                            <div className="swap-token-selector" ref={toSelectorRef}>
+                            <div className="swap-token-selector">
                                 <button 
                                     className="swap-token-button"
-                                    onClick={() => setShowToSelector(!showToSelector)}
+                                    onClick={() => openTokenSelector('to')}
                                 >
                                     <span className="swap-selected-token">
                                         {toToken?.symbol}
                                     </span>
                                     <span className="swap-selector-arrow">›</span>
                                 </button>
-                                
-                                {showToSelector && (
-                                    <div className="swap-selector-dropdown">
-                                        {tokens.map(token => (
-                                            <div 
-                                                key={token.id}
-                                                className="swap-selector-option"
-                                                onClick={() => handleToTokenSelect(token)}
-                                            >
-                                                <img 
-                                                    src={token.logo} 
-                                                    alt={token.symbol}
-                                                    className="swap-option-icon"
-                                                    onError={(e) => {
-                                                        e.target.onerror = null;
-                                                        e.target.src = getBlockchainIcon(token.blockchain);
-                                                    }}
-                                                />
-                                                <span className="swap-option-symbol">{token.symbol}</span>
-                                                <span className="swap-option-name">{token.name}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
                             </div>
                         </div>
                     </div>
@@ -349,19 +294,29 @@ function Swap({ userData }) {
                     <div className="swap-rate-display">
                         1 {toToken?.symbol} ≈ {exchangeRate.toFixed(2)} {fromToken?.symbol}
                     </div>
-                    
-                    {/* Check Deal Button */}
-                    <button 
-                        className="swap-deal-button"
-                        onClick={handleCheckDeal}
-                        disabled={!fromAmount || parseFloat(fromAmount) <= 0}
-                    >
-                        Check Deal
-                    </button>
                 </div>
             </div>
             
+            {/* Check Deal Button - Fixed above Menu */}
+            <button 
+                className="swap-deal-button"
+                onClick={handleCheckDeal}
+                disabled={!fromAmount || parseFloat(fromAmount) <= 0}
+            >
+                Check Deal
+            </button>
+            
             <Menu />
+            
+            {/* Token Selector Modal */}
+            {showTokenSelector && (
+                <TokenSelectorModal
+                    tokens={tokens}
+                    onSelect={(token) => handleTokenSelect(token, selectorType)}
+                    onClose={() => setShowTokenSelector(false)}
+                    selectedToken={selectorType === 'from' ? fromToken : toToken}
+                />
+            )}
         </div>
     );
 }
