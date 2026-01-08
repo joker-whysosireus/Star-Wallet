@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap');
 
-.wallet-page-wallet {
+.wallet-page-swap {
     min-height: 100vh;
     background-color: #000000;
     color: white;
@@ -136,13 +136,14 @@
     position: relative;
     display: flex;
     align-items: center;
-    gap: 15px;
+    justify-content: space-between;
     width: 100%;
 }
 
 .swap-amount-section {
     flex: 1;
     min-width: 0;
+    margin-right: 15px;
 }
 
 .swap-amount-input {
@@ -214,6 +215,20 @@
     font-size: 24px;
     transform: rotate(90deg);
     margin-left: 2px;
+}
+
+/* For receive block - different layout */
+.swap-receive-amount {
+    flex: 1;
+    font-size: 36px;
+    font-weight: 700;
+    color: white;
+    text-align: left;
+    padding: 5px 0;
+    margin-right: 15px;
+    min-height: 46px;
+    display: flex;
+    align-items: center;
 }
 
 .swap-rate-display {

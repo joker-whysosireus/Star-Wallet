@@ -142,7 +142,8 @@ function Swap({ userData }) {
         const toPrice = priceData[to.symbol] || 1;
         
         if (fromPrice && toPrice) {
-            // 1 fromToken = (fromPrice / toPrice) toToken
+            // Правильный расчет: 1 fromToken = (fromPrice / toPrice) toToken
+            // Например: если USDT = $1, TON = $6.24, то 1 USDT = 0.160256 TON (1/6.24)
             const rate = fromPrice / toPrice;
             setExchangeRate(rate);
             
@@ -155,15 +156,22 @@ function Swap({ userData }) {
     };
     
     const handleSwapTokens = () => {
-        const tempToken = fromToken;
-        const tempAmount = fromAmount;
+        if (!fromToken || !toToken) return;
         
+        // Сохраняем текущие значения
+        const currentFromAmount = fromAmount;
+        const currentToAmount = toAmount;
+        
+        // Меняем токены местами
+        const tempToken = fromToken;
         setFromToken(toToken);
         setToToken(tempToken);
-        setFromAmount(toAmount);
-        setToAmount(tempAmount);
         
-        // Обновляем курс
+        // Меняем суммы местами
+        setFromAmount(currentToAmount);
+        setToAmount(currentFromAmount);
+        
+        // Обновляем курс для новых токенов
         updateExchangeRate(toToken, tempToken, prices);
     };
     
@@ -271,10 +279,6 @@ function Swap({ userData }) {
                             </div>
                             
                             <div className="swap-block-content">
-                                <div className="swap-amount-section">
-                                    <div className="skeleton-loader" style={{width: '100%', height: '40px'}}></div>
-                                </div>
-                                
                                 <div className="swap-token-selector">
                                     <div className="skeleton-loader" style={{width: '120px', height: '40px', borderRadius: '4px'}}></div>
                                 </div>
@@ -288,7 +292,7 @@ function Swap({ userData }) {
     }
     
     return (
-        <div className="wallet-page-wallet">
+        <div className="wallet-page-swap">
             <Header 
                 userData={userData} 
                 onNetworkChange={handleNetworkChange}
@@ -379,16 +383,6 @@ function Swap({ userData }) {
                         </div>
                         
                         <div className="swap-block-content">
-                            <div className="swap-amount-section">
-                                <input 
-                                    type="number"
-                                    className="swap-amount-input"
-                                    value={toAmount}
-                                    readOnly
-                                    placeholder="0"
-                                />
-                            </div>
-                            
                             <div className="swap-token-selector">
                                 <button 
                                     className="swap-token-button"
