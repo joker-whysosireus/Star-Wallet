@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getTokenPrices } from '../../../Wallet/Services/storageService';
 import './TokenSelectorModal.css';
 
-const TokenSelectorModal = ({ tokens, onSelect, onClose, selectedToken }) => {
+const TokenSelectorModal = ({ tokens, userWallets, onSelect, onClose, selectedToken }) => {
     const [isClosing, setIsClosing] = useState(false);
     const [prices, setPrices] = useState({});
     
@@ -73,6 +73,12 @@ const TokenSelectorModal = ({ tokens, onSelect, onClose, selectedToken }) => {
     
     const sortedTokens = getSortedTokens();
     
+    // Проверяем, есть ли у пользователя баланс для токена
+    const getUserBalanceForToken = (token) => {
+        const userWallet = userWallets.find(wallet => wallet.symbol === token.symbol);
+        return userWallet ? userWallet.balance : token.balance || '0';
+    };
+    
     return (
         <>
             <div className={`token-selector-backdrop ${isClosing ? 'closing' : ''}`} onClick={handleClose}></div>
@@ -85,7 +91,8 @@ const TokenSelectorModal = ({ tokens, onSelect, onClose, selectedToken }) => {
                 <div className="token-selector-list">
                     {sortedTokens.map(token => {
                         const badge = getBlockchainBadge(token.blockchain);
-                        const formattedBalance = formatBalance(token.balance);
+                        const userBalance = getUserBalanceForToken(token);
+                        const formattedBalance = formatBalance(userBalance);
                         const price = prices[token.symbol] || 0;
                         const tokenPrice = price >= 1 ? `$${price.toFixed(2)}` : `$${price.toFixed(4)}`;
                         
@@ -120,7 +127,7 @@ const TokenSelectorModal = ({ tokens, onSelect, onClose, selectedToken }) => {
                                 <div className="token-right">
                                     <div className="token-balance">{formattedBalance}</div>
                                     <div className="token-usd-balance">
-                                        ${(parseFloat(token.balance) * price).toFixed(2)}
+                                        ${(parseFloat(userBalance) * price).toFixed(2)}
                                     </div>
                                     <div 
                                         className="blockchain-badge-tokencard" 

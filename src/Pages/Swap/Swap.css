@@ -86,25 +86,31 @@
     font-weight: 600;
 }
 
-/* Horizontal divider between pay and receive blocks */
+/* Horizontal divider between pay and receive blocks WITH SWAP BUTTON */
 .swap-blocks-divider {
     width: 100%;
     height: 1px;
     margin: 20px 0;
     position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 40px;
 }
 
 .swap-blocks-divider-line {
-    width: 100%;
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 40px;
     height: 1px;
     background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-50%);
 }
 
 .swap-swap-button {
-    position: absolute;
-    top: 50%;
-    right: 40px;
-    transform: translateY(-50%);
+    position: relative;
+    z-index: 2;
     background: linear-gradient(135deg, #FFD700, #FFA500);
     border: none;
     border-radius: 50%;
@@ -117,13 +123,12 @@
     font-size: 16px;
     cursor: pointer;
     transition: all 0.3s;
-    z-index: 10;
     font-weight: bold;
 }
 
 .swap-swap-button:hover {
     background: linear-gradient(135deg, #FFE033, #FFB833);
-    transform: translateY(-50%) scale(1.1);
+    transform: scale(1.1);
     box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
 }
 
@@ -144,7 +149,7 @@
     width: 100%;
     background: transparent;
     border: none;
-    font-size: 36px; /* Увеличен размер шрифта */
+    font-size: 36px;
     font-weight: 700;
     color: white;
     outline: none;
@@ -192,7 +197,7 @@
     align-items: center;
     transition: all 0.3s;
     font-family: 'Rubik', sans-serif;
-    gap: 2px; /* Минимальный отступ между символами */
+    gap: 2px;
 }
 
 .swap-token-button:hover {
@@ -208,7 +213,7 @@
     color: #FFD700;
     font-size: 24px;
     transform: rotate(90deg);
-    margin-left: 2px; /* Минимальный отступ */
+    margin-left: 2px;
 }
 
 .swap-rate-display {
