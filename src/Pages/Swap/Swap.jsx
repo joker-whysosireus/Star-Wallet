@@ -142,7 +142,7 @@ function Swap({ userData }) {
         const toPrice = priceData[to.symbol] || 1;
         
         if (fromPrice && toPrice) {
-            // Правильный расчет: 1 fromToken = (fromPrice / toPrice) toToken
+            // 1 fromToken = (fromPrice / toPrice) toToken
             const rate = fromPrice / toPrice;
             setExchangeRate(rate);
             
@@ -216,7 +216,7 @@ function Swap({ userData }) {
     // Скелетоны для загрузки
     if (loading) {
         return (
-            <div className="wallet-page-wallet">
+            <div className="wallet-page-swap">
                 <Header 
                     userData={userData} 
                     onNetworkChange={handleNetworkChange}
@@ -275,6 +275,13 @@ function Swap({ userData }) {
                         </div>
                     </div>
                 </div>
+                
+                {/* Skeleton для swap-rate-display */}
+                <div className="swap-rate-display skeleton-loader"></div>
+                
+                {/* Skeleton для кнопки Check Deal */}
+                <div className="swap-deal-button skeleton-loader"></div>
+                
                 <Menu />
             </div>
         );
