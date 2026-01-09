@@ -208,7 +208,7 @@ const TokenDetail = () => {
                 'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)', text: 'BNB' }
             };
             
-            return badges[actualBlockchain] || { color: '#26A17B', text: actualBlockchain || 'USDT' };
+            return badges[actualBlockchain] || { color: '#26A17B', bg: 'rgba(38, 161, 123, 0.1)', text: actualBlockchain || 'USDT' };
         }
         
         // Для остальных токенов показываем соответствующий блокчейн
@@ -220,7 +220,7 @@ const TokenDetail = () => {
             'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)', text: 'BNB' }
         };
         
-        return badges[blockchain] || { color: '#666', text: blockchain };
+        return badges[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)', text: blockchain };
     };
 
     const handleTimeframeChange = (newTimeframe) => {
@@ -294,8 +294,8 @@ const TokenDetail = () => {
                             <div 
                                 className="blockchain-badge" 
                                 style={{ 
-                                    borderColor: badge.color,
-                                    color: badge.color,
+                                    backgroundColor: badge.color,
+                                    color: 'white',
                                 }}
                                 title={wallet.blockchain}
                             >

@@ -84,6 +84,7 @@
     font-weight: 400;
 }
 
+/* Обновленные стили для бейджей как в USDTDetail */
 .blockchain-badge {
     padding: 4px 12px;
     border-radius: 12px;
@@ -97,6 +98,7 @@
     height: 24px;
     margin: 0;
 }
+
 .action-button {
     background: linear-gradient(135deg, #FFD700, #FFA500);
     border: none;

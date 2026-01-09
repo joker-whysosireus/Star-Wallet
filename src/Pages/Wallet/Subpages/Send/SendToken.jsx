@@ -268,9 +268,7 @@ const SendToken = () => {
             'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)', text: 'TON' },
             'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)', text: 'SOL' },
             'Ethereum': { color: '#8c8cff', bg: 'rgba(140, 140, 255, 0.1)', text: 'ETH' },
-            'Tron': { color: '#ff0000', bg: 'rgba(255, 0, 0, 0.1)', text: 'TRX' },
             'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)', text: 'BTC' },
-            'NEAR': { color: '#0b4731', bg: 'rgba(11, 71, 49, 0.1)', text: 'NEAR' },
             'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)', text: 'BNB' } 
         };
         
@@ -378,8 +376,8 @@ const SendToken = () => {
                                 <div 
                                     className="blockchain-badge"
                                     style={{ 
-                                        color: badge.color,
-                                        backgroundColor: badge.bg
+                                        backgroundColor: badge.color,
+                                        color: 'white'
                                     }}
                                 >
                                     {badge.text}
