@@ -84,10 +84,7 @@
     font-weight: 400;
 }
 
-/* ОБНОВЛЕННЫЕ СТИЛИ ДЛЯ БЕЙДЖЕЙ - ТАКИЕ ЖЕ КАК В USDTDetail */
 .blockchain-badge {
-    background-color: #26A17B;
-    color: white;
     padding: 4px 12px;
     border-radius: 12px;
     font-size: 12px;
@@ -97,12 +94,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin: 0;
-    border: none;
     height: 24px;
-    white-space: nowrap;
+    margin: 0;
 }
-
 .action-button {
     background: linear-gradient(135deg, #FFD700, #FFA500);
     border: none;
@@ -121,7 +115,7 @@
     transform: translateY(-2px);
 }
 
-/* УВЕЛИЧЕНА ВЫСОТА ГРАФИКА */
+/* Стили для нового дизайна графика - ВЫСОТА УМЕНЬШЕНА ДО 160px */
 .chart-container {
     width: 88%;
     max-width: 350px;
@@ -131,7 +125,7 @@
     padding: 20px;
     display: flex;
     flex-direction: column;
-    height: 260px; /* Увеличено до 260px (было 160px, увеличение на 100px) */
+    height: 160px; /* Уменьшено с 200px до 160px */
 }
 
 .chart-price-section {
@@ -182,7 +176,6 @@
     flex: 1;
     position: relative;
     margin: 0 -10px 40px -10px;
-    height: 140px; /* Увеличена высота области графика */
 }
 
 .chart-timeframe-buttons {

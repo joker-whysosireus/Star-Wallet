@@ -299,8 +299,6 @@
 
 /* ОБНОВЛЕННЫЕ СТИЛИ ДЛЯ БЕЙДЖЕЙ - ТАКИЕ ЖЕ КАК В USDTDetail */
 .blockchain-badge {
-    background-color: #26A17B;
-    color: white;
     padding: 4px 12px;
     border-radius: 12px;
     font-size: 12px;
@@ -311,7 +309,6 @@
     align-items: center;
     justify-content: center;
     margin: 0;
-    border: none;
     height: 24px;
     white-space: nowrap;
     flex-shrink: 0;

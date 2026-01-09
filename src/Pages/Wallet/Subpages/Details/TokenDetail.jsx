@@ -182,9 +182,7 @@ const TokenDetail = () => {
                 'ETH': 3500.00,
                 'SOL': 172.34,
                 'BNB': 600.00,
-                'TRX': 0.12,
                 'BTC': 68000.00,
-                'NEAR': 8.50,
                 'USDT': 1.00
             };
             return defaultPrices[symbol] || 1;
@@ -206,9 +204,7 @@ const TokenDetail = () => {
                 'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)', text: 'TON' },
                 'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)', text: 'SOL' },
                 'Ethereum': { color: '#8c8cff', bg: 'rgba(140, 140, 255, 0.1)', text: 'ETH' },
-                'Tron': { color: '#ff0000', bg: 'rgba(255, 0, 0, 0.1)', text: 'TRX' },
                 'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)', text: 'BTC' },
-                'Litecoin': { color: '#bfbbbf', bg: 'rgba(191, 187, 191, 0.1)', text: 'LTC' },
                 'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)', text: 'BNB' }
             };
             
@@ -220,9 +216,7 @@ const TokenDetail = () => {
             'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)', text: 'TON' },
             'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)', text: 'SOL' },
             'Ethereum': { color: '#8c8cff', bg: 'rgba(140, 140, 255, 0.1)', text: 'ETH' },
-            'Tron': { color: '#ff0000', bg: 'rgba(255, 0, 0, 0.1)', text: 'TRX' },
             'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)', text: 'BTC' },
-            'Litecoin': { color: '#bfbbbf', bg: 'rgba(191, 187, 191, 0.1)', text: 'LTC' },
             'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)', text: 'BNB' }
         };
         
