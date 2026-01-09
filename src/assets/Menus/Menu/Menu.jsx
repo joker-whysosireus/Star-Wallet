@@ -19,6 +19,7 @@ const Menu = () => {
     currentPath === '/wallet' || 
     currentPath.startsWith('/wallet/token/') ||
     currentPath === '/send' ||
+    currentPath === '/usdt-detail' ||
     currentPath === '/receive';
   
   const menuItems = [

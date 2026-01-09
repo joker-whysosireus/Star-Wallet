@@ -15,11 +15,9 @@ function History({ userData }) {
     const [groupedTransactions, setGroupedTransactions] = useState({});
     const [tokenPrices, setTokenPrices] = useState({});
 
-    // API ключи - используем тот же ключ для Etherscan и BscScan
-    const API_KEYS = {
-        ETHERSCAN_API_KEY: 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6', // Etherscan ключ работает и для BscScan
-        SOLANA_RPC_URL: 'https://mainnet.helius-rpc.com/?api-key=e1a20296-3d29-4edb-bc41-c709a187fbc9'
-    };
+    // API ключ для Etherscan (работает для Ethereum, BSC, Polygon и других сетей)
+    const ETHERSCAN_API_KEY = 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6'; // Ваш ключ
+    const SOLANA_RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=e1a20296-3d29-4edb-bc41-c709a187fbc9';
 
     useEffect(() => {
         if (userData?.seed_phrases) {
@@ -160,12 +158,10 @@ function History({ userData }) {
         try {
             console.log(`TON: Fetching transactions for address...`);
             
-            // Используем более надежный API для TON
             const baseUrl = currentNetwork === 'testnet' 
                 ? 'https://testnet.toncenter.com/api/v2'
                 : 'https://toncenter.com/api/v2';
             
-            // Получаем транзакции адреса
             const response = await fetch(`${baseUrl}/getTransactions?address=${address}&limit=20`);
             
             if (!response.ok) {
@@ -240,7 +236,7 @@ function History({ userData }) {
         }
     };
 
-    // Функция для Ethereum транзакций (ИСПРАВЛЕНА)
+    // ФУНКЦИЯ ДЛЯ ETHEREUM ТРАНЗАКЦИЙ (ИСПРАВЛЕННАЯ - используется единый API Etherscan V2)
     const fetchEthTransactions = async (address) => {
         if (!address || address.trim() === '') {
             console.log('ETH: No address provided');
@@ -250,16 +246,17 @@ function History({ userData }) {
         try {
             console.log(`ETH: Fetching transactions for address...`);
             
-            const baseUrl = currentNetwork === 'testnet'
-                ? 'https://api-sepolia.etherscan.io/api'
-                : 'https://api.etherscan.io/api';
+            // Используем единый API Etherscan V2 для всех сетей
+            const baseUrl = 'https://api.etherscan.io/v2/api';
             
-            const apiKey = API_KEYS.ETHERSCAN_API_KEY;
+            // Определяем chainid в зависимости от сети
+            const chainId = currentNetwork === 'testnet' ? '11155111' : '1'; // 1=ETH Mainnet, 11155111=Sepolia
             
-            // Используем модуль account и действие txlist для получения обычных транзакций
-            const response = await fetch(
-                `${baseUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=50&sort=desc&apikey=${apiKey}`
-            );
+            const apiUrl = `${baseUrl}?module=account&action=txlist&address=${address}&chainid=${chainId}&startblock=0&endblock=99999999&page=1&offset=50&sort=desc&apikey=${ETHERSCAN_API_KEY}`;
+            
+            console.log(`ETH: Fetching from URL: ${apiUrl}`);
+            
+            const response = await fetch(apiUrl);
             
             console.log(`ETH: API response status - ${response.status}`);
             
@@ -275,9 +272,14 @@ function History({ userData }) {
             console.log('ETH: API message:', data.message);
             console.log('ETH: Result length:', data.result ? data.result.length : 0);
             
+            // Проверяем, не используем ли мы устаревший API
+            if (data.message && (data.message.includes('deprecated') || data.message.includes('Invalid API Key'))) {
+                console.error(`ETH: API error - ${data.message}`);
+                return [];
+            }
+            
             if (data.status !== '1' || !Array.isArray(data.result)) {
                 console.log(`ETH: API error - status: ${data.status}, message: ${data.message}`);
-                // Покажем первые 5 результатов для отладки
                 if (data.result && Array.isArray(data.result) && data.result.length > 0) {
                     console.log('ETH: First few results:', data.result.slice(0, 3));
                 }
@@ -327,7 +329,6 @@ function History({ userData }) {
             
             console.log(`ETH: Found ${transactions.length} valid transactions`);
             
-            // Если транзакций много, покажем несколько для отладки
             if (transactions.length > 0) {
                 console.log('ETH: Sample transactions:', transactions.slice(0, 3));
             }
@@ -339,7 +340,7 @@ function History({ userData }) {
         }
     };
 
-    // Функция для BSC транзакций (ИСПРАВЛЕНА)
+    // ФУНКЦИЯ ДЛЯ BSC ТРАНЗАКЦИЙ (ИСПРАВЛЕННАЯ - используется единый API Etherscan V2)
     const fetchBscTransactions = async (address) => {
         if (!address || address.trim() === '') {
             console.log('BSC: No address provided');
@@ -349,16 +350,17 @@ function History({ userData }) {
         try {
             console.log(`BSC: Fetching transactions for address...`);
             
-            const baseUrl = currentNetwork === 'testnet'
-                ? 'https://api-testnet.bscscan.com/api'
-                : 'https://api.bscscan.com/api';
+            // Используем единый API Etherscan V2 для всех сетей
+            const baseUrl = 'https://api.etherscan.io/v2/api';
             
-            // Используем тот же API ключ, что и для Etherscan
-            const apiKey = API_KEYS.ETHERSCAN_API_KEY;
+            // Определяем chainid в зависимости от сети (56=BSC Mainnet, 97=BSC Testnet)
+            const chainId = currentNetwork === 'testnet' ? '97' : '56';
             
-            const response = await fetch(
-                `${baseUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=50&sort=desc&apikey=${apiKey}`
-            );
+            const apiUrl = `${baseUrl}?module=account&action=txlist&address=${address}&chainid=${chainId}&startblock=0&endblock=99999999&page=1&offset=50&sort=desc&apikey=${ETHERSCAN_API_KEY}`;
+            
+            console.log(`BSC: Fetching from URL: ${apiUrl}`);
+            
+            const response = await fetch(apiUrl);
             
             console.log(`BSC: API response status - ${response.status}`);
             
@@ -374,9 +376,14 @@ function History({ userData }) {
             console.log('BSC: API message:', data.message);
             console.log('BSC: Result length:', data.result ? data.result.length : 0);
             
+            // Проверяем, не используем ли мы устаревший API
+            if (data.message && (data.message.includes('deprecated') || data.message.includes('Invalid API Key'))) {
+                console.error(`BSC: API error - ${data.message}`);
+                return [];
+            }
+            
             if (data.status !== '1' || !Array.isArray(data.result)) {
                 console.log(`BSC: API error - status: ${data.status}, message: ${data.message}`);
-                // Покажем первые 5 результатов для отладки
                 if (data.result && Array.isArray(data.result) && data.result.length > 0) {
                     console.log('BSC: First few results:', data.result.slice(0, 3));
                 }
@@ -426,7 +433,6 @@ function History({ userData }) {
             
             console.log(`BSC: Found ${transactions.length} valid transactions`);
             
-            // Если транзакций много, покажем несколько для отладки
             if (transactions.length > 0) {
                 console.log('BSC: Sample transactions:', transactions.slice(0, 3));
             }
@@ -515,7 +521,7 @@ function History({ userData }) {
             
             const rpcUrl = currentNetwork === 'testnet'
                 ? 'https://api.testnet.solana.com'
-                : API_KEYS.SOLANA_RPC_URL;
+                : SOLANA_RPC_URL;
             
             const signaturesResponse = await fetch(rpcUrl, {
                 method: 'POST',

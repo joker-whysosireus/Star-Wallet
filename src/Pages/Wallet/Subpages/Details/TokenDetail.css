@@ -92,11 +92,6 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    height: 24px;
-    margin: 0;
 }
 
 .action-button {

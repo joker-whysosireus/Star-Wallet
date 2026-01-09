@@ -305,14 +305,6 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0;
-    border: none;
-    height: 24px;
-    white-space: nowrap;
-    flex-shrink: 0;
 }
 
 /* БАЛАНС - ЦЕНТРИРОВАН ПОД БЛОКОМ */
