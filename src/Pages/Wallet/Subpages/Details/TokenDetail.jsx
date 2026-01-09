@@ -29,6 +29,29 @@ const TokenDetail = () => {
     const userData = location.state?.userData;
     const network = location.state?.network || 'mainnet';
     
+    // Функция для форматирования числа с ограничением до 6 знаков после запятой
+    const formatBalance = (balance) => {
+        if (!balance || balance === '0' || balance === '0.0' || balance === '0.00') return '0';
+        
+        const num = parseFloat(balance);
+        if (isNaN(num)) return '0';
+        
+        // Разделяем на целую и дробную часть
+        const [integer, decimal] = num.toString().split('.');
+        
+        if (!decimal) return integer;
+        
+        // Ограничиваем до 6 знаков после запятой
+        let limitedDecimal = decimal.slice(0, 6);
+        
+        // Убираем лишние нули в конце
+        while (limitedDecimal.length > 0 && limitedDecimal[limitedDecimal.length - 1] === '0') {
+            limitedDecimal = limitedDecimal.slice(0, -1);
+        }
+        
+        return limitedDecimal.length > 0 ? `${integer}.${limitedDecimal}` : integer;
+    };
+    
     useEffect(() => {
         const walletData = location.state?.wallet || location.state;
         
@@ -272,7 +295,7 @@ const TokenDetail = () => {
                 
                 <div className="token-balance-display">
                     <div className="token-amount-container">
-                        <p className="token-amount">{wallet.balance || '0.00'} {wallet.symbol}</p>
+                        <p className="token-amount">{formatBalance(wallet.balance)} {wallet.symbol}</p>
                         {badge && (
                             <div 
                                 className="blockchain-badge" 

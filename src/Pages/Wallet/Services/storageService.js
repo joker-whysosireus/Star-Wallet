@@ -133,6 +133,15 @@ export const TOKENS = {
         decimals: 18, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' 
+    },
+    USDT_BSC: { 
+        symbol: 'USDT', 
+        name: 'Tether (BEP20)', 
+        blockchain: 'BSC', 
+        decimals: 18, 
+        isNative: false, 
+        contractAddress: '0x55d398326f99059fF775485246999027B3197955', 
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
     }
 };
 
@@ -203,6 +212,15 @@ export const TESTNET_TOKENS = {
         decimals: 18, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/bnb-bnb-logo.png' 
+    },
+    USDT_BSC: { 
+        symbol: 'USDT', 
+        name: 'Tether (BEP20)', 
+        blockchain: 'BSC', 
+        decimals: 18, 
+        isNative: false, 
+        contractAddress: '0x337610d27c682E347C9cD60BD4b3b107C9d34dDd', 
+        logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
     }
 };
 
@@ -236,6 +254,7 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
         walletArray.push(createWallet(tokens.SOL, solAddress, network));
         walletArray.push(createWallet(tokens.BTC, bitcoinAddress, network));
         walletArray.push(createWallet(tokens.BNB, bscAddress, network));
+        walletArray.push(createWallet(tokens.USDT_BSC, bscAddress, network));
         
         return walletArray;
     } catch (error) {
@@ -697,6 +716,30 @@ const getBNBBalance = async (address, network = 'mainnet') => {
     }
 };
 
+const getBEP20Balance = async (address, contractAddress, network = 'mainnet') => {
+    try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const provider = new ethers.JsonRpcProvider(config.BSC.RPC_URL);
+        const abi = ['function balanceOf(address) view returns (uint256)'];
+        const contract = new ethers.Contract(contractAddress, abi, provider);
+        const balance = await contract.balanceOf(address);
+        
+        let decimals = 18;
+        try {
+            const decimalsAbi = ['function decimals() view returns (uint8)'];
+            const decimalsContract = new ethers.Contract(contractAddress, decimalsAbi, provider);
+            decimals = await decimalsContract.decimals();
+        } catch (e) {
+            console.warn('Could not get decimals, using default 18 for BEP20');
+        }
+        
+        return ethers.formatUnits(balance, decimals);
+    } catch (error) {
+        console.error('BEP20 balance error:', error);
+        return '0';
+    }
+};
+
 export const getRealBalances = async (wallets) => {
     if (!Array.isArray(wallets)) return wallets;
     
@@ -727,7 +770,9 @@ export const getRealBalances = async (wallets) => {
                             balance = await getBitcoinBalance(wallet.address, wallet.network);
                             break;
                         case 'BSC':
-                            balance = await getBNBBalance(wallet.address, wallet.network);
+                            balance = wallet.isNative ?
+                                await getBNBBalance(wallet.address, wallet.network) :
+                                await getBEP20Balance(wallet.address, wallet.contractAddress, wallet.network);
                             break;
                     }
                     
@@ -1030,10 +1075,11 @@ export const getUSDTTokensForDetail = async (userData, network = 'mainnet') => {
         const addresses = await Promise.all([
             generateTonAddress(userData.seed_phrases, network),
             generateEthereumAddress(userData.seed_phrases, network),
-            generateSolanaAddress(userData.seed_phrases, network)
+            generateSolanaAddress(userData.seed_phrases, network),
+            generateBSCAddress(userData.seed_phrases, network)
         ]);
         
-        const [tonAddress, ethAddress, solAddress] = addresses;
+        const [tonAddress, ethAddress, solAddress, bscAddress] = addresses;
         
         const tokens = network === 'mainnet' ? TOKENS : TESTNET_TOKENS;
         
@@ -1062,6 +1108,15 @@ export const getUSDTTokensForDetail = async (userData, network = 'mainnet') => {
                 blockchain: 'Solana',
                 name: 'Tether (SPL)',
                 displayName: 'SPL USDT',
+                showBlockchain: true,
+                showUSDTBadge: true
+            },
+            {
+                ...tokens.USDT_BSC,
+                address: bscAddress,
+                blockchain: 'BSC',
+                name: 'Tether (BEP20)',
+                displayName: 'BEP20 USDT',
                 showBlockchain: true,
                 showUSDTBadge: true
             }

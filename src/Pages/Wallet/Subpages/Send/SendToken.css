@@ -297,17 +297,23 @@
     font-weight: bold;
 }
 
+/* Обновленные стили для бейджей как в USDTDetail */
 .blockchain-badge {
-    padding: 6px 12px;
-    border-radius: 8px;
+    background-color: #26A17B;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
     font-size: 12px;
     font-weight: 600;
-    color: white;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    margin: 0;
     white-space: nowrap;
     flex-shrink: 0;
-    margin: 0;
 }
 
 /* БАЛАНС - ЦЕНТРИРОВАН ПОД БЛОКОМ */
@@ -429,6 +435,3 @@
     outline: none;
     border-color: rgba(255, 215, 0, 0.5);
 }
-
-
-/* Остальные стили SendToken.css остаются без изменений */
