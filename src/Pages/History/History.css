@@ -7,102 +7,30 @@
     font-family: 'Rubik', sans-serif;
     display: flex;
     flex-direction: column;
+    align-items: center;
     position: relative;
     padding-top: 120px;
     padding-bottom: 60px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .page-content {
     display: flex;
     flex-direction: column;
-    padding: 0;
-    padding-bottom: 80px;
+    width: 100%;
+    max-width: 450px;
+    padding: 0 20px;
     box-sizing: border-box;
     flex: 1;
-    width: 100%;
-}
-
-.transaction-filters-container {
-    position: sticky;
-    top: 80px;
-    z-index: 100;
-    width: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(10px);
-    padding: 10px 20px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.transaction-filters {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    align-items: center;
-    width: 100%;
-    max-width: 400px;
     margin: 0 auto;
-}
-
-.filter-btn {
-    flex: 1;
-    padding: 10px 16px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    text-align: center;
-}
-
-.filter-btn.active {
-    background: rgba(255, 215, 0, 0.1);
-    border-color: rgba(255, 215, 0, 0.3);
-    color: #FFD700;
-}
-
-.filter-btn:hover:not(.active) {
-    background: rgba(255, 255, 255, 0.08);
-}
-
-.refresh-button-small {
-    width: 40px;
-    height: 40px;
-    background: rgba(255, 215, 0, 0.1);
-    border: 1px solid rgba(255, 215, 0, 0.3);
-    border-radius: 10px;
-    color: #FFD700;
-    font-size: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    margin-left: 10px;
-}
-
-.refresh-button-small:hover {
-    background: rgba(255, 215, 0, 0.2);
-    transform: rotate(180deg);
-}
-
-.refresh-button-small:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
 }
 
 .transactions-container {
     display: flex;
     flex-direction: column;
     width: 100%;
-    max-width: 400px;
     gap: 8px;
-    margin: 0 auto;
-    padding: 20px;
-    padding-top: 10px;
 }
 
 .transaction-group {
@@ -130,12 +58,13 @@
     cursor: pointer;
     transition: all 0.2s ease;
     border: 1px solid transparent;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
 }
 
-.transaction-card:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 215, 0, 0.2);
-    transform: translateY(-1px);
+.transaction-card:active {
+    background: rgba(255, 255, 255, 0.05);
+    transform: scale(0.98);
 }
 
 .transaction-icon {
@@ -177,29 +106,6 @@
     align-items: center;
     gap: 8px;
     margin-bottom: 4px;
-}
-
-.type-badge {
-    font-size: 12px;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 10px;
-    text-transform: uppercase;
-}
-
-.type-badge.received {
-    background: rgba(76, 175, 80, 0.2);
-    color: #4CAF50;
-}
-
-.type-badge.sent {
-    background: rgba(244, 67, 54, 0.2);
-    color: #F44336;
-}
-
-.type-badge.transfer {
-    background: rgba(33, 150, 243, 0.2);
-    color: #2196F3;
 }
 
 .transaction-symbol {
@@ -265,6 +171,7 @@
 .no-transactions {
     text-align: center;
     padding: 60px 20px;
+    width: 100%;
 }
 
 .no-transactions-icon {
@@ -347,14 +254,12 @@
 
 /* Responsive adjustments */
 @media (max-width: 480px) {
-    .transaction-filters-container {
-        top: 70px;
-        padding: 8px 15px;
+    .history-page {
+        padding-top: 100px;
     }
     
-    .filter-btn {
-        font-size: 13px;
-        padding: 8px 12px;
+    .page-content {
+        padding: 0 15px;
     }
     
     .transaction-type {

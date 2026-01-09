@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import Menu from "../../assets/Menus/Menu/Menu";
 import Header from "../../assets/Header/Header";
 import './History.css';
@@ -18,8 +18,7 @@ function History({ userData }) {
 
     // API ключи
     const API_KEYS = {
-        ETHERSCAN_API_KEY: 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6',
-        BSCSCAN_API_KEY: '7VVXJQ5YA1M9Q55YI46YY9NX6HQT713YJN', // Нужно получить на https://bscscan.com/apis
+        ETHERSCAN_API_KEY: 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6', // Один ключ для всех сетей Etherscan API V2
         SOLANA_RPC_URL: 'https://mainnet.helius-rpc.com/?api-key=e1a20296-3d29-4edb-bc41-c709a187fbc9'
     };
 
@@ -47,10 +46,24 @@ function History({ userData }) {
     const loadTransactions = async () => {
         setIsLoading(true);
         try {
-            if (!userData?.seed_phrases) return;
+            if (!userData?.seed_phrases) {
+                console.log('No seed phrases found');
+                setIsLoading(false);
+                return;
+            }
+            
+            console.log('Loading transactions for network:', currentNetwork);
             
             const seedPhrase = userData.seed_phrases;
             const wallets = await generateWalletsFromSeed(seedPhrase, currentNetwork);
+            
+            console.log('Generated wallets:', wallets);
+            
+            if (!wallets || wallets.length === 0) {
+                console.log('No wallets generated');
+                setIsLoading(false);
+                return;
+            }
             
             const allTransactions = await Promise.all([
                 fetchTonTransactions(wallets.find(w => w.blockchain === 'TON')?.address || ''),
@@ -60,12 +73,24 @@ function History({ userData }) {
                 fetchSolTransactions(wallets.find(w => w.blockchain === 'Solana')?.address || '')
             ]);
             
+            console.log('Transaction results:', {
+                ton: allTransactions[0].length,
+                eth: allTransactions[1].length,
+                bsc: allTransactions[2].length,
+                btc: allTransactions[3].length,
+                sol: allTransactions[4].length
+            });
+            
             let combinedTransactions = [];
-            allTransactions.forEach(txList => {
+            allTransactions.forEach((txList, index) => {
+                const blockchain = ['TON', 'Ethereum', 'BSC', 'Bitcoin', 'Solana'][index];
+                console.log(`${blockchain}: ${txList.length} transactions`);
                 if (Array.isArray(txList) && txList.length > 0) {
                     combinedTransactions = [...combinedTransactions, ...txList];
                 }
             });
+            
+            console.log('Total transactions found:', combinedTransactions.length);
             
             combinedTransactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             
@@ -109,17 +134,24 @@ function History({ userData }) {
         setGroupedTransactions(groups);
     };
 
-    // Исправленная функция для TON транзакций
     const fetchTonTransactions = async (address) => {
-        if (!address) return [];
+        if (!address || address === '') {
+            console.log('No TON address provided');
+            return [];
+        }
         
         try {
+            console.log('Fetching TON transactions for address:', address);
             const baseUrl = currentNetwork === 'testnet' 
                 ? 'https://testnet.tonapi.io/v2'
                 : 'https://tonapi.io/v2';
             
             const response = await fetch(`${baseUrl}/accounts/${address}/events?limit=20`);
-            if (!response.ok) return [];
+            
+            if (!response.ok) {
+                console.log('TON API error status:', response.status);
+                return [];
+            }
             
             const data = await response.json();
             const transactions = [];
@@ -133,11 +165,9 @@ function History({ userData }) {
                     const transfer = tonTransfer.TonTransfer;
                     const amount = (transfer.amount / 1e9).toFixed(4);
                     
-                    // Проверяем направление правильно
                     const senderAddress = transfer.sender?.address || '';
                     const recipientAddress = transfer.recipient?.address || '';
                     
-                    // Определяем тип транзакции
                     let type = 'unknown';
                     if (recipientAddress === address) {
                         type = 'received';
@@ -145,7 +175,7 @@ function History({ userData }) {
                         type = 'sent';
                     }
                     
-                    if (type !== 'unknown') {
+                    if (type !== 'unknown' && parseFloat(amount) > 0) {
                         transactions.push({
                             id: event.event_id,
                             blockchain: 'TON',
@@ -164,6 +194,7 @@ function History({ userData }) {
                 }
             });
             
+            console.log(`Found ${transactions.length} TON transactions`);
             return transactions;
         } catch (error) {
             console.error('Error fetching TON transactions:', error);
@@ -171,16 +202,18 @@ function History({ userData }) {
         }
     };
 
-    // Исправленная функция для Ethereum транзакций
     const fetchEthTransactions = async (address) => {
-        if (!address) return [];
+        if (!address || address === '') {
+            console.log('No ETH address provided');
+            return [];
+        }
         
         try {
+            console.log('Fetching ETH transactions for address:', address);
             const baseUrl = currentNetwork === 'testnet'
                 ? 'https://api-sepolia.etherscan.io/api'
                 : 'https://api.etherscan.io/api';
             
-            // Используем предоставленный ключ
             const apiKey = API_KEYS.ETHERSCAN_API_KEY;
             
             const response = await fetch(
@@ -188,18 +221,17 @@ function History({ userData }) {
             );
             
             if (!response.ok) {
-                console.warn('Etherscan API error, status:', response.status);
+                console.log('ETH API error status:', response.status);
                 return [];
             }
             
             const data = await response.json();
             
             if (data.status !== '1') {
-                console.warn('Etherscan API error message:', data.message);
+                console.log('ETH API error message:', data.message, 'Result:', data.result);
                 return [];
             }
             
-            // Фильтруем только транзакции с ненулевым значением
             const validTransactions = data.result
                 .filter(tx => parseInt(tx.value) > 0)
                 .map(tx => {
@@ -229,36 +261,37 @@ function History({ userData }) {
         }
     };
 
-    // Функция для BSC транзакций
     const fetchBscTransactions = async (address) => {
-        if (!address) return [];
+        if (!address || address === '') {
+            console.log('No BSC address provided');
+            return [];
+        }
         
         try {
-            // BscScan использует тот же формат, что и Etherscan
+            console.log('Fetching BSC transactions for address:', address);
             const baseUrl = currentNetwork === 'testnet'
                 ? 'https://api-testnet.bscscan.com/api'
                 : 'https://api.bscscan.com/api';
             
-            // Нужно получить ключ на bscscan.com/apis
-            const apiKey = API_KEYS.BSCSCAN_API_KEY;
-            if (!apiKey) {
-                console.warn('BSC API key not configured');
-                return [];
-            }
+            const apiKey = API_KEYS.ETHERSCAN_API_KEY;
             
             const response = await fetch(
                 `${baseUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=20&sort=desc&apikey=${apiKey}`
             );
             
-            if (!response.ok) return [];
-            const data = await response.json();
-            
-            if (data.status !== '1') {
-                console.warn('BscScan API error:', data.message);
+            if (!response.ok) {
+                console.log('BSC API error status:', response.status);
                 return [];
             }
             
-            return data.result
+            const data = await response.json();
+            
+            if (data.status !== '1') {
+                console.log('BSC API error message:', data.message);
+                return [];
+            }
+            
+            const transactions = data.result
                 .filter(tx => parseInt(tx.value) > 0)
                 .map(tx => {
                     const isIncoming = tx.to.toLowerCase() === address.toLowerCase();
@@ -278,38 +311,37 @@ function History({ userData }) {
                             : `https://bscscan.com/tx/${tx.hash}`
                     };
                 });
+            
+            console.log(`Found ${transactions.length} BSC transactions`);
+            return transactions;
         } catch (error) {
             console.error('Error fetching BSC transactions:', error);
             return [];
         }
     };
 
-    // Исправленная функция для Bitcoin транзакций
     const fetchBtcTransactions = async (address) => {
-        if (!address) return [];
+        if (!address || address === '') {
+            console.log('No BTC address provided');
+            return [];
+        }
         
         try {
+            console.log('Fetching BTC transactions for address:', address);
             const baseUrl = currentNetwork === 'testnet'
                 ? 'https://blockstream.info/testnet/api'
                 : 'https://blockstream.info/api';
             
             const response = await fetch(`${baseUrl}/address/${address}/txs`);
-            if (!response.ok) return [];
+            
+            if (!response.ok) {
+                console.log('BTC API error status:', response.status);
+                return [];
+            }
             
             const data = await response.json();
             
-            return data.slice(0, 20).map(tx => {
-                // Собираем все адреса получателей
-                const outputAddresses = tx.vout
-                    .map(output => output.scriptpubkey_address)
-                    .filter(addr => addr);
-                
-                // Собираем все адреса отправителей (из предыдущих выходов)
-                const inputAddresses = [];
-                // Для получения адресов отправителей нужно больше данных
-                // В упрощенном виде считаем, что если наш адрес в выходах - это получение
-                // Иначе - отправка
-                
+            const transactions = data.slice(0, 20).map(tx => {
                 const isIncoming = tx.vout.some(output => 
                     output.scriptpubkey_address === address
                 );
@@ -318,18 +350,15 @@ function History({ userData }) {
                 let type = 'unknown';
                 
                 if (isIncoming) {
-                    // Получение: сумма только тех выходов, которые на наш адрес
                     amount = tx.vout
                         .filter(output => output.scriptpubkey_address === address)
                         .reduce((sum, output) => sum + output.value, 0);
                     type = 'received';
                 } else {
-                    // Отправка: общая сумма всех выходов
                     amount = tx.vout.reduce((sum, output) => sum + output.value, 0);
                     type = 'sent';
                 }
                 
-                // Если amount равен 0, пропускаем транзакцию
                 if (amount === 0) return null;
                 
                 return {
@@ -345,22 +374,27 @@ function History({ userData }) {
                         : `https://blockstream.info/tx/${tx.txid}`
                 };
             }).filter(tx => tx !== null);
+            
+            console.log(`Found ${transactions.length} BTC transactions`);
+            return transactions;
         } catch (error) {
             console.error('Error fetching BTC transactions:', error);
             return [];
         }
     };
 
-    // Исправленная функция для Solana транзакций
     const fetchSolTransactions = async (address) => {
-        if (!address) return [];
+        if (!address || address === '') {
+            console.log('No SOL address provided');
+            return [];
+        }
         
         try {
+            console.log('Fetching SOL transactions for address:', address);
             const rpcUrl = currentNetwork === 'testnet'
                 ? 'https://api.testnet.solana.com'
                 : API_KEYS.SOLANA_RPC_URL;
             
-            // Получаем подписи транзакций
             const signaturesResponse = await fetch(rpcUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -380,8 +414,6 @@ function History({ userData }) {
             }
             
             const transactions = [];
-            
-            // Обрабатываем только первые несколько транзакций для производительности
             const signatures = signaturesData.result.slice(0, 10);
             
             for (const sig of signatures) {
@@ -408,10 +440,8 @@ function History({ userData }) {
                     const meta = txData.result.meta;
                     const message = txData.result.transaction.message;
                     
-                    // Определяем сумму транзакции
                     let amount = 0;
                     if (meta && meta.postBalances && meta.preBalances) {
-                        // Находим индекс нашего аккаунта в списке аккаунтов
                         const accountIndex = message.accountKeys.findIndex(
                             (key, index) => key.pubkey === address
                         );
@@ -421,35 +451,29 @@ function History({ userData }) {
                             const postBalance = meta.postBalances[accountIndex];
                             
                             if (postBalance > preBalance) {
-                                // Получение
                                 amount = (postBalance - preBalance) / 1e9;
                             } else if (postBalance < preBalance) {
-                                // Отправка
                                 amount = (preBalance - postBalance) / 1e9;
                             }
                         }
                     }
                     
-                    // Если сумма нулевая, пропускаем
                     if (amount === 0) continue;
                     
-                    // Определяем тип транзакции
                     let type = 'unknown';
                     const accountKeys = message.accountKeys || [];
                     
-                    // Простой эвристический метод определения типа
                     if (meta) {
-                        // Если наш адрес в списке получателей (увеличился баланс)
-                        const senderIndex = meta.preBalances.findIndex((balance, index) => {
-                            const account = accountKeys[index];
-                            return account && account.pubkey === address && 
-                                   meta.postBalances[index] < balance;
-                        });
-                        
                         const receiverIndex = meta.postBalances.findIndex((balance, index) => {
                             const account = accountKeys[index];
                             return account && account.pubkey === address && 
                                    meta.preBalances[index] < balance;
+                        });
+                        
+                        const senderIndex = meta.preBalances.findIndex((balance, index) => {
+                            const account = accountKeys[index];
+                            return account && account.pubkey === address && 
+                                   meta.postBalances[index] < balance;
                         });
                         
                         if (receiverIndex !== -1) {
@@ -477,6 +501,7 @@ function History({ userData }) {
                 }
             }
             
+            console.log(`Found ${transactions.length} SOL transactions`);
             return transactions;
         } catch (error) {
             console.error('Error fetching SOL transactions:', error);
@@ -565,39 +590,14 @@ function History({ userData }) {
                 userData={userData} 
                 onNetworkChange={handleNetworkChange}
                 currentNetwork={currentNetwork}
+                showFilters={true}
+                selectedFilter={selectedFilter}
+                setSelectedFilter={setSelectedFilter}
+                handleRefresh={handleRefresh}
+                isLoading={isLoading}
             />
             
             <div className="page-content">
-                <div className="transaction-filters-container">
-                    <div className="transaction-filters">
-                        <button 
-                            className={`filter-btn ${selectedFilter === 'all' ? 'active' : ''}`}
-                            onClick={() => setSelectedFilter('all')}
-                        >
-                            All
-                        </button>
-                        <button 
-                            className={`filter-btn ${selectedFilter === 'sent' ? 'active' : ''}`}
-                            onClick={() => setSelectedFilter('sent')}
-                        >
-                            Sent
-                        </button>
-                        <button 
-                            className={`filter-btn ${selectedFilter === 'received' ? 'active' : ''}`}
-                            onClick={() => setSelectedFilter('received')}
-                        >
-                            Received
-                        </button>
-                        <button 
-                            className="refresh-button-small"
-                            onClick={handleRefresh}
-                            disabled={isLoading}
-                        >
-                            {isLoading ? '⟳' : '↻'}
-                        </button>
-                    </div>
-                </div>
-                
                 <div className="transactions-container">
                     {isLoading ? (
                         Array.from({ length: 5 }).map((_, index) => (
@@ -636,9 +636,6 @@ function History({ userData }) {
                                         </div>
                                         <div className="transaction-details">
                                             <div className="transaction-type">
-                                                <span className={`type-badge ${tx.type}`}>
-                                                    {tx.type === 'received' ? 'Received' : tx.type === 'sent' ? 'Sent' : 'Transfer'}
-                                                </span>
                                                 <span className="transaction-symbol">{tx.symbol}</span>
                                             </div>
                                             <div className="transaction-blockchain">
