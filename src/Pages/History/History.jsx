@@ -17,8 +17,19 @@ function History({ userData }) {
 
     // API ключи
     const ETHERSCAN_API_KEY = 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6';
-    const CHAINGATEWAY_API_KEY = 'E7eAZ6guG5UJmEKQX2Km469PYHLtUJg25BkinEAY2d0533f5';
     const SOLANA_RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=e1a20296-3d29-4edb-bc41-c709a187fbc9';
+
+    // Конфигурация Tatum API для BSC
+    const TATUM_BSC_CONFIG = {
+        testnet: {
+            endpoint: 'https://bsc-testnet.gateway.tatum.io',
+            apiKey: 't-6961207e3062713264b9dcb2-0c1e1bcf14134bdab43c4873'
+        },
+        mainnet: {
+            endpoint: 'https://bsc-mainnet.gateway.tatum.io',
+            apiKey: 't-6961207e3062713264b9dcb2-5a6d33a50ebd4c6b9915ec51'
+        }
+    };
 
     useEffect(() => {
         if (userData?.seed_phrases) {
@@ -323,7 +334,7 @@ function History({ userData }) {
         }
     };
 
-    // ОБНОВЛЕННАЯ ФУНКЦИЯ: Получение транзакций BSC через ChainGateway
+    // ИСПРАВЛЕННАЯ ФУНКЦИЯ: Получение транзакций BSC через Tatum API
     const fetchBscTransactions = async (address) => {
         if (!address || address.trim() === '') {
             console.log('BSC: No address provided');
@@ -331,119 +342,184 @@ function History({ userData }) {
         }
         
         try {
-            console.log(`BSC (ChainGateway): Fetching transactions for address: ${address}`);
+            console.log(`BSC (Tatum): Fetching transactions for address: ${address}`);
             
-            // Определяем сеть для ChainGateway API
-            const networkParam = currentNetwork === 'testnet' ? 'bsc-testnet' : 'bsc';
-            const baseUrl = 'https://api.chaingateway.io/v1';
+            // Выбираем конфигурацию в зависимости от сети
+            const config = TATUM_BSC_CONFIG[currentNetwork === 'testnet' ? 'testnet' : 'mainnet'];
+            const endpoint = config.endpoint;
+            const apiKey = config.apiKey;
             
-            // ВАЖНО: Уточните точный эндпоинт и параметры в документации ChainGateway
-            // Возможные варианты: /transactions, /bsc/transactions, /address/transactions
-            const apiUrl = `${baseUrl}/transactions?network=${networkParam}&address=${address}&limit=50`;
+            // Tatum API для получения транзакций BSC-кошелька
+            // Запрашиваем баланс (для получения списка транзакций через Tatum нужно использовать другой эндпоинт)
+            // Tatum API предоставляет транзакции через эндпоинт: GET /v3/blockchain/address/{network}/{address}/transaction
+            // Но для работы с предоставленным шлюзом используем JSON-RPC
+            const apiUrl = `${endpoint}/v3/blockchain/address/${currentNetwork === 'testnet' ? 'bsc-testnet' : 'bsc'}/${address}/transaction?pageSize=50`;
             
-            console.log(`BSC (ChainGateway): Fetching from URL: ${apiUrl}`);
+            console.log(`BSC (Tatum): Fetching from URL: ${apiUrl}`);
+            console.log(`BSC (Tatum): Using API key: ${apiKey.substring(0, 10)}...`);
             
             const response = await fetch(apiUrl, {
                 method: 'GET',
                 headers: {
                     'accept': 'application/json',
-                    'X-API-Key': CHAINGATEWAY_API_KEY
+                    'x-api-key': apiKey // Tatum использует этот заголовок для API ключа
                 }
             });
             
-            console.log(`BSC (ChainGateway): API response status - ${response.status}`);
+            console.log(`BSC (Tatum): API response status - ${response.status}`);
             
             if (!response.ok) {
                 const errorText = await response.text();
-                console.log(`BSC (ChainGateway): API error - ${response.statusText}. Details: ${errorText}`);
-                return [];
+                console.error(`BSC (Tatum): API error - ${response.status}. Details: ${errorText}`);
+                
+                // Пробуем альтернативный метод через JSON-RPC если основной не сработал
+                return await fetchBscTransactionsViaRPC(address, endpoint, apiKey);
             }
             
             const data = await response.json();
-            console.log('BSC (ChainGateway): Raw API response data:', data);
+            console.log('BSC (Tatum): API response sample:', Array.isArray(data) && data.length > 0 ? data[0] : data);
             
-            // ВАЖНО: Структура ответа может отличаться.
-            // Проверьте реальную структуру в консоли и адаптируйте код ниже
-            
-            let transactionsArray = [];
-            
-            // Вариант 1: Если ответ содержит data.success и data.transactions
-            if (data && data.success && Array.isArray(data.transactions)) {
-                transactionsArray = data.transactions;
-            }
-            // Вариант 2: Если ответ содержит data.data
-            else if (data && Array.isArray(data.data)) {
-                transactionsArray = data.data;
-            }
-            // Вариант 3: Если ответ содержит data.result
-            else if (data && Array.isArray(data.result)) {
-                transactionsArray = data.result;
-            }
-            // Вариант 4: Если сам ответ является массивом
-            else if (Array.isArray(data)) {
-                transactionsArray = data;
+            // Обработка ответа Tatum API
+            if (Array.isArray(data)) {
+                const transactions = data.map(tx => {
+                    // Определяем тип транзакции
+                    const isIncoming = tx.to?.toLowerCase() === address.toLowerCase();
+                    const type = isIncoming ? 'received' : 'sent';
+                    
+                    // Сумма (Tatum возвращает значение в BNB)
+                    const amountInBnb = parseFloat(tx.value || '0');
+                    
+                    // Время транзакции (Tatum использует timestamp в миллисекундах)
+                    const timestamp = tx.timestamp ? parseInt(tx.timestamp) : Date.now();
+                    
+                    return {
+                        id: tx.hash || tx.transactionHash || `bsc_${Date.now()}_${Math.random()}`,
+                        blockchain: 'BSC',
+                        type: type,
+                        amount: amountInBnb.toFixed(6),
+                        symbol: 'BNB',
+                        fromAddress: tx.from || '',
+                        toAddress: tx.to || '',
+                        timestamp: timestamp,
+                        status: tx.status || 'completed',
+                        explorerUrl: currentNetwork === 'testnet'
+                            ? `https://testnet.bscscan.com/tx/${tx.hash || ''}`
+                            : `https://bscscan.com/tx/${tx.hash || ''}`
+                    };
+                });
+                
+                console.log(`BSC (Tatum): Successfully parsed ${transactions.length} transactions`);
+                return transactions;
             } else {
-                console.error('BSC (ChainGateway): Unexpected API response format.', data);
+                console.log('BSC (Tatum): Unexpected response format, trying RPC method.', data);
+                return await fetchBscTransactionsViaRPC(address, endpoint, apiKey);
+            }
+            
+        } catch (error) {
+            console.error('BSC (Tatum): Error fetching transactions:', error);
+            return [];
+        }
+    };
+
+    // Альтернативный метод через JSON-RPC если основной API не работает
+    const fetchBscTransactionsViaRPC = async (address, endpoint, apiKey) => {
+        try {
+            console.log(`BSC (Tatum RPC): Trying RPC method for address: ${address}`);
+            
+            // Используем JSON-RPC метод eth_getBlockByNumber для получения последних блоков
+            // и проверяем транзакции в них (упрощенный подход)
+            const rpcUrl = endpoint;
+            
+            // Запрашиваем номер последнего блока
+            const blockNumberResponse = await fetch(rpcUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': apiKey
+                },
+                body: JSON.stringify({
+                    jsonrpc: "2.0",
+                    id: 1,
+                    method: "eth_blockNumber",
+                    params: []
+                })
+            });
+            
+            if (!blockNumberResponse.ok) {
+                console.error(`BSC (Tatum RPC): Failed to get block number - ${blockNumberResponse.status}`);
                 return [];
             }
             
-            // Преобразуем транзакции в нужный формат
-            const transactions = transactionsArray.map(tx => {
-                // Определяем тип транзакции
-                const isIncoming = tx.to && tx.to.toLowerCase() === address.toLowerCase();
-                const type = isIncoming ? 'received' : 'sent';
-                
-                // Получаем сумму (адаптируйте в зависимости от формата API)
-                let amountInBnb = 0;
-                
-                // Вариант 1: Значение в wei (самый вероятный)
-                if (tx.value) {
-                    const amountInWei = parseInt(tx.value, 16); // Если hex
-                    amountInBnb = amountInWei / 1e18;
-                }
-                // Вариант 2: Значение уже в BNB
-                else if (tx.amount) {
-                    amountInBnb = parseFloat(tx.amount);
-                }
-                
-                // Получаем timestamp (адаптируйте в зависимости от формата API)
-                let timestamp = 0;
-                if (tx.timestamp) {
-                    timestamp = parseInt(tx.timestamp) * 1000; // Предполагаем секунды
-                } else if (tx.blockTimestamp) {
-                    timestamp = parseInt(tx.blockTimestamp) * 1000;
-                } else if (tx.timeStamp) {
-                    timestamp = parseInt(tx.timeStamp) * 1000;
-                }
-                
-                // Определяем статус
-                let status = 'completed';
-                if (tx.status === 0 || tx.status === false) {
-                    status = 'failed';
-                } else if (tx.status === 'pending') {
-                    status = 'pending';
-                }
-                
-                return {
-                    id: tx.hash || tx.transactionHash,
-                    blockchain: 'BSC',
-                    type: type,
-                    amount: amountInBnb.toFixed(6),
-                    symbol: 'BNB', // Если API возвращает токены, может потребоваться адаптация
-                    fromAddress: tx.from || '',
-                    toAddress: tx.to || '',
-                    timestamp: timestamp,
-                    status: status,
-                    explorerUrl: currentNetwork === 'testnet'
-                        ? `https://testnet.bscscan.com/tx/${tx.hash || tx.transactionHash}`
-                        : `https://bscscan.com/tx/${tx.hash || tx.transactionHash}`
-                };
-            });
+            const blockNumberData = await blockNumberResponse.json();
+            const latestBlockHex = blockNumberData.result;
+            const latestBlock = parseInt(latestBlockHex, 16);
             
-            console.log(`BSC (ChainGateway): Successfully parsed ${transactions.length} transactions`);
+            console.log(`BSC (Tatum RPC): Latest block: ${latestBlock}`);
+            
+            // Для простоты проверяем только последние 10 блоков
+            const transactions = [];
+            const blocksToCheck = Math.min(10, latestBlock);
+            
+            for (let i = 0; i < blocksToCheck; i++) {
+                const blockNum = latestBlock - i;
+                const blockNumHex = '0x' + blockNum.toString(16);
+                
+                try {
+                    const blockResponse = await fetch(rpcUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-api-key': apiKey
+                        },
+                        body: JSON.stringify({
+                            jsonrpc: "2.0",
+                            id: i + 2,
+                            method: "eth_getBlockByNumber",
+                            params: [blockNumHex, true]
+                        })
+                    });
+                    
+                    if (blockResponse.ok) {
+                        const blockData = await blockResponse.json();
+                        if (blockData.result && blockData.result.transactions) {
+                            blockData.result.transactions.forEach(tx => {
+                                if (tx.from && tx.from.toLowerCase() === address.toLowerCase() || 
+                                    tx.to && tx.to.toLowerCase() === address.toLowerCase()) {
+                                    
+                                    const isIncoming = tx.to?.toLowerCase() === address.toLowerCase();
+                                    const amountInWei = parseInt(tx.value || '0', 16);
+                                    const amountInBnb = amountInWei / 1e18;
+                                    
+                                    if (amountInBnb > 0) {
+                                        transactions.push({
+                                            id: tx.hash,
+                                            blockchain: 'BSC',
+                                            type: isIncoming ? 'received' : 'sent',
+                                            amount: amountInBnb.toFixed(6),
+                                            symbol: 'BNB',
+                                            fromAddress: tx.from || '',
+                                            toAddress: tx.to || '',
+                                            timestamp: parseInt(blockData.result.timestamp, 16) * 1000,
+                                            status: 'completed',
+                                            explorerUrl: currentNetwork === 'testnet'
+                                                ? `https://testnet.bscscan.com/tx/${tx.hash}`
+                                                : `https://bscscan.com/tx/${tx.hash}`
+                                        });
+                                    }
+                                }
+                            });
+                        }
+                    }
+                } catch (blockError) {
+                    console.error(`BSC (Tatum RPC): Error fetching block ${blockNum}:`, blockError);
+                }
+            }
+            
+            console.log(`BSC (Tatum RPC): Found ${transactions.length} transactions in recent blocks`);
             return transactions;
-        } catch (error) {
-            console.error('BSC (ChainGateway): Error fetching transactions:', error);
+            
+        } catch (rpcError) {
+            console.error('BSC (Tatum RPC): Error in RPC method:', rpcError);
             return [];
         }
     };
