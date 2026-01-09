@@ -15,8 +15,9 @@ function History({ userData }) {
     const [groupedTransactions, setGroupedTransactions] = useState({});
     const [tokenPrices, setTokenPrices] = useState({});
 
-    // API ключ для Etherscan (работает для Ethereum, BSC, Polygon и других сетей)
-    const ETHERSCAN_API_KEY = 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6'; // Ваш ключ
+    // API ключи
+    const ETHERSCAN_API_KEY = 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6';
+    const CHAINGATEWAY_API_KEY = 'E7eAZ6guG5UJmEKQX2Km469PYHLtUJg25BkinEAY2d0533f5';
     const SOLANA_RPC_URL = 'https://mainnet.helius-rpc.com/?api-key=e1a20296-3d29-4edb-bc41-c709a187fbc9';
 
     useEffect(() => {
@@ -62,7 +63,6 @@ function History({ userData }) {
                 return;
             }
             
-            // Получаем адреса для каждого блокчейна
             const tonAddress = wallets.find(w => w.blockchain === 'TON')?.address || '';
             const ethAddress = wallets.find(w => w.blockchain === 'Ethereum')?.address || '';
             const bscAddress = wallets.find(w => w.blockchain === 'BSC')?.address || '';
@@ -77,7 +77,6 @@ function History({ userData }) {
                 Solana: solAddress ? `${solAddress.substring(0, 10)}...` : 'Not found'
             });
             
-            // Параллельно загружаем транзакции
             const [tonTxs, ethTxs, bscTxs, btcTxs, solTxs] = await Promise.all([
                 fetchTonTransactions(tonAddress),
                 fetchEthTransactions(ethAddress),
@@ -94,7 +93,6 @@ function History({ userData }) {
                 Solana: solTxs.length
             });
             
-            // Объединяем все транзакции
             let combinedTransactions = [
                 ...tonTxs,
                 ...ethTxs,
@@ -105,7 +103,6 @@ function History({ userData }) {
             
             console.log('Total transactions found:', combinedTransactions.length);
             
-            // Сортируем по дате (новые сначала)
             combinedTransactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             
             setTransactions(combinedTransactions);
@@ -148,7 +145,6 @@ function History({ userData }) {
         setGroupedTransactions(groups);
     };
 
-    // Функция для TON транзакций
     const fetchTonTransactions = async (address) => {
         if (!address || address.trim() === '') {
             console.log('TON: No address provided');
@@ -180,7 +176,6 @@ function History({ userData }) {
             
             data.result.forEach(tx => {
                 try {
-                    // Проверяем, есть ли входящие сообщения
                     const inMsg = tx.in_msg;
                     if (inMsg && inMsg.value && parseInt(inMsg.value) > 0) {
                         const amount = (parseInt(inMsg.value) / 1e9).toFixed(4);
@@ -201,7 +196,6 @@ function History({ userData }) {
                         });
                     }
                     
-                    // Проверяем исходящие сообщения
                     const outMsgs = tx.out_msgs || [];
                     outMsgs.forEach(msg => {
                         if (msg.value && parseInt(msg.value) > 0) {
@@ -236,7 +230,6 @@ function History({ userData }) {
         }
     };
 
-    // ФУНКЦИЯ ДЛЯ ETHEREUM ТРАНЗАКЦИЙ (ИСПРАВЛЕННАЯ - используется единый API Etherscan V2)
     const fetchEthTransactions = async (address) => {
         if (!address || address.trim() === '') {
             console.log('ETH: No address provided');
@@ -246,11 +239,8 @@ function History({ userData }) {
         try {
             console.log(`ETH: Fetching transactions for address...`);
             
-            // Используем единый API Etherscan V2 для всех сетей
             const baseUrl = 'https://api.etherscan.io/v2/api';
-            
-            // Определяем chainid в зависимости от сети
-            const chainId = currentNetwork === 'testnet' ? '11155111' : '1'; // 1=ETH Mainnet, 11155111=Sepolia
+            const chainId = currentNetwork === 'testnet' ? '11155111' : '1';
             
             const apiUrl = `${baseUrl}?module=account&action=txlist&address=${address}&chainid=${chainId}&startblock=0&endblock=99999999&page=1&offset=50&sort=desc&apikey=${ETHERSCAN_API_KEY}`;
             
@@ -267,12 +257,10 @@ function History({ userData }) {
             
             const data = await response.json();
             
-            // Отладочная информация
             console.log('ETH: API response status:', data.status);
             console.log('ETH: API message:', data.message);
             console.log('ETH: Result length:', data.result ? data.result.length : 0);
             
-            // Проверяем, не используем ли мы устаревший API
             if (data.message && (data.message.includes('deprecated') || data.message.includes('Invalid API Key'))) {
                 console.error(`ETH: API error - ${data.message}`);
                 return [];
@@ -288,11 +276,8 @@ function History({ userData }) {
             
             const transactions = data.result
                 .filter(tx => {
-                    // Фильтруем только транзакции с ненулевым значением
                     const value = parseInt(tx.value);
                     const isValueValid = value > 0;
-                    
-                    // Также проверяем, что есть хэш и временная метка
                     const hasHash = tx.hash && tx.hash !== '0x';
                     const hasTimestamp = tx.timeStamp && parseInt(tx.timeStamp) > 0;
                     
@@ -301,11 +286,9 @@ function History({ userData }) {
                 .map(tx => {
                     const isIncoming = tx.to.toLowerCase() === address.toLowerCase();
                     
-                    // Рассчитываем сумму в ETH
                     const amountInWei = parseInt(tx.value);
                     const amountInEth = amountInWei / 1e18;
                     
-                    // Определяем статус
                     let status = 'completed';
                     if (tx.isError && parseInt(tx.isError) === 1) {
                         status = 'failed';
@@ -340,7 +323,7 @@ function History({ userData }) {
         }
     };
 
-    // ФУНКЦИЯ ДЛЯ BSC ТРАНЗАКЦИЙ (ИСПРАВЛЕННАЯ - используется единый API Etherscan V2)
+    // ОБНОВЛЕННАЯ ФУНКЦИЯ: Получение транзакций BSC через ChainGateway
     const fetchBscTransactions = async (address) => {
         if (!address || address.trim() === '') {
             console.log('BSC: No address provided');
@@ -348,103 +331,123 @@ function History({ userData }) {
         }
         
         try {
-            console.log(`BSC: Fetching transactions for address...`);
+            console.log(`BSC (ChainGateway): Fetching transactions for address: ${address}`);
             
-            // Используем единый API Etherscan V2 для всех сетей
-            const baseUrl = 'https://api.etherscan.io/v2/api';
+            // Определяем сеть для ChainGateway API
+            const networkParam = currentNetwork === 'testnet' ? 'bsc-testnet' : 'bsc';
+            const baseUrl = 'https://api.chaingateway.io/v1';
             
-            // Определяем chainid в зависимости от сети (56=BSC Mainnet, 97=BSC Testnet)
-            const chainId = currentNetwork === 'testnet' ? '97' : '56';
+            // ВАЖНО: Уточните точный эндпоинт и параметры в документации ChainGateway
+            // Возможные варианты: /transactions, /bsc/transactions, /address/transactions
+            const apiUrl = `${baseUrl}/transactions?network=${networkParam}&address=${address}&limit=50`;
             
-            const apiUrl = `${baseUrl}?module=account&action=txlist&address=${address}&chainid=${chainId}&startblock=0&endblock=99999999&page=1&offset=50&sort=desc&apikey=${ETHERSCAN_API_KEY}`;
+            console.log(`BSC (ChainGateway): Fetching from URL: ${apiUrl}`);
             
-            console.log(`BSC: Fetching from URL: ${apiUrl}`);
+            const response = await fetch(apiUrl, {
+                method: 'GET',
+                headers: {
+                    'accept': 'application/json',
+                    'X-API-Key': CHAINGATEWAY_API_KEY
+                }
+            });
             
-            const response = await fetch(apiUrl);
-            
-            console.log(`BSC: API response status - ${response.status}`);
+            console.log(`BSC (ChainGateway): API response status - ${response.status}`);
             
             if (!response.ok) {
-                console.log(`BSC: API error - ${response.statusText}`);
+                const errorText = await response.text();
+                console.log(`BSC (ChainGateway): API error - ${response.statusText}. Details: ${errorText}`);
                 return [];
             }
             
             const data = await response.json();
+            console.log('BSC (ChainGateway): Raw API response data:', data);
             
-            // Отладочная информация
-            console.log('BSC: API response status:', data.status);
-            console.log('BSC: API message:', data.message);
-            console.log('BSC: Result length:', data.result ? data.result.length : 0);
+            // ВАЖНО: Структура ответа может отличаться.
+            // Проверьте реальную структуру в консоли и адаптируйте код ниже
             
-            // Проверяем, не используем ли мы устаревший API
-            if (data.message && (data.message.includes('deprecated') || data.message.includes('Invalid API Key'))) {
-                console.error(`BSC: API error - ${data.message}`);
+            let transactionsArray = [];
+            
+            // Вариант 1: Если ответ содержит data.success и data.transactions
+            if (data && data.success && Array.isArray(data.transactions)) {
+                transactionsArray = data.transactions;
+            }
+            // Вариант 2: Если ответ содержит data.data
+            else if (data && Array.isArray(data.data)) {
+                transactionsArray = data.data;
+            }
+            // Вариант 3: Если ответ содержит data.result
+            else if (data && Array.isArray(data.result)) {
+                transactionsArray = data.result;
+            }
+            // Вариант 4: Если сам ответ является массивом
+            else if (Array.isArray(data)) {
+                transactionsArray = data;
+            } else {
+                console.error('BSC (ChainGateway): Unexpected API response format.', data);
                 return [];
             }
             
-            if (data.status !== '1' || !Array.isArray(data.result)) {
-                console.log(`BSC: API error - status: ${data.status}, message: ${data.message}`);
-                if (data.result && Array.isArray(data.result) && data.result.length > 0) {
-                    console.log('BSC: First few results:', data.result.slice(0, 3));
+            // Преобразуем транзакции в нужный формат
+            const transactions = transactionsArray.map(tx => {
+                // Определяем тип транзакции
+                const isIncoming = tx.to && tx.to.toLowerCase() === address.toLowerCase();
+                const type = isIncoming ? 'received' : 'sent';
+                
+                // Получаем сумму (адаптируйте в зависимости от формата API)
+                let amountInBnb = 0;
+                
+                // Вариант 1: Значение в wei (самый вероятный)
+                if (tx.value) {
+                    const amountInWei = parseInt(tx.value, 16); // Если hex
+                    amountInBnb = amountInWei / 1e18;
                 }
-                return [];
-            }
+                // Вариант 2: Значение уже в BNB
+                else if (tx.amount) {
+                    amountInBnb = parseFloat(tx.amount);
+                }
+                
+                // Получаем timestamp (адаптируйте в зависимости от формата API)
+                let timestamp = 0;
+                if (tx.timestamp) {
+                    timestamp = parseInt(tx.timestamp) * 1000; // Предполагаем секунды
+                } else if (tx.blockTimestamp) {
+                    timestamp = parseInt(tx.blockTimestamp) * 1000;
+                } else if (tx.timeStamp) {
+                    timestamp = parseInt(tx.timeStamp) * 1000;
+                }
+                
+                // Определяем статус
+                let status = 'completed';
+                if (tx.status === 0 || tx.status === false) {
+                    status = 'failed';
+                } else if (tx.status === 'pending') {
+                    status = 'pending';
+                }
+                
+                return {
+                    id: tx.hash || tx.transactionHash,
+                    blockchain: 'BSC',
+                    type: type,
+                    amount: amountInBnb.toFixed(6),
+                    symbol: 'BNB', // Если API возвращает токены, может потребоваться адаптация
+                    fromAddress: tx.from || '',
+                    toAddress: tx.to || '',
+                    timestamp: timestamp,
+                    status: status,
+                    explorerUrl: currentNetwork === 'testnet'
+                        ? `https://testnet.bscscan.com/tx/${tx.hash || tx.transactionHash}`
+                        : `https://bscscan.com/tx/${tx.hash || tx.transactionHash}`
+                };
+            });
             
-            const transactions = data.result
-                .filter(tx => {
-                    // Фильтруем только транзакции с ненулевым значением
-                    const value = parseInt(tx.value);
-                    const isValueValid = value > 0;
-                    
-                    // Также проверяем, что есть хэш и временная метка
-                    const hasHash = tx.hash && tx.hash !== '0x';
-                    const hasTimestamp = tx.timeStamp && parseInt(tx.timeStamp) > 0;
-                    
-                    return isValueValid && hasHash && hasTimestamp;
-                })
-                .map(tx => {
-                    const isIncoming = tx.to.toLowerCase() === address.toLowerCase();
-                    
-                    // Рассчитываем сумму в BNB
-                    const amountInWei = parseInt(tx.value);
-                    const amountInBnb = amountInWei / 1e18;
-                    
-                    // Определяем статус
-                    let status = 'completed';
-                    if (tx.isError && parseInt(tx.isError) === 1) {
-                        status = 'failed';
-                    }
-                    
-                    return {
-                        id: tx.hash,
-                        blockchain: 'BSC',
-                        type: isIncoming ? 'received' : 'sent',
-                        amount: amountInBnb.toFixed(6),
-                        symbol: 'BNB',
-                        fromAddress: tx.from,
-                        toAddress: tx.to,
-                        timestamp: parseInt(tx.timeStamp) * 1000,
-                        status: status,
-                        explorerUrl: currentNetwork === 'testnet'
-                            ? `https://testnet.bscscan.com/tx/${tx.hash}`
-                            : `https://bscscan.com/tx/${tx.hash}`
-                    };
-                });
-            
-            console.log(`BSC: Found ${transactions.length} valid transactions`);
-            
-            if (transactions.length > 0) {
-                console.log('BSC: Sample transactions:', transactions.slice(0, 3));
-            }
-            
+            console.log(`BSC (ChainGateway): Successfully parsed ${transactions.length} transactions`);
             return transactions;
         } catch (error) {
-            console.error('BSC: Error fetching transactions:', error);
+            console.error('BSC (ChainGateway): Error fetching transactions:', error);
             return [];
         }
     };
 
-    // Функция для Bitcoin транзакций
     const fetchBtcTransactions = async (address) => {
         if (!address || address.trim() === '') {
             console.log('BTC: No address provided');
@@ -509,7 +512,6 @@ function History({ userData }) {
         }
     };
 
-    // Функция для Solana транзакций
     const fetchSolTransactions = async (address) => {
         if (!address || address.trim() === '') {
             console.log('SOL: No address provided');
