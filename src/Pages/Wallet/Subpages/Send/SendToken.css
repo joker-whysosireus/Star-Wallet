@@ -297,7 +297,7 @@
     font-weight: bold;
 }
 
-/* Обновленные стили для бейджей как в USDTDetail */
+/* ОБНОВЛЕННЫЕ СТИЛИ ДЛЯ БЕЙДЖЕЙ - ТАКИЕ ЖЕ КАК В USDTDetail */
 .blockchain-badge {
     background-color: #26A17B;
     color: white;
@@ -310,8 +310,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 24px;
     margin: 0;
+    border: none;
+    height: 24px;
     white-space: nowrap;
     flex-shrink: 0;
 }
