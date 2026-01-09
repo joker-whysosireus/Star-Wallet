@@ -1,34 +1,28 @@
 @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap');
 
 .app-header {
-    background: rgba(0, 0, 0, 0.85);
+    height: 160px;
+    background: rgba(0, 0, 0, 0.3);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     display: flex;
-    flex-direction: column;
+    align-items: flex-end;
+    padding: 0;
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     z-index: 100;
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
-    width: 100%;
-}
-
-.header-top {
-    height: 70px;
-    display: flex;
-    align-items: center;
-    padding: 0 20px;
 }
 
 .header-content {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    padding: 8px 20px;
     width: 100%;
-    max-width: 450px;
-    margin: 0 auto;
+    height: 70px;
 }
 
 .header-left {
@@ -70,26 +64,81 @@
 .header-right {
     display: flex;
     gap: 10px;
-    align-items: center;
 }
 
-.network-select {
+.network-selector {
+    position: relative;
+}
+
+.network-button {
     background: rgba(255, 255, 255, 0.08);
-    color: #FFD700;
-    border: 1px solid rgba(255, 215, 0, 0.3);
-    border-radius: 4px;
-    padding: 4px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
     font-size: 12px;
     font-weight: 600;
-    outline: none;
-    cursor: pointer;
-    min-width: 90px;
-    font-family: 'Rubik', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
-.network-select option {
-    background: #000000;
+.network-button:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 215, 0, 0.3);
+    transform: translateY(-1px);
+}
+
+.network-text {
+    color: #FFD700;
+}
+
+.network-dropdown {
+    position: absolute;
+    top: calc(100% + 5px);
+    right: 0;
+    background: rgba(0, 0, 0, 0.95);
+    border: 1px solid rgba(255, 215, 0, 0.2);
+    border-radius: 8px;
+    padding: 8px 0;
+    min-width: 120px;
+    z-index: 1001;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+}
+
+.network-option {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
     color: white;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.network-option:hover {
+    background: rgba(255, 215, 0, 0.1);
+}
+
+.network-option.active {
+    background: rgba(255, 215, 0, 0.15);
+    color: #FFD700;
+}
+
+.network-option-text {
+    color: inherit;
 }
 
 .icon-button {
@@ -125,78 +174,4 @@
 
 .settings-button:hover .settings-icon {
     color: #FFD700;
-}
-
-/* Filters styles */
-.header-filters-container {
-    width: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(10px);
-    padding: 10px 20px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.header-filters {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    align-items: center;
-    width: 100%;
-    max-width: 450px;
-    margin: 0 auto;
-}
-
-.header-filter-btn {
-    flex: 1;
-    padding: 10px 16px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    text-align: center;
-    font-family: 'Rubik', sans-serif;
-    border: none;
-}
-
-.header-filter-btn.active {
-    background: rgba(255, 215, 0, 0.1);
-    border-color: rgba(255, 215, 0, 0.3);
-    color: #FFD700;
-    border: 1px solid rgba(255, 215, 0, 0.3);
-}
-
-.header-filter-btn:hover:not(.active) {
-    background: rgba(255, 255, 255, 0.08);
-}
-
-.header-refresh-button-small {
-    width: 40px;
-    height: 40px;
-    background: rgba(255, 215, 0, 0.1);
-    border: 1px solid rgba(255, 215, 0, 0.3);
-    border-radius: 10px;
-    color: #FFD700;
-    font-size: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    margin-left: 10px;
-    border: none;
-}
-
-.header-refresh-button-small:hover {
-    background: rgba(255, 215, 0, 0.2);
-    transform: rotate(180deg);
-}
-
-.header-refresh-button-small:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
 }

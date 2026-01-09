@@ -9,7 +9,7 @@
     flex-direction: column;
     align-items: center;
     position: relative;
-    padding-top: 120px;
+    padding-top: 60px; /* Уменьшен отступ до 60px */
     padding-bottom: 60px;
     width: 100%;
     box-sizing: border-box;
@@ -31,6 +31,7 @@
     flex-direction: column;
     width: 100%;
     gap: 8px;
+    margin-top: 20px; /* Отступ сверху для контента */
 }
 
 .transaction-group {
@@ -249,36 +250,6 @@
     }
     100% {
         left: 100%;
-    }
-}
-
-/* Responsive adjustments */
-@media (max-width: 480px) {
-    .history-page {
-        padding-top: 100px;
-    }
-    
-    .page-content {
-        padding: 0 15px;
-    }
-    
-    .transaction-type {
-        font-size: 14px;
-    }
-    
-    .amount {
-        font-size: 14px;
-    }
-    
-    .transaction-icon {
-        width: 40px;
-        height: 40px;
-        margin-right: 12px;
-    }
-    
-    .blockchain-icon {
-        width: 40px;
-        height: 40px;
     }
 }
 

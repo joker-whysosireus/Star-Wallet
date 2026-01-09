@@ -14,11 +14,10 @@ function History({ userData }) {
     const [isLoading, setIsLoading] = useState(true);
     const [groupedTransactions, setGroupedTransactions] = useState({});
     const [tokenPrices, setTokenPrices] = useState({});
-    const [selectedFilter, setSelectedFilter] = useState('all');
 
     // API ключи
     const API_KEYS = {
-        ETHERSCAN_API_KEY: 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6', // Один ключ для всех сетей Etherscan API V2
+        ETHERSCAN_API_KEY: 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6',
         SOLANA_RPC_URL: 'https://mainnet.helius-rpc.com/?api-key=e1a20296-3d29-4edb-bc41-c709a187fbc9'
     };
 
@@ -65,33 +64,50 @@ function History({ userData }) {
                 return;
             }
             
-            const allTransactions = await Promise.all([
-                fetchTonTransactions(wallets.find(w => w.blockchain === 'TON')?.address || ''),
-                fetchEthTransactions(wallets.find(w => w.blockchain === 'Ethereum')?.address || ''),
-                fetchBscTransactions(wallets.find(w => w.blockchain === 'BSC')?.address || ''),
-                fetchBtcTransactions(wallets.find(w => w.blockchain === 'Bitcoin')?.address || ''),
-                fetchSolTransactions(wallets.find(w => w.blockchain === 'Solana')?.address || '')
+            // Получаем адреса для каждого блокчейна
+            const tonAddress = wallets.find(w => w.blockchain === 'TON')?.address || '';
+            const ethAddress = wallets.find(w => w.blockchain === 'Ethereum')?.address || '';
+            const bscAddress = wallets.find(w => w.blockchain === 'BSC')?.address || '';
+            const btcAddress = wallets.find(w => w.blockchain === 'Bitcoin')?.address || '';
+            const solAddress = wallets.find(w => w.blockchain === 'Solana')?.address || '';
+            
+            console.log('Wallet addresses:', {
+                TON: tonAddress,
+                Ethereum: ethAddress,
+                BSC: bscAddress,
+                Bitcoin: btcAddress,
+                Solana: solAddress
+            });
+            
+            // Параллельно загружаем транзакции
+            const [tonTxs, ethTxs, bscTxs, btcTxs, solTxs] = await Promise.all([
+                fetchTonTransactions(tonAddress),
+                fetchEthTransactions(ethAddress),
+                fetchBscTransactions(bscAddress),
+                fetchBtcTransactions(btcAddress),
+                fetchSolTransactions(solAddress)
             ]);
             
-            console.log('Transaction results:', {
-                ton: allTransactions[0].length,
-                eth: allTransactions[1].length,
-                bsc: allTransactions[2].length,
-                btc: allTransactions[3].length,
-                sol: allTransactions[4].length
+            console.log('Transaction counts:', {
+                TON: tonTxs.length,
+                Ethereum: ethTxs.length,
+                BSC: bscTxs.length,
+                Bitcoin: btcTxs.length,
+                Solana: solTxs.length
             });
             
-            let combinedTransactions = [];
-            allTransactions.forEach((txList, index) => {
-                const blockchain = ['TON', 'Ethereum', 'BSC', 'Bitcoin', 'Solana'][index];
-                console.log(`${blockchain}: ${txList.length} transactions`);
-                if (Array.isArray(txList) && txList.length > 0) {
-                    combinedTransactions = [...combinedTransactions, ...txList];
-                }
-            });
+            // Объединяем все транзакции
+            let combinedTransactions = [
+                ...tonTxs,
+                ...ethTxs,
+                ...bscTxs,
+                ...btcTxs,
+                ...solTxs
+            ];
             
             console.log('Total transactions found:', combinedTransactions.length);
             
+            // Сортируем по дате (новые сначала)
             combinedTransactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             
             setTransactions(combinedTransactions);
@@ -134,82 +150,106 @@ function History({ userData }) {
         setGroupedTransactions(groups);
     };
 
+    // Функция для TON транзакций
     const fetchTonTransactions = async (address) => {
-        if (!address || address === '') {
-            console.log('No TON address provided');
+        if (!address || address.trim() === '') {
+            console.log('TON: No address provided');
             return [];
         }
         
         try {
-            console.log('Fetching TON transactions for address:', address);
-            const baseUrl = currentNetwork === 'testnet' 
-                ? 'https://testnet.tonapi.io/v2'
-                : 'https://tonapi.io/v2';
+            console.log(`TON: Fetching transactions for ${address.substring(0, 10)}...`);
             
-            const response = await fetch(`${baseUrl}/accounts/${address}/events?limit=20`);
+            // Используем более надежный API для TON
+            const baseUrl = currentNetwork === 'testnet' 
+                ? 'https://testnet.toncenter.com/api/v2'
+                : 'https://toncenter.com/api/v2';
+            
+            // Получаем транзакции адреса
+            const response = await fetch(`${baseUrl}/getTransactions?address=${address}&limit=20`);
             
             if (!response.ok) {
-                console.log('TON API error status:', response.status);
+                console.log(`TON: API error - ${response.status}`);
                 return [];
             }
             
             const data = await response.json();
+            
+            if (!data.ok || !Array.isArray(data.result)) {
+                console.log('TON: Invalid response format');
+                return [];
+            }
+            
             const transactions = [];
             
-            (data.events || []).forEach(event => {
-                const tonTransfer = event.actions?.find(action => 
-                    action.type === 'TonTransfer' && action.TonTransfer
-                );
-                
-                if (tonTransfer?.TonTransfer) {
-                    const transfer = tonTransfer.TonTransfer;
-                    const amount = (transfer.amount / 1e9).toFixed(4);
-                    
-                    const senderAddress = transfer.sender?.address || '';
-                    const recipientAddress = transfer.recipient?.address || '';
-                    
-                    let type = 'unknown';
-                    if (recipientAddress === address) {
-                        type = 'received';
-                    } else if (senderAddress === address) {
-                        type = 'sent';
-                    }
-                    
-                    if (type !== 'unknown' && parseFloat(amount) > 0) {
+            data.result.forEach(tx => {
+                try {
+                    // Проверяем, есть ли входящие сообщения
+                    const inMsg = tx.in_msg;
+                    if (inMsg && inMsg.value && parseInt(inMsg.value) > 0) {
+                        const amount = (parseInt(inMsg.value) / 1e9).toFixed(4);
+                        
                         transactions.push({
-                            id: event.event_id,
+                            id: tx.transaction_id.hash,
                             blockchain: 'TON',
-                            type: type,
+                            type: 'received',
                             amount: amount,
                             symbol: 'TON',
-                            fromAddress: senderAddress,
-                            toAddress: recipientAddress,
-                            timestamp: event.timestamp * 1000,
+                            fromAddress: inMsg.source || '',
+                            toAddress: inMsg.destination || address,
+                            timestamp: tx.utime * 1000,
                             status: 'completed',
                             explorerUrl: currentNetwork === 'testnet'
-                                ? `https://testnet.tonscan.org/tx/${event.event_id}`
-                                : `https://tonscan.org/tx/${event.event_id}`
+                                ? `https://testnet.tonscan.org/tx/${tx.transaction_id.hash}`
+                                : `https://tonscan.org/tx/${tx.transaction_id.hash}`
                         });
                     }
+                    
+                    // Проверяем исходящие сообщения
+                    const outMsgs = tx.out_msgs || [];
+                    outMsgs.forEach(msg => {
+                        if (msg.value && parseInt(msg.value) > 0) {
+                            const amount = (parseInt(msg.value) / 1e9).toFixed(4);
+                            
+                            transactions.push({
+                                id: tx.transaction_id.hash,
+                                blockchain: 'TON',
+                                type: 'sent',
+                                amount: amount,
+                                symbol: 'TON',
+                                fromAddress: address,
+                                toAddress: msg.destination || '',
+                                timestamp: tx.utime * 1000,
+                                status: 'completed',
+                                explorerUrl: currentNetwork === 'testnet'
+                                    ? `https://testnet.tonscan.org/tx/${tx.transaction_id.hash}`
+                                    : `https://tonscan.org/tx/${tx.transaction_id.hash}`
+                            });
+                        }
+                    });
+                } catch (error) {
+                    console.error('TON: Error parsing transaction:', error);
                 }
             });
             
-            console.log(`Found ${transactions.length} TON transactions`);
+            console.log(`TON: Found ${transactions.length} transactions`);
             return transactions;
         } catch (error) {
-            console.error('Error fetching TON transactions:', error);
+            console.error('TON: Error fetching transactions:', error);
             return [];
         }
     };
 
+    // Функция для Ethereum транзакций
     const fetchEthTransactions = async (address) => {
-        if (!address || address === '') {
-            console.log('No ETH address provided');
+        if (!address || address.trim() === '') {
+            console.log('ETH: No address provided');
             return [];
         }
         
         try {
-            console.log('Fetching ETH transactions for address:', address);
+            console.log(`ETH: Fetching transactions for ${address.substring(0, 10)}...`);
+            
             const baseUrl = currentNetwork === 'testnet'
                 ? 'https://api-sepolia.etherscan.io/api'
                 : 'https://api.etherscan.io/api';
@@ -217,23 +257,30 @@ function History({ userData }) {
             const apiKey = API_KEYS.ETHERSCAN_API_KEY;
             
             const response = await fetch(
-                `${baseUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=20&sort=desc&apikey=${apiKey}`
+                `${baseUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`
             );
             
+            console.log(`ETH: API response status - ${response.status}`);
+            
             if (!response.ok) {
-                console.log('ETH API error status:', response.status);
+                console.log(`ETH: API error - ${response.statusText}`);
                 return [];
             }
             
             const data = await response.json();
             
-            if (data.status !== '1') {
-                console.log('ETH API error message:', data.message, 'Result:', data.result);
+            console.log('ETH: API response:', data);
+            
+            if (data.status !== '1' || !Array.isArray(data.result)) {
+                console.log(`ETH: API error message - ${data.message || 'Unknown error'}`);
                 return [];
             }
             
-            const validTransactions = data.result
-                .filter(tx => parseInt(tx.value) > 0)
+            const transactions = data.result
+                .filter(tx => {
+                    const value = parseInt(tx.value);
+                    return value > 0;
+                })
                 .map(tx => {
                     const isIncoming = tx.to.toLowerCase() === address.toLowerCase();
                     
@@ -253,22 +300,24 @@ function History({ userData }) {
                     };
                 });
             
-            console.log(`Found ${validTransactions.length} Ethereum transactions`);
-            return validTransactions;
+            console.log(`ETH: Found ${transactions.length} transactions`);
+            return transactions;
         } catch (error) {
-            console.error('Error fetching ETH transactions:', error);
+            console.error('ETH: Error fetching transactions:', error);
             return [];
         }
     };
 
+    // Функция для BSC транзакций
     const fetchBscTransactions = async (address) => {
-        if (!address || address === '') {
-            console.log('No BSC address provided');
+        if (!address || address.trim() === '') {
+            console.log('BSC: No address provided');
             return [];
         }
         
         try {
-            console.log('Fetching BSC transactions for address:', address);
+            console.log(`BSC: Fetching transactions for ${address.substring(0, 10)}...`);
+            
             const baseUrl = currentNetwork === 'testnet'
                 ? 'https://api-testnet.bscscan.com/api'
                 : 'https://api.bscscan.com/api';
@@ -276,23 +325,30 @@ function History({ userData }) {
             const apiKey = API_KEYS.ETHERSCAN_API_KEY;
             
             const response = await fetch(
-                `${baseUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=20&sort=desc&apikey=${apiKey}`
+                `${baseUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`
             );
             
+            console.log(`BSC: API response status - ${response.status}`);
+            
             if (!response.ok) {
-                console.log('BSC API error status:', response.status);
+                console.log(`BSC: API error - ${response.statusText}`);
                 return [];
             }
             
             const data = await response.json();
             
-            if (data.status !== '1') {
-                console.log('BSC API error message:', data.message);
+            console.log('BSC: API response:', data);
+            
+            if (data.status !== '1' || !Array.isArray(data.result)) {
+                console.log(`BSC: API error message - ${data.message || 'Unknown error'}`);
                 return [];
             }
             
             const transactions = data.result
-                .filter(tx => parseInt(tx.value) > 0)
+                .filter(tx => {
+                    const value = parseInt(tx.value);
+                    return value > 0;
+                })
                 .map(tx => {
                     const isIncoming = tx.to.toLowerCase() === address.toLowerCase();
                     
@@ -312,22 +368,24 @@ function History({ userData }) {
                     };
                 });
             
-            console.log(`Found ${transactions.length} BSC transactions`);
+            console.log(`BSC: Found ${transactions.length} transactions`);
             return transactions;
         } catch (error) {
-            console.error('Error fetching BSC transactions:', error);
+            console.error('BSC: Error fetching transactions:', error);
             return [];
         }
     };
 
+    // Функция для Bitcoin транзакций
     const fetchBtcTransactions = async (address) => {
-        if (!address || address === '') {
-            console.log('No BTC address provided');
+        if (!address || address.trim() === '') {
+            console.log('BTC: No address provided');
             return [];
         }
         
         try {
-            console.log('Fetching BTC transactions for address:', address);
+            console.log(`BTC: Fetching transactions for ${address.substring(0, 10)}...`);
+            
             const baseUrl = currentNetwork === 'testnet'
                 ? 'https://blockstream.info/testnet/api'
                 : 'https://blockstream.info/api';
@@ -335,7 +393,7 @@ function History({ userData }) {
             const response = await fetch(`${baseUrl}/address/${address}/txs`);
             
             if (!response.ok) {
-                console.log('BTC API error status:', response.status);
+                console.log(`BTC: API error - ${response.status}`);
                 return [];
             }
             
@@ -375,22 +433,24 @@ function History({ userData }) {
                 };
             }).filter(tx => tx !== null);
             
-            console.log(`Found ${transactions.length} BTC transactions`);
+            console.log(`BTC: Found ${transactions.length} transactions`);
             return transactions;
         } catch (error) {
-            console.error('Error fetching BTC transactions:', error);
+            console.error('BTC: Error fetching transactions:', error);
             return [];
         }
     };
 
+    // Функция для Solana транзакций
     const fetchSolTransactions = async (address) => {
-        if (!address || address === '') {
-            console.log('No SOL address provided');
+        if (!address || address.trim() === '') {
+            console.log('SOL: No address provided');
             return [];
         }
         
         try {
-            console.log('Fetching SOL transactions for address:', address);
+            console.log(`SOL: Fetching transactions for ${address.substring(0, 10)}...`);
+            
             const rpcUrl = currentNetwork === 'testnet'
                 ? 'https://api.testnet.solana.com'
                 : API_KEYS.SOLANA_RPC_URL;
@@ -496,15 +556,15 @@ function History({ userData }) {
                             : `https://solscan.io/tx/${sig.signature}`
                     });
                 } catch (error) {
-                    console.error('Error fetching Solana transaction details:', error);
+                    console.error('SOL: Error fetching transaction details:', error);
                     continue;
                 }
             }
             
-            console.log(`Found ${transactions.length} SOL transactions`);
+            console.log(`SOL: Found ${transactions.length} transactions`);
             return transactions;
         } catch (error) {
-            console.error('Error fetching SOL transactions:', error);
+            console.error('SOL: Error fetching transactions:', error);
             return [];
         }
     };
@@ -519,22 +579,11 @@ function History({ userData }) {
         }
     };
 
-    const handleRefresh = () => {
-        loadTransactions();
-    };
-
     const handleTransactionClick = (transaction) => {
         if (transaction.explorerUrl && transaction.explorerUrl !== '#') {
             window.open(transaction.explorerUrl, '_blank');
         }
     };
-
-    const filteredTransactions = selectedFilter === 'all' 
-        ? transactions 
-        : transactions.filter(tx => 
-            (selectedFilter === 'sent' && tx.type === 'sent') ||
-            (selectedFilter === 'received' && tx.type === 'received')
-        );
 
     const getStatusColor = (status) => {
         switch(status) {
@@ -582,7 +631,7 @@ function History({ userData }) {
         return groups;
     };
 
-    const groupedFilteredTransactions = groupTransactionsByDateFiltered(filteredTransactions);
+    const groupedFilteredTransactions = groupTransactionsByDateFiltered(transactions);
 
     return (
         <div className="history-page">
@@ -590,11 +639,6 @@ function History({ userData }) {
                 userData={userData} 
                 onNetworkChange={handleNetworkChange}
                 currentNetwork={currentNetwork}
-                showFilters={true}
-                selectedFilter={selectedFilter}
-                setSelectedFilter={setSelectedFilter}
-                handleRefresh={handleRefresh}
-                isLoading={isLoading}
             />
             
             <div className="page-content">
@@ -612,7 +656,7 @@ function History({ userData }) {
                                 </div>
                             </div>
                         ))
-                    ) : filteredTransactions.length > 0 ? (
+                    ) : transactions.length > 0 ? (
                         Object.entries(groupedFilteredTransactions).map(([date, txList]) => (
                             <div key={date} className="transaction-group">
                                 <div className="transaction-date">{date}</div>

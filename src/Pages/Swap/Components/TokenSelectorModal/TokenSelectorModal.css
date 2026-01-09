@@ -99,10 +99,6 @@
     transition: all 0.2s;
 }
 
-.token-selector-close:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
-}
 
 .token-selector-list {
     flex: 1;
@@ -120,14 +116,6 @@
     transition: all 0.2s;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     background: transparent; /* Одинаковый фон для всех */
-}
-
-.token-selector-item:hover {
-    background: rgba(255, 255, 255, 0.03);
-}
-
-.token-selector-item.selected {
-    background: rgba(255, 255, 255, 0.05); /* Нейтральный серый фон для выбранного */
 }
 
 .token-left {
