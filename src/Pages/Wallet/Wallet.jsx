@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from "../../assets/Header/Header";
 import Menu from '../../assets/Menus/Menu/Menu';
-import TokenCard from './Components/List/TokenCard';
+import TokenCard from './Subpages/List/TokenCard';
 import PinCodeScreen from '../../assets/PIN/PinCodeScreen';
 import { 
     getAllTokens,

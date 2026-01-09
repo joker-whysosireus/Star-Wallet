@@ -10,8 +10,6 @@ import {
 import {
     LineChart,
     Line,
-    XAxis,
-    YAxis,
     CartesianGrid,
     Tooltip,
     ResponsiveContainer
@@ -97,7 +95,7 @@ const TokenDetail = () => {
                         });
                     }
                     break;
-                case '1W':
+                case '7D':
                     for (let i = 6; i >= 0; i--) {
                         const time = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
                         mockData.push({
@@ -121,6 +119,15 @@ const TokenDetail = () => {
                         mockData.push({
                             time: time.toLocaleDateString('en-US', { month: 'short' }),
                             price: basePrice * (0.7 + Math.random() * 0.6)
+                        });
+                    }
+                    break;
+                case 'MAX':
+                    for (let i = 14; i >= 0; i--) {
+                        const time = new Date(Date.now() - i * 7 * 24 * 60 * 60 * 1000);
+                        mockData.push({
+                            time: time.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                            price: basePrice * (0.5 + Math.random() * 1)
                         });
                     }
                     break;
@@ -167,10 +174,25 @@ const TokenDetail = () => {
     };
 
     const getBlockchainBadge = (blockchain, symbol) => {
+        // Для USDT показываем блокчейн, а не "USDT"
         if (symbol === 'USDT') {
-            return { color: '#26A17B', text: 'USDT' };
+            // Используем blockchain из wallet, который передается из USDTDetail
+            const actualBlockchain = wallet?.blockchain || blockchain;
+            
+            const badges = {
+                'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)', text: 'TON' },
+                'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)', text: 'SOL' },
+                'Ethereum': { color: '#8c8cff', bg: 'rgba(140, 140, 255, 0.1)', text: 'ETH' },
+                'Tron': { color: '#ff0000', bg: 'rgba(255, 0, 0, 0.1)', text: 'TRX' },
+                'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)', text: 'BTC' },
+                'Litecoin': { color: '#bfbbbf', bg: 'rgba(191, 187, 191, 0.1)', text: 'LTC' },
+                'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)', text: 'BNB' }
+            };
+            
+            return badges[actualBlockchain] || { color: '#26A17B', text: actualBlockchain || 'USDT' };
         }
         
+        // Для остальных токенов показываем соответствующий блокчейн
         const badges = {
             'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)', text: 'TON' },
             'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)', text: 'SOL' },
@@ -192,6 +214,17 @@ const TokenDetail = () => {
     };
 
     const badge = wallet ? getBlockchainBadge(wallet.blockchain, wallet.symbol) : null;
+
+    const calculateChange = () => {
+        if (chartData.length < 2) return 0;
+        const firstPrice = chartData[0].price;
+        const lastPrice = chartData[chartData.length - 1].price;
+        return ((lastPrice - firstPrice) / firstPrice * 100).toFixed(2);
+    };
+
+    const change = calculateChange();
+    const currentPrice = chartData.length > 0 ? chartData[chartData.length - 1]?.price : 0;
+    const changeColor = parseFloat(change) >= 0 ? '#4CAF50' : '#F44336';
 
     if (!wallet) {
         return (
@@ -231,18 +264,6 @@ const TokenDetail = () => {
                                 const fallback = document.createElement('div');
                                 fallback.className = 'token-logo-fallback';
                                 fallback.textContent = wallet.symbol.substring(0, 2);
-                                fallback.style.cssText = `
-                                    width: 80px;
-                                    height: 80px;
-                                    display: flex;
-                                    align-items: center;
-                                    justifyContent: center;
-                                    background: rgba(255, 215, 0, 0.2);
-                                    border-radius: 50%;
-                                    color: #FFD700;
-                                    font-size: 24px;
-                                    font-weight: bold;
-                                `;
                                 e.target.parentNode.appendChild(fallback);
                             }}
                         />
@@ -395,120 +416,89 @@ const TokenDetail = () => {
                     </button>
                 </div>
                 
-                {/* Блок с графиком - уменьшена ширина и высота */}
-                <div className="chart-container" style={{
-                    width: '90%',
-                    maxWidth: '350px', // Такая же ширина как у блока кнопок (было 380px)
-                    marginTop: '25px',
-                    background: 'rgba(255, 255, 255, 0.03)',
-                    borderRadius: '15px',
-                    padding: '15px',
-                    border: '1px solid rgba(255, 255, 255, 0.05)'
-                }}>
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: '15px'
-                    }}>
-                        <h3 style={{
-                            color: 'white',
-                            fontSize: '16px',
-                            fontWeight: '600',
-                            margin: 0
-                        }}>
-                            ({wallet.symbol})
-                        </h3>
-                        <div style={{
-                            display: 'flex',
-                            gap: '8px',
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            borderRadius: '8px',
-                            padding: '4px'
-                        }}>
-                            {['1D', '1W', '1M', '1Y'].map((time) => (
-                                <button
-                                    key={time}
-                                    onClick={() => handleTimeframeChange(time)}
-                                    style={{
-                                        padding: '6px 12px',
-                                        borderRadius: '6px',
-                                        border: 'none',
-                                        background: timeframe === time ? 'rgba(255, 215, 0, 0.2)' : 'transparent',
-                                        color: timeframe === time ? '#FFD700' : 'rgba(255, 255, 255, 0.6)',
-                                        fontSize: '12px',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s ease'
-                                    }}
-                                >
-                                    {time}
-                                </button>
-                            ))}
+                {/* Блок с графиком - новый дизайн */}
+                <div className="chart-container">
+                    {/* Верхняя часть с ценой и изменением */}
+                    <div className="chart-price-section">
+                        <div className="chart-price-left">
+                            <div className="chart-price-value">
+                                ${currentPrice.toFixed(4)}
+                            </div>
+                            <div className="chart-price-label">
+                                Price for 1 {wallet.symbol}
+                            </div>
+                        </div>
+                        
+                        <div className="chart-change-right">
+                            <div className="chart-change-value" style={{ color: changeColor }}>
+                                {parseFloat(change) >= 0 ? '+' : ''}{change}%
+                            </div>
+                            <div className="chart-change-label">
+                                Change
+                            </div>
                         </div>
                     </div>
                     
+                    {/* Основная область графика */}
                     {isLoadingChart ? (
-                        <div style={{
-                            height: '160px', // Уменьшена на 40px (было 200px)
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'rgba(255, 255, 255, 0.5)'
-                        }}>
+                        <div className="chart-loading">
                             Loading chart...
                         </div>
                     ) : (
-                        <ResponsiveContainer width="100%" height={160}> {/* Уменьшена на 40px (было 200px) */}
-                            <LineChart
-                                data={chartData}
-                                margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
-                            >
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
-                                <XAxis 
-                                    dataKey="time" 
-                                    stroke="rgba(255, 255, 255, 0.5)"
-                                    fontSize={10}
-                                />
-                                <YAxis 
-                                    stroke="rgba(255, 255, 255, 0.5)"
-                                    fontSize={10}
-                                    tickFormatter={(value) => `$${value.toFixed(2)}`}
-                                />
-                                <Tooltip
-                                    formatter={(value) => [`$${parseFloat(value).toFixed(4)}`, 'Price']}
-                                    labelFormatter={(label) => `Time: ${label}`}
-                                    contentStyle={{
-                                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                                        border: '1px solid rgba(255, 215, 0, 0.3)',
-                                        borderRadius: '8px'
-                                    }}
-                                />
-                                <Line
-                                    type="monotone"
-                                    dataKey="price"
-                                    stroke="#FFD700"
-                                    strokeWidth={2}
-                                    dot={false}
-                                    activeDot={{ r: 4, fill: '#FFD700' }}
-                                />
-                            </LineChart>
-                        </ResponsiveContainer>
+                        <div className="chart-graph-area">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart
+                                    data={chartData}
+                                    margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
+                                >
+                                    <CartesianGrid 
+                                        strokeDasharray="0" 
+                                        stroke="rgba(255, 255, 255, 0.03)"
+                                        horizontal={true}
+                                        vertical={false}
+                                    />
+                                    <Tooltip
+                                        formatter={(value) => [`$${parseFloat(value).toFixed(4)}`, 'Price']}
+                                        labelFormatter={(label) => `Time: ${label}`}
+                                        contentStyle={{
+                                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                            border: '1px solid rgba(255, 215, 0, 0.3)',
+                                            borderRadius: '8px',
+                                            padding: '8px'
+                                        }}
+                                        labelStyle={{
+                                            color: '#FFD700',
+                                            fontSize: '12px'
+                                        }}
+                                        itemStyle={{
+                                            color: 'white',
+                                            fontSize: '12px'
+                                        }}
+                                    />
+                                    <Line
+                                        type="monotone"
+                                        dataKey="price"
+                                        stroke={changeColor}
+                                        strokeWidth={3}
+                                        dot={false}
+                                        activeDot={{ r: 6, fill: '#FFD700', stroke: 'white', strokeWidth: 2 }}
+                                    />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
                     )}
                     
-                    <div style={{
-                        marginTop: '15px',
-                        fontSize: '12px',
-                        color: 'rgba(255, 255, 255, 0.5)',
-                        textAlign: 'center'
-                    }}>
-                        {chartData.length > 0 && (
-                            <p>
-                                Current: ${chartData[chartData.length - 1]?.price?.toFixed(4) || '0.00'} • 
-                                Change: {chartData.length > 1 ? 
-                                    (((chartData[chartData.length - 1].price - chartData[0].price) / chartData[0].price * 100).toFixed(2)) : '0.00'}%
-                            </p>
-                        )}
+                    {/* Кнопки временных интервалов */}
+                    <div className="chart-timeframe-buttons">
+                        {['1D', '7D', '1M', '1Y', 'MAX'].map((time) => (
+                            <button
+                                key={time}
+                                onClick={() => handleTimeframeChange(time)}
+                                className={`timeframe-button ${timeframe === time ? 'active' : ''}`}
+                            >
+                                {time}
+                            </button>
+                        ))}
                     </div>
                 </div>
             </div>

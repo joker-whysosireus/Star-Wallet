@@ -58,7 +58,9 @@ const USDTDetail = () => {
                 symbol: 'USDT',
                 name: token.displayName || token.name,
                 userData: userData,
-                network: network
+                network: network,
+                // Явно передаем blockchain, чтобы TokenDetail знал, на каком блокчейне этот USDT
+                blockchain: token.blockchain
             }
         });
     };

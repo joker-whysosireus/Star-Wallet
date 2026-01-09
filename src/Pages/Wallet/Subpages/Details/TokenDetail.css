@@ -117,35 +117,90 @@
     transform: translateY(-2px);
 }
 
-/* Стили для графика */
+/* Стили для нового дизайна графика */
 .chart-container {
-    width: 100%;
-    max-width: 380px; /* Изменено с 380px на 400px для соответствия ширине блока кнопок */
+    width: 90%;
+    max-width: 350px;
     margin-top: 25px;
     background: rgba(255, 255, 255, 0.03);
     border-radius: 15px;
-    padding: 15px;
+    padding: 20px;
     border: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-direction: column;
+    height: 300px;
+}
+
+.chart-price-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+}
+
+.chart-price-left {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.chart-price-value {
+    color: white;
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.chart-price-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+    font-weight: 500;
+}
+
+.chart-change-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.chart-change-value {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.chart-change-label {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+    font-weight: 500;
+}
+
+.chart-graph-area {
+    flex: 1;
+    position: relative;
+    margin: 0 -10px 40px -10px;
 }
 
 .chart-timeframe-buttons {
     display: flex;
     gap: 8px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-    padding: 4px;
+    justify-content: center;
+    width: 100%;
+    margin-top: auto;
 }
 
 .timeframe-button {
-    padding: 6px 12px;
-    border-radius: 6px;
+    padding: 8px 12px;
+    border-radius: 8px;
     border: none;
-    background: transparent;
+    background: rgba(255, 255, 255, 0.05);
     color: rgba(255, 255, 255, 0.6);
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
+    flex: 1;
+    min-width: 0;
 }
 
 .timeframe-button.active {
@@ -153,9 +208,15 @@
     color: #FFD700;
 }
 
-.chart-info {
-    margin-top: 15px;
-    font-size: 12px;
+.timeframe-button:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Стили для загрузки графика */
+.chart-loading {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: rgba(255, 255, 255, 0.5);
-    text-align: center;
 }

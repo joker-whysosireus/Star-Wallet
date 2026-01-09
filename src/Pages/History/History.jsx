@@ -15,9 +15,9 @@ function History({ userData }) {
     const [groupedTransactions, setGroupedTransactions] = useState({});
     const [tokenPrices, setTokenPrices] = useState({});
 
-    // API ключи
+    // API ключи - используем тот же ключ для Etherscan и BscScan
     const API_KEYS = {
-        ETHERSCAN_API_KEY: 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6',
+        ETHERSCAN_API_KEY: 'BYUSWS2J41VG9BGWPE6FFYYEMXWQ9AS3I6', // Etherscan ключ работает и для BscScan
         SOLANA_RPC_URL: 'https://mainnet.helius-rpc.com/?api-key=e1a20296-3d29-4edb-bc41-c709a187fbc9'
     };
 
@@ -71,12 +71,12 @@ function History({ userData }) {
             const btcAddress = wallets.find(w => w.blockchain === 'Bitcoin')?.address || '';
             const solAddress = wallets.find(w => w.blockchain === 'Solana')?.address || '';
             
-            console.log('Wallet addresses:', {
-                TON: tonAddress,
-                Ethereum: ethAddress,
-                BSC: bscAddress,
-                Bitcoin: btcAddress,
-                Solana: solAddress
+            console.log('Wallet addresses for transactions:', {
+                TON: tonAddress ? `${tonAddress.substring(0, 10)}...` : 'Not found',
+                Ethereum: ethAddress ? `${ethAddress.substring(0, 10)}...` : 'Not found',
+                BSC: bscAddress ? `${bscAddress.substring(0, 10)}...` : 'Not found',
+                Bitcoin: btcAddress ? `${btcAddress.substring(0, 10)}...` : 'Not found',
+                Solana: solAddress ? `${solAddress.substring(0, 10)}...` : 'Not found'
             });
             
             // Параллельно загружаем транзакции
@@ -88,7 +88,7 @@ function History({ userData }) {
                 fetchSolTransactions(solAddress)
             ]);
             
-            console.log('Transaction counts:', {
+            console.log('Transaction counts found:', {
                 TON: tonTxs.length,
                 Ethereum: ethTxs.length,
                 BSC: bscTxs.length,
@@ -158,7 +158,7 @@ function History({ userData }) {
         }
         
         try {
-            console.log(`TON: Fetching transactions for ${address.substring(0, 10)}...`);
+            console.log(`TON: Fetching transactions for address...`);
             
             // Используем более надежный API для TON
             const baseUrl = currentNetwork === 'testnet' 
@@ -240,7 +240,7 @@ function History({ userData }) {
         }
     };
 
-    // Функция для Ethereum транзакций
+    // Функция для Ethereum транзакций (ИСПРАВЛЕНА)
     const fetchEthTransactions = async (address) => {
         if (!address || address.trim() === '') {
             console.log('ETH: No address provided');
@@ -248,7 +248,7 @@ function History({ userData }) {
         }
         
         try {
-            console.log(`ETH: Fetching transactions for ${address.substring(0, 10)}...`);
+            console.log(`ETH: Fetching transactions for address...`);
             
             const baseUrl = currentNetwork === 'testnet'
                 ? 'https://api-sepolia.etherscan.io/api'
@@ -256,8 +256,9 @@ function History({ userData }) {
             
             const apiKey = API_KEYS.ETHERSCAN_API_KEY;
             
+            // Используем модуль account и действие txlist для получения обычных транзакций
             const response = await fetch(
-                `${baseUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`
+                `${baseUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=50&sort=desc&apikey=${apiKey}`
             );
             
             console.log(`ETH: API response status - ${response.status}`);
@@ -269,38 +270,68 @@ function History({ userData }) {
             
             const data = await response.json();
             
-            console.log('ETH: API response:', data);
+            // Отладочная информация
+            console.log('ETH: API response status:', data.status);
+            console.log('ETH: API message:', data.message);
+            console.log('ETH: Result length:', data.result ? data.result.length : 0);
             
             if (data.status !== '1' || !Array.isArray(data.result)) {
-                console.log(`ETH: API error message - ${data.message || 'Unknown error'}`);
+                console.log(`ETH: API error - status: ${data.status}, message: ${data.message}`);
+                // Покажем первые 5 результатов для отладки
+                if (data.result && Array.isArray(data.result) && data.result.length > 0) {
+                    console.log('ETH: First few results:', data.result.slice(0, 3));
+                }
                 return [];
             }
             
             const transactions = data.result
                 .filter(tx => {
+                    // Фильтруем только транзакции с ненулевым значением
                     const value = parseInt(tx.value);
-                    return value > 0;
+                    const isValueValid = value > 0;
+                    
+                    // Также проверяем, что есть хэш и временная метка
+                    const hasHash = tx.hash && tx.hash !== '0x';
+                    const hasTimestamp = tx.timeStamp && parseInt(tx.timeStamp) > 0;
+                    
+                    return isValueValid && hasHash && hasTimestamp;
                 })
                 .map(tx => {
                     const isIncoming = tx.to.toLowerCase() === address.toLowerCase();
+                    
+                    // Рассчитываем сумму в ETH
+                    const amountInWei = parseInt(tx.value);
+                    const amountInEth = amountInWei / 1e18;
+                    
+                    // Определяем статус
+                    let status = 'completed';
+                    if (tx.isError && parseInt(tx.isError) === 1) {
+                        status = 'failed';
+                    }
                     
                     return {
                         id: tx.hash,
                         blockchain: 'Ethereum',
                         type: isIncoming ? 'received' : 'sent',
-                        amount: (parseInt(tx.value) / 1e18).toFixed(6),
+                        amount: amountInEth.toFixed(6),
                         symbol: 'ETH',
                         fromAddress: tx.from,
                         toAddress: tx.to,
                         timestamp: parseInt(tx.timeStamp) * 1000,
-                        status: parseInt(tx.isError) === 0 ? 'completed' : 'failed',
+                        status: status,
                         explorerUrl: currentNetwork === 'testnet'
                             ? `https://sepolia.etherscan.io/tx/${tx.hash}`
                             : `https://etherscan.io/tx/${tx.hash}`
                     };
                 });
             
-            console.log(`ETH: Found ${transactions.length} transactions`);
+            console.log(`ETH: Found ${transactions.length} valid transactions`);
+            
+            // Если транзакций много, покажем несколько для отладки
+            if (transactions.length > 0) {
+                console.log('ETH: Sample transactions:', transactions.slice(0, 3));
+            }
+            
             return transactions;
         } catch (error) {
             console.error('ETH: Error fetching transactions:', error);
@@ -308,7 +339,7 @@ function History({ userData }) {
         }
     };
 
-    // Функция для BSC транзакций
+    // Функция для BSC транзакций (ИСПРАВЛЕНА)
     const fetchBscTransactions = async (address) => {
         if (!address || address.trim() === '') {
             console.log('BSC: No address provided');
@@ -316,16 +347,17 @@ function History({ userData }) {
         }
         
         try {
-            console.log(`BSC: Fetching transactions for ${address.substring(0, 10)}...`);
+            console.log(`BSC: Fetching transactions for address...`);
             
             const baseUrl = currentNetwork === 'testnet'
                 ? 'https://api-testnet.bscscan.com/api'
                 : 'https://api.bscscan.com/api';
             
+            // Используем тот же API ключ, что и для Etherscan
             const apiKey = API_KEYS.ETHERSCAN_API_KEY;
             
             const response = await fetch(
-                `${baseUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`
+                `${baseUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=50&sort=desc&apikey=${apiKey}`
             );
             
             console.log(`BSC: API response status - ${response.status}`);
@@ -337,38 +369,68 @@ function History({ userData }) {
             
             const data = await response.json();
             
-            console.log('BSC: API response:', data);
+            // Отладочная информация
+            console.log('BSC: API response status:', data.status);
+            console.log('BSC: API message:', data.message);
+            console.log('BSC: Result length:', data.result ? data.result.length : 0);
             
             if (data.status !== '1' || !Array.isArray(data.result)) {
-                console.log(`BSC: API error message - ${data.message || 'Unknown error'}`);
+                console.log(`BSC: API error - status: ${data.status}, message: ${data.message}`);
+                // Покажем первые 5 результатов для отладки
+                if (data.result && Array.isArray(data.result) && data.result.length > 0) {
+                    console.log('BSC: First few results:', data.result.slice(0, 3));
+                }
                 return [];
             }
             
             const transactions = data.result
                 .filter(tx => {
+                    // Фильтруем только транзакции с ненулевым значением
                     const value = parseInt(tx.value);
-                    return value > 0;
+                    const isValueValid = value > 0;
+                    
+                    // Также проверяем, что есть хэш и временная метка
+                    const hasHash = tx.hash && tx.hash !== '0x';
+                    const hasTimestamp = tx.timeStamp && parseInt(tx.timeStamp) > 0;
+                    
+                    return isValueValid && hasHash && hasTimestamp;
                 })
                 .map(tx => {
                     const isIncoming = tx.to.toLowerCase() === address.toLowerCase();
+                    
+                    // Рассчитываем сумму в BNB
+                    const amountInWei = parseInt(tx.value);
+                    const amountInBnb = amountInWei / 1e18;
+                    
+                    // Определяем статус
+                    let status = 'completed';
+                    if (tx.isError && parseInt(tx.isError) === 1) {
+                        status = 'failed';
+                    }
                     
                     return {
                         id: tx.hash,
                         blockchain: 'BSC',
                         type: isIncoming ? 'received' : 'sent',
-                        amount: (parseInt(tx.value) / 1e18).toFixed(6),
+                        amount: amountInBnb.toFixed(6),
                         symbol: 'BNB',
                         fromAddress: tx.from,
                         toAddress: tx.to,
                         timestamp: parseInt(tx.timeStamp) * 1000,
-                        status: parseInt(tx.isError) === 0 ? 'completed' : 'failed',
+                        status: status,
                         explorerUrl: currentNetwork === 'testnet'
                             ? `https://testnet.bscscan.com/tx/${tx.hash}`
                             : `https://bscscan.com/tx/${tx.hash}`
                     };
                 });
             
-            console.log(`BSC: Found ${transactions.length} transactions`);
+            console.log(`BSC: Found ${transactions.length} valid transactions`);
+            
+            // Если транзакций много, покажем несколько для отладки
+            if (transactions.length > 0) {
+                console.log('BSC: Sample transactions:', transactions.slice(0, 3));
+            }
+            
             return transactions;
         } catch (error) {
             console.error('BSC: Error fetching transactions:', error);
@@ -384,7 +446,7 @@ function History({ userData }) {
         }
         
         try {
-            console.log(`BTC: Fetching transactions for ${address.substring(0, 10)}...`);
+            console.log(`BTC: Fetching transactions for address...`);
             
             const baseUrl = currentNetwork === 'testnet'
                 ? 'https://blockstream.info/testnet/api'
@@ -449,7 +511,7 @@ function History({ userData }) {
         }
         
         try {
-            console.log(`SOL: Fetching transactions for ${address.substring(0, 10)}...`);
+            console.log(`SOL: Fetching transactions for address...`);
             
             const rpcUrl = currentNetwork === 'testnet'
                 ? 'https://api.testnet.solana.com'
