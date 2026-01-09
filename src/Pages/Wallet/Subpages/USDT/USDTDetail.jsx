@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
-import TokenCard from '../../Components/List/TokenCard';
+import TokenCard from '../List/TokenCard';
 import { 
     getUSDTTokensForDetail, 
     getTotalUSDTBalance,
