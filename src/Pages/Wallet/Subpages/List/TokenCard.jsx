@@ -53,29 +53,24 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInLis
         }
     };
     
-    // Форматирование баланса: только первые три нуля после целого числа
     const formatBalance = (balanceStr) => {
         if (!balanceStr || balanceStr === '0') return '0.000';
         
         const balance = parseFloat(balanceStr);
         if (isNaN(balance)) return '0.000';
         
-        // Разделяем целую и дробную части
         const [integerPart, decimalPart] = balance.toString().split('.');
         
         if (!decimalPart) {
             return `${integerPart}.000`;
         }
         
-        // Ограничиваем до 3 знаков после запятой
         const limitedDecimal = decimalPart.length > 3 ? decimalPart.substring(0, 3) : decimalPart;
         
-        // Если после запятой все нули или их меньше 3, дополняем до 3 знаков
         if (limitedDecimal === '0' || limitedDecimal === '00') {
             return `${integerPart}.${limitedDecimal.padEnd(3, '0')}`;
         }
         
-        // Если есть значимые цифры после запятой, показываем до 3 знаков
         return `${integerPart}.${limitedDecimal.padEnd(3, '0').substring(0, 3)}`;
     };
     
@@ -116,7 +111,6 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInLis
     const badge = getBlockchainBadge(wallet.blockchain);
     const formattedBalance = formatBalance(wallet.balance);
 
-    // Для USDT в основном списке (Wallet) - с бейджем USDT
     if (isUSDTInList) {
         return (
             <div className="token-card">
@@ -161,7 +155,6 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInLis
         );
     }
 
-    // Для всех остальных токенов (и USDT в USDTDetail)
     return (
         <div className="token-card">
             <div className="token-left">

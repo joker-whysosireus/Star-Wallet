@@ -1,23 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { getTokenPrices, getBlockchainIcon } from '../../../Wallet/Services/storageService';
+import { getTokenPrices, getBlockchainIcon, subscribeToPriceUpdates } from '../../../Wallet/Services/storageService';
 import './TokenSelectorModal.css';
 
 const TokenSelectorModal = ({ tokens, userWallets, onSelect, onClose, selectedToken }) => {
     const [isClosing, setIsClosing] = useState(false);
     const [prices, setPrices] = useState({});
-    
-    useEffect(() => {
-        loadPrices();
-    }, []);
+    const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
     
     const loadPrices = async () => {
         try {
             const priceData = await getTokenPrices();
             setPrices(priceData);
+            setLastUpdateTime(Date.now());
         } catch (error) {
             console.error('Error loading prices:', error);
         }
     };
+    
+    useEffect(() => {
+        loadPrices();
+        
+        // Подписываемся на обновления цен каждые 3 минуты
+        const unsubscribe = subscribeToPriceUpdates((newPrices) => {
+            console.log('Price update received in TokenSelectorModal');
+            setPrices(newPrices);
+            setLastUpdateTime(Date.now());
+        });
+        
+        return () => {
+            unsubscribe();
+        };
+    }, []);
     
     const formatBalance = (balanceStr) => {
         if (!balanceStr || balanceStr === '0') return '0.000';

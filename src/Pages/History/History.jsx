@@ -2,7 +2,12 @@ import React, { useState, useEffect } from 'react';
 import Menu from "../../assets/Menus/Menu/Menu";
 import Header from "../../assets/Header/Header";
 import './History.css';
-import { generateWalletsFromSeed, getTokenPrices, getBlockchainIcon } from '../Wallet/Services/storageService';
+import { 
+    generateWalletsFromSeed, 
+    getTokenPrices, 
+    getBlockchainIcon,
+    subscribeToPriceUpdates
+} from '../Wallet/Services/storageService';
 
 function History({ userData }) {
     const [currentNetwork, setCurrentNetwork] = useState(() => {
@@ -38,9 +43,15 @@ function History({ userData }) {
         
         loadTokenPrices();
         
-        const priceInterval = setInterval(loadTokenPrices, 60000);
+        // Подписываемся на обновления цен каждые 3 минуты
+        const unsubscribe = subscribeToPriceUpdates((newPrices) => {
+            console.log('Price update received in History component');
+            setTokenPrices(newPrices);
+        });
         
-        return () => clearInterval(priceInterval);
+        return () => {
+            unsubscribe();
+        };
     }, [userData, currentNetwork]);
 
     const loadTokenPrices = async () => {

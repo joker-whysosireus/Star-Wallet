@@ -8,7 +8,10 @@ import {
     getAllTokens,
     getBalances, 
     calculateTotalBalance,
-    getTokenPrices
+    getTokenPrices,
+    initializePriceUpdates,
+    stopPriceUpdates,
+    subscribeToPriceUpdates
 } from './Services/storageService';
 import './Wallet.css';
 
@@ -44,6 +47,125 @@ function Wallet({ isActive, userData }) {
     const MIN_REFRESH_INTERVAL = 10000;
     const loadingTimerRef = useRef(null);
     const isUpdatingRef = useRef(false);
+    const priceUpdateSubscriptionRef = useRef(null);
+
+    const updateAllData = useCallback(async (forceUpdate = false, showSkeletonLoading = false, network = currentNetwork) => {
+        if (!userData || isUpdatingRef.current) return;
+
+        try {
+            const now = Date.now();
+            if (!forceUpdate && now - lastRefreshTime.current < MIN_REFRESH_INTERVAL) {
+                setIsRefreshing(false);
+                setContentMargin(0);
+                return;
+            }
+
+            isUpdatingRef.current = true;
+            
+            if ((showSkeletonLoading && isRefreshing) || isInitialLoad) {
+                setShowSkeleton(true);
+            }
+            
+            lastRefreshTime.current = now;
+            
+            console.log(`Updating ${network} wallet balances with real data...`);
+            
+            let allTokens = [];
+            if (wallets.length === 0 || forceUpdate || wallets[0]?.network !== network) {
+                allTokens = await getAllTokens(userData, network);
+                if (!Array.isArray(allTokens) || allTokens.length === 0) {
+                    setWallets([]);
+                    localStorage.setItem('cached_wallets', JSON.stringify([]));
+                    setShowSkeleton(false);
+                    setIsRefreshing(false);
+                    setContentMargin(0);
+                    setIsInitialLoad(false);
+                    isUpdatingRef.current = false;
+                    return;
+                }
+            } else {
+                allTokens = wallets;
+            }
+
+            const updatedWallets = await getBalances(allTokens);
+            
+            updatedWallets.forEach(wallet => {
+                balanceCache.current[wallet.id] = {
+                    balance: wallet.balance,
+                    timestamp: Date.now()
+                };
+            });
+            
+            const sortedWallets = updatedWallets.sort((a, b) => {
+                if (a.symbol === 'USDT' && b.symbol !== 'USDT') return -1;
+                if (a.symbol !== 'USDT' && b.symbol === 'USDT') return 1;
+                return 0;
+            });
+            
+            setWallets(sortedWallets);
+            localStorage.setItem('cached_wallets', JSON.stringify(sortedWallets));
+            
+            const prices = await getTokenPrices();
+            console.log('Current token prices:', prices);
+            
+            const total = await calculateTotalBalance(sortedWallets);
+            setTotalBalance(`$${total}`);
+            localStorage.setItem('cached_total_balance', `$${total}`);
+            
+            console.log(`${network} balances updated successfully with real data at ${new Date().toLocaleTimeString()}`);
+            
+        } catch (error) {
+            console.error('Error updating balances:', error);
+            
+            if (Object.keys(balanceCache.current).length > 0) {
+                const cachedWallets = wallets.map(wallet => {
+                    const cachedBalance = balanceCache.current[wallet.id];
+                    return cachedBalance ? { ...wallet, balance: cachedBalance.balance } : wallet;
+                });
+                setWallets(cachedWallets);
+            }
+        } finally {
+            loadingTimerRef.current = setTimeout(() => {
+                setIsRefreshing(false);
+                setShowSkeleton(false);
+                setContentMargin(0);
+                setIsInitialLoad(false);
+                isUpdatingRef.current = false;
+                loadingTimerRef.current = null;
+            }, 300);
+        }
+    }, [userData, wallets, isInitialLoad, isRefreshing, currentNetwork]);
+
+    useEffect(() => {
+        if (!userData) return;
+
+        const updateInterval = initializePriceUpdates((newPrices) => {
+            console.log('Prices updated via price service, refreshing all data...');
+            updateAllData(true, false, currentNetwork);
+        });
+
+        priceUpdateSubscriptionRef.current = subscribeToPriceUpdates((prices) => {
+            console.log('Price update received, updating balances...');
+            updateAllData(false, false, currentNetwork);
+        });
+
+        return () => {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+            }
+            if (priceUpdateSubscriptionRef.current) {
+                priceUpdateSubscriptionRef.current();
+            }
+            stopPriceUpdates();
+        };
+    }, [userData, currentNetwork, updateAllData]);
+
+    useEffect(() => {
+        if (userData && !hasInitialized.current) {
+            hasInitialized.current = true;
+            updateAllData(true, true, currentNetwork);
+        }
+    }, [userData, updateAllData, currentNetwork]);
 
     useEffect(() => {
         const isTelegramWebApp = () => {
@@ -115,121 +237,6 @@ function Wallet({ isActive, userData }) {
         touchStartY.current = 0;
     };
 
-    const updateBalances = useCallback(async (forceUpdate = false, showSkeletonLoading = false, network = currentNetwork) => {
-        if (!userData || isUpdatingRef.current) return;
-
-        try {
-            const now = Date.now();
-            if (!forceUpdate && now - lastRefreshTime.current < MIN_REFRESH_INTERVAL) {
-                setIsRefreshing(false);
-                setContentMargin(0);
-                return;
-            }
-
-            isUpdatingRef.current = true;
-            
-            if ((showSkeletonLoading && isRefreshing) || isInitialLoad) {
-                setShowSkeleton(true);
-            }
-            
-            lastRefreshTime.current = now;
-            
-            console.log(`Updating ${network} wallet balances with real data...`);
-            
-            let allTokens = [];
-            if (wallets.length === 0 || forceUpdate || wallets[0]?.network !== network) {
-                allTokens = await getAllTokens(userData, network);
-                if (!Array.isArray(allTokens) || allTokens.length === 0) {
-                    setWallets([]);
-                    localStorage.setItem('cached_wallets', JSON.stringify([]));
-                    setShowSkeleton(false);
-                    setIsRefreshing(false);
-                    setContentMargin(0);
-                    setIsInitialLoad(false);
-                    isUpdatingRef.current = false;
-                    return;
-                }
-            } else {
-                allTokens = wallets;
-            }
-
-            const updatedWallets = await getBalances(allTokens);
-            
-            updatedWallets.forEach(wallet => {
-                balanceCache.current[wallet.id] = {
-                    balance: wallet.balance,
-                    timestamp: Date.now()
-                };
-            });
-            
-            // Сортируем: USDT всегда первый
-            const sortedWallets = updatedWallets.sort((a, b) => {
-                if (a.symbol === 'USDT' && b.symbol !== 'USDT') return -1;
-                if (a.symbol !== 'USDT' && b.symbol === 'USDT') return 1;
-                return 0;
-            });
-            
-            setWallets(sortedWallets);
-            localStorage.setItem('cached_wallets', JSON.stringify(sortedWallets));
-            
-            const total = await calculateTotalBalance(sortedWallets);
-            setTotalBalance(`$${total}`);
-            localStorage.setItem('cached_total_balance', `$${total}`);
-            
-            console.log(`${network} balances updated successfully with real data`);
-            
-        } catch (error) {
-            console.error('Error updating balances:', error);
-            
-            if (Object.keys(balanceCache.current).length > 0) {
-                const cachedWallets = wallets.map(wallet => {
-                    const cachedBalance = balanceCache.current[wallet.id];
-                    return cachedBalance ? { ...wallet, balance: cachedBalance.balance } : wallet;
-                });
-                setWallets(cachedWallets);
-            }
-        } finally {
-            loadingTimerRef.current = setTimeout(() => {
-                setIsRefreshing(false);
-                setShowSkeleton(false);
-                setContentMargin(0);
-                setIsInitialLoad(false);
-                isUpdatingRef.current = false;
-                loadingTimerRef.current = null;
-            }, 300);
-        }
-    }, [userData, wallets, isInitialLoad, isRefreshing, currentNetwork]);
-
-    useEffect(() => {
-        if (userData && !hasInitialized.current) {
-            hasInitialized.current = true;
-            updateBalances(true, true, currentNetwork);
-        }
-    }, [userData, updateBalances, currentNetwork]);
-
-    useEffect(() => {
-        if (!userData) return;
-        
-        const interval = setInterval(() => {
-            updateBalances(false, false, currentNetwork);
-        }, 30000);
-        
-        return () => clearInterval(interval);
-    }, [userData, currentNetwork, updateBalances]);
-
-    useEffect(() => {
-        if (!userData) return;
-        
-        const priceUpdateInterval = setInterval(async () => {
-            const prices = await getTokenPrices();
-            console.log('Token prices updated:', prices);
-            
-            updateBalances(false, false, currentNetwork);
-        }, 60000);
-        
-        return () => clearInterval(priceUpdateInterval);
-    }, [userData, currentNetwork, updateBalances]);
-
     const handleTokenClick = useCallback((wallet) => {
         if (wallet && wallet.symbol) {
             if (wallet.symbol === 'USDT') {
@@ -293,7 +300,7 @@ function Wallet({ isActive, userData }) {
     };
 
     const handleRefresh = () => {
-        updateBalances(true, true, currentNetwork);
+        updateAllData(true, true, currentNetwork);
     };
 
     const handleNetworkChange = (newNetwork) => {
@@ -302,7 +309,12 @@ function Wallet({ isActive, userData }) {
         setWallets([]);
         localStorage.removeItem('cached_wallets');
         localStorage.removeItem('cached_total_balance');
-        updateBalances(true, true, newNetwork);
+        
+        stopPriceUpdates();
+        
+        setTimeout(() => {
+            updateAllData(true, true, newNetwork);
+        }, 100);
     };
 
     if (showPinForBackup) {

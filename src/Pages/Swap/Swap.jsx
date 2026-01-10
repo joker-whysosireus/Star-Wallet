@@ -5,8 +5,7 @@ import TokenSelectorModal from './Components/TokenSelectorModal/TokenSelectorMod
 import { 
   getAllTokens, 
   getTokenPrices, 
-  startPriceUpdates,
-  stopPriceUpdates,
+  subscribeToPriceUpdates,
   TOKENS,
   TESTNET_TOKENS,
   getBlockchainIcon,
@@ -30,24 +29,8 @@ function Swap({ userData }) {
         const savedNetwork = localStorage.getItem('selected_network');
         return savedNetwork || 'mainnet';
     });
-    
-    useEffect(() => {
-        loadTokens();
-        loadPrices();
-        
-        // Подписываемся на обновления цен
-        const stopUpdates = startPriceUpdates((updatedPrices) => {
-            setPrices(updatedPrices);
-            if (fromToken && toToken) {
-                updateExchangeRate(fromToken, toToken, updatedPrices);
-            }
-        }, 30000);
-        
-        return () => {
-            stopUpdates();
-            stopPriceUpdates();
-        };
-    }, [currentNetwork]);
+    const [lastPriceUpdate, setLastPriceUpdate] = useState(Date.now());
+    const [priceUpdateSubscription, setPriceUpdateSubscription] = useState(null);
     
     const loadTokens = async () => {
         try {
@@ -103,6 +86,7 @@ function Swap({ userData }) {
         try {
             const priceData = await getTokenPrices();
             setPrices(priceData);
+            setLastPriceUpdate(Date.now());
             
             // Обновляем курс обмена при загрузке цен
             if (fromToken && toToken) {
@@ -111,27 +95,6 @@ function Swap({ userData }) {
         } catch (error) {
             console.error('Error loading prices:', error);
         }
-    };
-    
-    const handleFromAmountChange = (value) => {
-        setFromAmount(value);
-        if (value && exchangeRate) {
-            const calculated = parseFloat(value) * exchangeRate;
-            setToAmount(calculated.toFixed(6));
-        } else {
-            setToAmount('0');
-        }
-    };
-    
-    const handleTokenSelect = (token, type) => {
-        if (type === 'from') {
-            setFromToken(token);
-            updateExchangeRate(token, toToken, prices);
-        } else {
-            setToToken(token);
-            updateExchangeRate(fromToken, token, prices);
-        }
-        setShowTokenSelector(false);
     };
     
     const updateExchangeRate = (from, to, priceData = prices) => {
@@ -154,14 +117,70 @@ function Swap({ userData }) {
         }
     };
     
+    // Подписка на обновления цен
+    useEffect(() => {
+        // Загружаем начальные данные
+        loadTokens();
+        loadPrices();
+        
+        // Подписываемся на обновления цен каждые 3 минуты
+        const unsubscribe = subscribeToPriceUpdates((updatedPrices) => {
+            console.log('Price update received in Swap component');
+            setPrices(updatedPrices);
+            setLastPriceUpdate(Date.now());
+            
+            if (fromToken && toToken) {
+                updateExchangeRate(fromToken, toToken, updatedPrices);
+            }
+        });
+        
+        setPriceUpdateSubscription(unsubscribe);
+        
+        // Очистка при размонтировании
+        return () => {
+            if (unsubscribe) {
+                unsubscribe();
+            }
+        };
+    }, [currentNetwork]);
+    
+    // Обновляем курс при изменении токенов
+    useEffect(() => {
+        if (fromToken && toToken && prices) {
+            updateExchangeRate(fromToken, toToken, prices);
+        }
+    }, [fromToken, toToken, prices]);
+    
+    const handleFromAmountChange = (value) => {
+        setFromAmount(value);
+        if (value && exchangeRate) {
+            const calculated = parseFloat(value) * exchangeRate;
+            setToAmount(calculated.toFixed(6));
+        } else {
+            setToAmount('0');
+        }
+    };
+    
+    const handleTokenSelect = (token, type) => {
+        if (type === 'from') {
+            setFromToken(token);
+        } else {
+            setToToken(token);
+        }
+        setShowTokenSelector(false);
+    };
+    
     const handleSwapTokens = () => {
         // Меняем только токены местами, суммы остаются прежними
         const tempToken = fromToken;
         setFromToken(toToken);
         setToToken(tempToken);
         
-        // Обновляем курс для новых токенов
-        updateExchangeRate(toToken, tempToken, prices);
+        // Меняем суммы местами с учетом нового курса
+        if (fromAmount && fromAmount !== '') {
+            const newToAmount = parseFloat(fromAmount) * exchangeRate;
+            setToAmount(newToAmount.toFixed(6));
+        }
     };
     
     const handleCheckDeal = () => {
@@ -173,7 +192,7 @@ function Swap({ userData }) {
         const fromSymbol = fromToken?.symbol || '';
         const toSymbol = toToken?.symbol || '';
         
-        alert(`You are about to swap ${fromAmount} ${fromSymbol} for ${toAmount} ${toSymbol}\nExchange rate: 1 ${fromSymbol} ≈ ${exchangeRate.toFixed(6)} ${toSymbol}`);
+        alert(`You are about to swap ${fromAmount} ${fromSymbol} for ${toAmount} ${toSymbol}\nExchange rate: 1 ${fromSymbol} ≈ ${exchangeRate.toFixed(6)} ${toSymbol}\nPrices updated: ${new Date(lastPriceUpdate).toLocaleTimeString()}`);
         // Здесь будет логика для проверки и выполнения сделки
     };
     
@@ -209,8 +228,17 @@ function Swap({ userData }) {
         setToToken(null);
         setFromAmount('');
         setToAmount('0');
+        
+        // Отписываемся от старых обновлений
+        if (priceUpdateSubscription) {
+            priceUpdateSubscription();
+        }
+        
         // Перезагружаем токены для новой сети
-        loadTokens();
+        setTimeout(() => {
+            loadTokens();
+            loadPrices();
+        }, 100);
     };
     
     // Скелетоны для загрузки

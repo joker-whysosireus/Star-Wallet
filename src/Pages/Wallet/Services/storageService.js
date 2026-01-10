@@ -4,10 +4,9 @@ import { Keypair, Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.j
 import { ethers } from 'ethers';
 import * as bip39 from 'bip39';
 import { BIP32Factory } from 'bip32';
-import * as ecc from 'tiny-secp256k1';
-import { Buffer } from 'buffer';
-import base58 from 'bs58';
+import * as ecc from 'tiny-secp256k1';;
 import * as bitcoin from 'bitcoinjs-lib';
+import priceService from './priceService';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -798,40 +797,37 @@ export const getRealBalances = async (wallets) => {
 
 export const getTokenPrices = async () => {
     try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,ethereum,solana,binancecoin,bitcoin,tether&vs_currencies=usd&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true&include_last_updated_at=true');
+        const prices = priceService.getCurrentPrices();
         
-        if (response.ok) {
-            const data = await response.json();
+        const now = Date.now();
+        if (now - prices.lastUpdated > 180000) {
+            console.log('Prices are stale, fetching fresh data...');
+            const freshPrices = await priceService.fetchCurrentPrices();
             return {
-                'TON': data['the-open-network']?.usd || 6.24,
-                'ETH': data.ethereum?.usd || 3500.00,
-                'SOL': data.solana?.usd || 172.34,
-                'BNB': data.binancecoin?.usd || 600.00,
-                'BTC': data.bitcoin?.usd || 68000.00,
-                'USDT': data.tether?.usd || 1.00,
-                lastUpdated: Date.now()
+                ...freshPrices,
+                lastUpdated: now
             };
         }
         
-        return {
-            'TON': 6.24,
-            'ETH': 3500.00,
-            'SOL': 172.34,
-            'BNB': 600.00,
-            'BTC': 68000.00,
-            'USDT': 1.00,
-            lastUpdated: Date.now()
-        };
+        return prices;
     } catch (error) {
         console.error('Error getting token prices:', error);
+        return priceService.getCurrentPrices();
+    }
+};
+
+export const getHistoricalChartData = async (symbol, period = '7D') => {
+    try {
+        const data = await priceService.fetchHistoricalData(symbol, period);
+        return data;
+    } catch (error) {
+        console.error('Error getting historical chart data:', error);
         return {
-            'TON': 6.24,
-            'ETH': 3500.00,
-            'SOL': 172.34,
-            'BNB': 600.00,
-            'BTC': 68000.00,
-            'USDT': 1.00,
-            lastUpdated: Date.now()
+            data: [],
+            hash: '',
+            lastUpdate: Date.now(),
+            period: period,
+            isMock: true
         };
     }
 };
@@ -1151,6 +1147,14 @@ export const getBlockchainIcon = (blockchain) => {
     return icons[blockchain] || '';
 };
 
+export const initializePriceUpdates = (callback) => {
+    return priceService.startPeriodicUpdates(callback);
+};
+
+export const subscribeToPriceUpdates = (callback) => {
+    return priceService.subscribe(callback);
+};
+
 export default {
     generateNewSeedPhrase,
     generateWalletsFromSeed,
@@ -1160,7 +1164,7 @@ export default {
     clearAllData,
     setupAppCloseListener,
     getTokenPrices,
-    getTokenPricesFromRPC,
+    getHistoricalChartData,
     calculateTotalBalance,
     getTotalUSDTBalance,
     validateAddress,
@@ -1169,8 +1173,11 @@ export default {
     saveAddressesToAPI,
     sendTransaction,
     estimateTransactionFee,
-    startPriceUpdates,
+    initializePriceUpdates,
     stopPriceUpdates,
+    subscribeToPriceUpdates,
+    getTokenPricesFromRPC,
+    startPriceUpdates,
     getCurrentPrices,
     getUSDTTokensForDetail,
     getBlockchainIcon,
