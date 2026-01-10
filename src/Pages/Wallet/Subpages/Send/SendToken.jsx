@@ -119,33 +119,6 @@ const SendToken = () => {
         }
     };
     
-    const saveTransactionToDB = async (transactionData) => {
-        try {
-            const response = await fetch('https://star-wallet-backend.netlify.app/.netlify/functions/save-transaction', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    telegram_user_id: userData.telegram_user_id,
-                    transaction: transactionData,
-                    network: network
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const result = await response.json();
-            console.log('Transaction saved to DB:', result);
-            return result;
-        } catch (error) {
-            console.error('Error saving transaction to DB:', error);
-            throw error;
-        }
-    };
-    
     const handleSend = async () => {
         if (!toAddress || !amount || parseFloat(amount) <= 0) {
             setTransactionStatus({ type: 'error', message: 'Please enter valid address and amount' });
@@ -162,6 +135,13 @@ const SendToken = () => {
             const amountSats = parseFloat(amount) * 100000000;
             if (amountSats < 546) { // Минимальный выход в сатоши
                 setTransactionStatus({ type: 'error', message: 'Minimum Bitcoin amount is 0.00000546 BTC' });
+                return;
+            }
+        }
+
+        if (token.blockchain === 'NEAR') {
+            if (parseFloat(amount) < 0.001) { // Минимальная сумма NEAR
+                setTransactionStatus({ type: 'error', message: 'Minimum NEAR amount is 0.001' });
                 return;
             }
         }
@@ -199,30 +179,6 @@ const SendToken = () => {
             const result = await sendTransaction(txParams);
 
             if (result.success) {
-                // Сохраняем транзакцию в базу данных
-                const transactionData = {
-                    id: result.hash,
-                    blockchain: token.blockchain,
-                    type: 'sent',
-                    amount: amount,
-                    symbol: token.symbol,
-                    fromAddress: '', // Можно добавить адрес отправителя
-                    toAddress: toAddress,
-                    timestamp: Date.now(),
-                    status: 'completed',
-                    explorerUrl: result.explorerUrl,
-                    network: network,
-                    comment: comment,
-                    fee: transactionFee
-                };
-                
-                try {
-                    await saveTransactionToDB(transactionData);
-                } catch (saveError) {
-                    console.error('Failed to save transaction to DB:', saveError);
-                    // Не прерываем успешную отправку, просто логируем ошибку
-                }
-                
                 setSendSuccess(true);
                 setTransactionStatus({ 
                     type: 'success', 
