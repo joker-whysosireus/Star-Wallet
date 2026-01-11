@@ -13,6 +13,7 @@ import BackupSeedPhrase from './Pages/Wallet/Subpages/BackupSeedPhrase/BackupSee
 import PinCodeScreen from './assets/PIN/PinCodeScreen.jsx';
 import Loader from './assets/Loader/Loader.jsx';
 import USDTDetail from './Pages/Wallet/Subpages/USDT/USDTDetail.jsx';
+import USDCDetail from './Pages/Wallet/Subpages/USDC/USDCDetail.jsX';
 import { initializeUserWallets } from './Pages/Wallet/Services/storageService.js';
 import { setupAppCloseListener, clearAllData } from './Pages/Wallet/Services/storageService.js';
 
@@ -286,6 +287,10 @@ const App = () => {
                 
                 <Route path="/usdt-detail" element={
                     <USDTDetail isActive={isActive} userData={userData} />
+                } />
+
+                <Route path="/usdc-detail" element={
+                    <USDCDetail isActive={isActive} userData={userData} />
                 } />
 
                 <Route path="/history" element={

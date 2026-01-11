@@ -4,7 +4,7 @@ import { Keypair, Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.j
 import { ethers } from 'ethers';
 import * as bip39 from 'bip39';
 import { BIP32Factory } from 'bip32';
-import * as ecc from 'tiny-secp256k1';;
+import * as ecc from 'tiny-secp256k1';
 import * as bitcoin from 'bitcoinjs-lib';
 import priceService from './priceService';
 
@@ -32,6 +32,36 @@ const MAINNET_CONFIG = {
     BSC: { 
         RPC_URL: 'https://bsc-dataseed1.binance.org/',
         CHAIN_ID: 56
+    },
+    BITCOIN_CASH: {
+        EXPLORER_API: 'https://blockchair.com/bitcoin-cash',
+        NETWORK: bitcoin.networks.bitcoin
+    },
+    LITECOIN: {
+        EXPLORER_API: 'https://blockchair.com/litecoin',
+        NETWORK: bitcoin.networks.bitcoin
+    },
+    ETHEREUM_CLASSIC: {
+        RPC_URL: 'https://etc.rivet.link',
+        CHAIN_ID: 61
+    },
+    NEAR: {
+        RPC_URL: 'https://rpc.mainnet.near.org',
+        NETWORK: 'mainnet',
+        HELPER_URL: 'https://helper.mainnet.near.org'
+    },
+    XRP: {
+        RPC_URL: 'wss://s1.ripple.com',
+        JSON_RPC: 'https://s1.ripple.com:51234',
+        NETWORK: 'mainnet'
+    },
+    TRON: {
+        RPC_URL: 'https://api.trongrid.io',
+        NETWORK: 'mainnet'
+    },
+    CARDANO: {
+        BLOCKFROST_URL: 'https://cardano-mainnet.blockfrost.io/api/v0',
+        NETWORK: 'mainnet'
     }
 };
 
@@ -57,6 +87,36 @@ const TESTNET_CONFIG = {
     BSC: { 
         RPC_URL: 'https://data-seed-prebsc-1-s1.binance.org:8545/',
         CHAIN_ID: 97
+    },
+    BITCOIN_CASH: {
+        EXPLORER_API: 'https://blockchair.com/bitcoin-cash/testnet',
+        NETWORK: bitcoin.networks.testnet
+    },
+    LITECOIN: {
+        EXPLORER_API: 'https://blockchair.com/litecoin/testnet',
+        NETWORK: bitcoin.networks.testnet
+    },
+    ETHEREUM_CLASSIC: {
+        RPC_URL: 'https://etc.rivet.link/testnet',
+        CHAIN_ID: 62
+    },
+    NEAR: {
+        RPC_URL: 'https://rpc.testnet.near.org',
+        NETWORK: 'testnet',
+        HELPER_URL: 'https://helper.testnet.near.org'
+    },
+    XRP: {
+        RPC_URL: 'wss://s.altnet.rippletest.net:51233',
+        JSON_RPC: 'https://s.altnet.rippletest.net:51234',
+        NETWORK: 'testnet'
+    },
+    TRON: {
+        RPC_URL: 'https://api.shasta.trongrid.io',
+        NETWORK: 'testnet'
+    },
+    CARDANO: {
+        BLOCKFROST_URL: 'https://cardano-testnet.blockfrost.io/api/v0',
+        NETWORK: 'testnet'
     }
 };
 
@@ -141,6 +201,89 @@ export const TOKENS = {
         isNative: false, 
         contractAddress: '0x55d398326f99059fF775485246999027B3197955', 
         logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
+    },
+    BCH: { 
+        symbol: 'BCH', 
+        name: 'Bitcoin Cash', 
+        blockchain: 'BitcoinCash', 
+        decimals: 8, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/bitcoin-cash-bch-logo.png' 
+    },
+    LTC: { 
+        symbol: 'LTC', 
+        name: 'Litecoin', 
+        blockchain: 'Litecoin', 
+        decimals: 8, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' 
+    },
+    ADA: { 
+        symbol: 'ADA', 
+        name: 'Cardano', 
+        blockchain: 'Cardano', 
+        decimals: 6, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/cardano-ada-logo.png' 
+    },
+    ETC: { 
+        symbol: 'ETC', 
+        name: 'Ethereum Classic', 
+        blockchain: 'EthereumClassic', 
+        decimals: 18, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/ethereum-classic-etc-logo.png' 
+    },
+    NEAR: { 
+        symbol: 'NEAR', 
+        name: 'NEAR Protocol', 
+        blockchain: 'NEAR', 
+        decimals: 24, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.png' 
+    },
+    XRP: { 
+        symbol: 'XRP', 
+        name: 'XRP', 
+        blockchain: 'XRP', 
+        decimals: 6, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/xrp-xrp-logo.png' 
+    },
+    TRX: { 
+        symbol: 'TRX', 
+        name: 'TRON', 
+        blockchain: 'TRON', 
+        decimals: 6, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/tron-trx-logo.png' 
+    },
+    USDC_ETH: { 
+        symbol: 'USDC', 
+        name: 'USD Coin (ERC20)', 
+        blockchain: 'Ethereum', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', 
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg' 
+    },
+    USDC_SOL: { 
+        symbol: 'USDC', 
+        name: 'USD Coin (SPL)', 
+        blockchain: 'Solana', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg' 
+    },
+    USDC_BSC: { 
+        symbol: 'USDC', 
+        name: 'USD Coin (BEP20)', 
+        blockchain: 'BSC', 
+        decimals: 18, 
+        isNative: false, 
+        contractAddress: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', 
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg' 
     }
 };
 
@@ -220,6 +363,89 @@ export const TESTNET_TOKENS = {
         isNative: false, 
         contractAddress: '0x337610d27c682E347C9cD60BD4b3b107C9d34dDd', 
         logo: 'https://cryptologos.cc/logos/tether-usdt-logo.svg' 
+    },
+    BCH: { 
+        symbol: 'BCH', 
+        name: 'Bitcoin Cash', 
+        blockchain: 'BitcoinCash', 
+        decimals: 8, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/bitcoin-cash-bch-logo.png' 
+    },
+    LTC: { 
+        symbol: 'LTC', 
+        name: 'Litecoin', 
+        blockchain: 'Litecoin', 
+        decimals: 8, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' 
+    },
+    ADA: { 
+        symbol: 'ADA', 
+        name: 'Cardano', 
+        blockchain: 'Cardano', 
+        decimals: 6, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/cardano-ada-logo.png' 
+    },
+    ETC: { 
+        symbol: 'ETC', 
+        name: 'Ethereum Classic', 
+        blockchain: 'EthereumClassic', 
+        decimals: 18, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/ethereum-classic-etc-logo.png' 
+    },
+    NEAR: { 
+        symbol: 'NEAR', 
+        name: 'NEAR Protocol', 
+        blockchain: 'NEAR', 
+        decimals: 24, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.png' 
+    },
+    XRP: { 
+        symbol: 'XRP', 
+        name: 'XRP', 
+        blockchain: 'XRP', 
+        decimals: 6, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/xrp-xrp-logo.png' 
+    },
+    TRX: { 
+        symbol: 'TRX', 
+        name: 'TRON', 
+        blockchain: 'TRON', 
+        decimals: 6, 
+        isNative: true, 
+        logo: 'https://cryptologos.cc/logos/tron-trx-logo.png' 
+    },
+    USDC_ETH: { 
+        symbol: 'USDC', 
+        name: 'USD Coin (ERC20)', 
+        blockchain: 'Ethereum', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: '0x0FAF6fD05B2Cb6e5A1D7a3C4cC5cB5F6E7D8E9F0A', 
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg' 
+    },
+    USDC_SOL: { 
+        symbol: 'USDC', 
+        name: 'USD Coin (SPL)', 
+        blockchain: 'Solana', 
+        decimals: 6, 
+        isNative: false, 
+        contractAddress: '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU', 
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg' 
+    },
+    USDC_BSC: { 
+        symbol: 'USDC', 
+        name: 'USD Coin (BEP20)', 
+        blockchain: 'BSC', 
+        decimals: 18, 
+        isNative: false, 
+        contractAddress: '0x64544969ed7EBf5f083679233325356EbE738930', 
+        logo: 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg' 
     }
 };
 
@@ -236,12 +462,23 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
     try {
         if (!seedPhrase) throw new Error('Seed phrase is required');
 
-        const [tonAddress, ethAddress, solAddress, bitcoinAddress, bscAddress] = await Promise.all([
+        const [
+            tonAddress, ethAddress, solAddress, bitcoinAddress, bscAddress,
+            bchAddress, ltcAddress, adaAddress, etcAddress, nearAddress,
+            xrpAddress, trxAddress
+        ] = await Promise.all([
             generateTonAddress(seedPhrase, network),
             generateEthereumAddress(seedPhrase, network),
             generateSolanaAddress(seedPhrase, network),
             generateBitcoinAddress(seedPhrase, network),
-            generateBSCAddress(seedPhrase, network)
+            generateBSCAddress(seedPhrase, network),
+            generateBitcoinCashAddress(seedPhrase, network),
+            generateLitecoinAddress(seedPhrase, network),
+            generateCardanoAddress(seedPhrase, network),
+            generateEthereumClassicAddress(seedPhrase, network),
+            generateNearAddress(seedPhrase, network),
+            generateXrpAddress(seedPhrase, network),
+            generateTronAddress(seedPhrase, network)
         ]);
 
         const walletArray = [];
@@ -254,6 +491,18 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
         walletArray.push(createWallet(tokens.BTC, bitcoinAddress, network));
         walletArray.push(createWallet(tokens.BNB, bscAddress, network));
         walletArray.push(createWallet(tokens.USDT_BSC, bscAddress, network));
+        
+        walletArray.push(createWallet(tokens.BCH, bchAddress, network));
+        walletArray.push(createWallet(tokens.LTC, ltcAddress, network));
+        walletArray.push(createWallet(tokens.ADA, adaAddress, network));
+        walletArray.push(createWallet(tokens.ETC, etcAddress, network));
+        walletArray.push(createWallet(tokens.NEAR, nearAddress, network));
+        walletArray.push(createWallet(tokens.XRP, xrpAddress, network));
+        walletArray.push(createWallet(tokens.TRX, trxAddress, network));
+        
+        walletArray.push(createWallet(tokens.USDC_ETH, ethAddress, network));
+        walletArray.push(createWallet(tokens.USDC_SOL, solAddress, network));
+        walletArray.push(createWallet(tokens.USDC_BSC, bscAddress, network));
         
         return walletArray;
     } catch (error) {
@@ -332,6 +581,99 @@ const generateBitcoinAddress = async (seedPhrase, network = 'mainnet') => {
 };
 
 const generateBSCAddress = generateEthereumAddress;
+
+const generateBitcoinCashAddress = async (seedPhrase, network = 'mainnet') => {
+    try {
+        const networkConfig = network === 'testnet' ? TESTNET_CONFIG.BITCOIN_CASH.NETWORK : MAINNET_CONFIG.BITCOIN_CASH.NETWORK;
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const root = bip32.fromSeed(seedBuffer, networkConfig);
+        const child = root.derivePath("m/44'/145'/0'/0/0");
+        const { address } = bitcoin.payments.p2pkh({ 
+            pubkey: child.publicKey, 
+            network: networkConfig 
+        });
+        return address;
+    } catch (error) {
+        console.error('Error generating Bitcoin Cash address:', error);
+        return '';
+    }
+};
+
+const generateLitecoinAddress = async (seedPhrase, network = 'mainnet') => {
+    try {
+        const networkConfig = network === 'testnet' ? TESTNET_CONFIG.LITECOIN.NETWORK : MAINNET_CONFIG.LITECOIN.NETWORK;
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const root = bip32.fromSeed(seedBuffer, networkConfig);
+        const child = root.derivePath("m/44'/2'/0'/0/0");
+        const { address } = bitcoin.payments.p2pkh({ 
+            pubkey: child.publicKey, 
+            network: networkConfig 
+        });
+        return address;
+    } catch (error) {
+        console.error('Error generating Litecoin address:', error);
+        return '';
+    }
+};
+
+const generateCardanoAddress = async (seedPhrase, network = 'mainnet') => {
+    try {
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const seedHex = seedBuffer.toString('hex').substring(0, 64);
+        
+        const { generateWalletFromSeed } = await import('@emurgo/cardano-serialization-lib-browser');
+        const wallet = generateWalletFromSeed(seedHex, network === 'testnet' ? 1 : 0);
+        return wallet.paymentAddress().to_bech32();
+    } catch (error) {
+        console.error('Error generating Cardano address:', error);
+        return '';
+    }
+};
+
+const generateEthereumClassicAddress = generateEthereumAddress;
+
+const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
+    try {
+        const { KeyPair } = await import('near-api-js');
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const seedArray = new Uint8Array(seedBuffer.subarray(0, 32));
+        const keyPair = KeyPair.fromRandom();
+        return keyPair.getPublicKey().toString();
+    } catch (error) {
+        console.error('Error generating NEAR address:', error);
+        return '';
+    }
+};
+
+const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
+    try {
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const { deriveAddress } = await import('xrpl');
+        const seed = seedBuffer.subarray(0, 16).toString('hex');
+        return deriveAddress(seed);
+    } catch (error) {
+        console.error('Error generating XRP address:', error);
+        return '';
+    }
+};
+
+const generateTronAddress = async (seedPhrase, network = 'mainnet') => {
+    try {
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
+        const wallet = masterNode.derivePath("m/44'/195'/0'/0/0");
+        
+        const TronWeb = (await import('tronweb')).default;
+        const tronWeb = new TronWeb({
+            fullHost: network === 'testnet' ? TESTNET_CONFIG.TRON.RPC_URL : MAINNET_CONFIG.TRON.RPC_URL
+        });
+        
+        return tronWeb.address.fromHex(wallet.address.replace('0x', '41'));
+    } catch (error) {
+        console.error('Error generating TRON address:', error);
+        return '';
+    }
+};
 
 export const initializeUserWallets = async (userData) => {
     try {
@@ -448,6 +790,7 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
             if (userData?.wallets && Array.isArray(userData.wallets)) {
                 const filteredWallets = [];
                 let usdtFound = false;
+                let usdcFound = false;
                 
                 for (const wallet of userData.wallets) {
                     if (wallet.symbol === 'USDT') {
@@ -458,6 +801,15 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
                                 showBlockchain: false
                             });
                             usdtFound = true;
+                        }
+                    } else if (wallet.symbol === 'USDC') {
+                        if (!usdcFound && wallet.blockchain === 'Ethereum') {
+                            filteredWallets.push({
+                                ...wallet,
+                                name: 'USD Coin',
+                                showBlockchain: false
+                            });
+                            usdcFound = true;
                         }
                     } else {
                         filteredWallets.push(wallet);
@@ -472,6 +824,7 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
                 
                 const filteredWallets = [];
                 let usdtFound = false;
+                let usdcFound = false;
                 
                 for (const wallet of allWallets) {
                     if (wallet.symbol === 'USDT') {
@@ -482,6 +835,15 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
                                 showBlockchain: false
                             });
                             usdtFound = true;
+                        }
+                    } else if (wallet.symbol === 'USDC') {
+                        if (!usdcFound && wallet.blockchain === 'Ethereum') {
+                            filteredWallets.push({
+                                ...wallet,
+                                name: 'USD Coin',
+                                showBlockchain: false
+                            });
+                            usdcFound = true;
                         }
                     } else {
                         filteredWallets.push(wallet);
@@ -496,6 +858,7 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
                 
                 const filteredWallets = [];
                 let usdtFound = false;
+                let usdcFound = false;
                 
                 for (const wallet of testnetWallets) {
                     if (wallet.symbol === 'USDT') {
@@ -506,6 +869,15 @@ export const getAllTokens = async (userData, network = 'mainnet') => {
                                 showBlockchain: false
                             });
                             usdtFound = true;
+                        }
+                    } else if (wallet.symbol === 'USDC') {
+                        if (!usdcFound && wallet.blockchain === 'Ethereum') {
+                            filteredWallets.push({
+                                ...wallet,
+                                name: 'USD Coin',
+                                showBlockchain: false
+                            });
+                            usdcFound = true;
                         }
                     } else {
                         filteredWallets.push(wallet);
@@ -739,6 +1111,128 @@ const getBEP20Balance = async (address, contractAddress, network = 'mainnet') =>
     }
 };
 
+const getBitcoinCashBalance = async (address, network = 'mainnet') => {
+    try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const response = await fetch(`${config.BITCOIN_CASH.EXPLORER_API}/dashboards/address/${address}`);
+        if (!response.ok) throw new Error('BCH API error');
+        const data = await response.json();
+        
+        const balanceData = data.data[address];
+        if (balanceData && balanceData.address) {
+            return (balanceData.address.balance / 1e8).toString();
+        }
+        return '0';
+    } catch (error) {
+        console.error('BCH balance error:', error);
+        return '0';
+    }
+};
+
+const getLitecoinBalance = async (address, network = 'mainnet') => {
+    try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const response = await fetch(`${config.LITECOIN.EXPLORER_API}/dashboards/address/${address}`);
+        if (!response.ok) throw new Error('LTC API error');
+        const data = await response.json();
+        
+        const balanceData = data.data[address];
+        if (balanceData && balanceData.address) {
+            return (balanceData.address.balance / 1e8).toString();
+        }
+        return '0';
+    } catch (error) {
+        console.error('LTC balance error:', error);
+        return '0';
+    }
+};
+
+const getCardanoBalance = async (address, network = 'mainnet') => {
+    try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        
+        const { Blockfrost } = await import('@emurgo/cardano-serialization-lib-browser');
+        const blockfrost = new Blockfrost(config.CARDANO.BLOCKFROST_URL, process.env.BLOCKFROST_API_KEY || '');
+        
+        const account = await blockfrost.getAccount(address);
+        return (parseInt(account.balance) / 1e6).toString();
+    } catch (error) {
+        console.error('ADA balance error:', error);
+        return '0';
+    }
+};
+
+const getEthereumClassicBalance = async (address, network = 'mainnet') => {
+    try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const provider = new ethers.JsonRpcProvider(config.ETHEREUM_CLASSIC.RPC_URL);
+        const balance = await provider.getBalance(address);
+        return ethers.formatEther(balance);
+    } catch (error) {
+        console.error('ETC balance error:', error);
+        return '0';
+    }
+};
+
+const getNearBalance = async (address, network = 'mainnet') => {
+    try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        
+        const { providers } = await import('near-api-js');
+        const provider = new providers.JsonRpcProvider({ url: config.NEAR.RPC_URL });
+        
+        const result = await provider.query({
+            request_type: 'view_account',
+            account_id: address,
+            finality: 'final'
+        });
+        
+        return (parseInt(result.amount) / 1e24).toString();
+    } catch (error) {
+        console.error('NEAR balance error:', error);
+        return '0';
+    }
+};
+
+const getXrpBalance = async (address, network = 'mainnet') => {
+    try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        
+        const { Client } = await import('xrpl');
+        const client = new Client(config.XRP.RPC_URL);
+        
+        await client.connect();
+        const response = await client.request({
+            command: 'account_info',
+            account: address,
+            ledger_index: 'validated'
+        });
+        await client.disconnect();
+        
+        return (parseInt(response.result.account_data.Balance) / 1e6).toString();
+    } catch (error) {
+        console.error('XRP balance error:', error);
+        return '0';
+    }
+};
+
+const getTronBalance = async (address, network = 'mainnet') => {
+    try {
+        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        
+        const TronWeb = (await import('tronweb')).default;
+        const tronWeb = new TronWeb({
+            fullHost: config.TRON.RPC_URL
+        });
+        
+        const balance = await tronWeb.trx.getBalance(address);
+        return tronWeb.fromSun(balance).toString();
+    } catch (error) {
+        console.error('TRX balance error:', error);
+        return '0';
+    }
+};
+
 export const getRealBalances = async (wallets) => {
     if (!Array.isArray(wallets)) return wallets;
     
@@ -772,6 +1266,27 @@ export const getRealBalances = async (wallets) => {
                             balance = wallet.isNative ?
                                 await getBNBBalance(wallet.address, wallet.network) :
                                 await getBEP20Balance(wallet.address, wallet.contractAddress, wallet.network);
+                            break;
+                        case 'BitcoinCash':
+                            balance = await getBitcoinCashBalance(wallet.address, wallet.network);
+                            break;
+                        case 'Litecoin':
+                            balance = await getLitecoinBalance(wallet.address, wallet.network);
+                            break;
+                        case 'Cardano':
+                            balance = await getCardanoBalance(wallet.address, wallet.network);
+                            break;
+                        case 'EthereumClassic':
+                            balance = await getEthereumClassicBalance(wallet.address, wallet.network);
+                            break;
+                        case 'NEAR':
+                            balance = await getNearBalance(wallet.address, wallet.network);
+                            break;
+                        case 'XRP':
+                            balance = await getXrpBalance(wallet.address, wallet.network);
+                            break;
+                        case 'TRON':
+                            balance = await getTronBalance(wallet.address, wallet.network);
                             break;
                     }
                     
@@ -867,6 +1382,20 @@ export const getTotalUSDTBalance = async (userData, network = 'mainnet') => {
     }
 };
 
+export const getTotalUSDCBalance = async (userData, network = 'mainnet') => {
+    try {
+        const usdcTokens = await getUSDCTokensForDetail(userData, network);
+        let total = 0;
+        usdcTokens.forEach(token => {
+            total += parseFloat(token.balance || 0);
+        });
+        return total.toFixed(2);
+    } catch (error) {
+        console.error('Error calculating total USDC balance:', error);
+        return '0.00';
+    }
+};
+
 export const validateAddress = async (blockchain, address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -875,11 +1404,10 @@ export const validateAddress = async (blockchain, address, network = 'mainnet') 
             case 'TON':
                 const tonRegex = /^(?:-1|0):[0-9a-fA-F]{64}$|^[A-Za-z0-9_-]{48}$/;
                 return tonRegex.test(address);
-                
             case 'Ethereum':
             case 'BSC':
+            case 'EthereumClassic':
                 return ethers.isAddress(address);
-                
             case 'Solana':
                 try {
                     new PublicKey(address);
@@ -887,7 +1415,6 @@ export const validateAddress = async (blockchain, address, network = 'mainnet') 
                 } catch { 
                     return false; 
                 }
-                
             case 'Bitcoin':
                 try {
                     const networkConfig = network === 'testnet' 
@@ -898,7 +1425,29 @@ export const validateAddress = async (blockchain, address, network = 'mainnet') 
                 } catch { 
                     return false; 
                 }
-                
+            case 'BitcoinCash':
+            case 'Litecoin':
+                try {
+                    const networkConfig = network === 'testnet' 
+                        ? bitcoin.networks.testnet 
+                        : bitcoin.networks.bitcoin;
+                    bitcoin.address.toOutputScript(address, networkConfig);
+                    return true;
+                } catch { 
+                    return false; 
+                }
+            case 'Cardano':
+                const adaRegex = /^addr1[0-9a-z]+$/;
+                return adaRegex.test(address);
+            case 'NEAR':
+                const nearRegex = /^[a-z0-9._-]+\.near$/;
+                return nearRegex.test(address) || /^[a-f0-9]{64}$/.test(address);
+            case 'XRP':
+                const xrpRegex = /^r[1-9A-HJ-NP-Za-km-z]{25,34}$/;
+                return xrpRegex.test(address);
+            case 'TRON':
+                const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
+                return tronRegex.test(address);
             default:
                 return true;
         }
@@ -958,7 +1507,8 @@ export const sendTransaction = async (transactionData) => {
             network
         };
         
-        if (contractAddress && blockchain !== 'Bitcoin') {
+        if (contractAddress && blockchain !== 'Bitcoin' && blockchain !== 'BitcoinCash' && 
+            blockchain !== 'Litecoin' && blockchain !== 'NEAR' && blockchain !== 'XRP') {
             txParams.contractAddress = contractAddress;
         }
         
@@ -997,7 +1547,14 @@ export const estimateTransactionFee = async (blockchain, network = 'mainnet') =>
         'Ethereum': '0.001',
         'BSC': '0.0001',
         'Solana': '0.000005',
-        'Bitcoin': '0.0001'
+        'Bitcoin': '0.0001',
+        'BitcoinCash': '0.0001',
+        'Litecoin': '0.0001',
+        'Cardano': '0.17',
+        'EthereumClassic': '0.0001',
+        'NEAR': '0.0001',
+        'XRP': '0.00001',
+        'TRON': '0.000001'
     };
     
     return defaultFees[blockchain] || '0.01';
@@ -1015,7 +1572,15 @@ export const getTokenPricesFromRPC = async () => {
             'SOL': 172.34,
             'BNB': 600.00,
             'BTC': 68000.00,
-            'USDT': 1.00
+            'USDT': 1.00,
+            'USDC': 1.00,
+            'BCH': 500.00,
+            'LTC': 85.00,
+            'ADA': 0.50,
+            'ETC': 30.00,
+            'NEAR': 5.00,
+            'XRP': 0.60,
+            'TRX': 0.10
         };
     }
 };
@@ -1135,13 +1700,81 @@ export const getUSDTTokensForDetail = async (userData, network = 'mainnet') => {
     }
 };
 
+export const getUSDCTokensForDetail = async (userData, network = 'mainnet') => {
+    try {
+        if (!userData?.seed_phrases) return [];
+        
+        const addresses = await Promise.all([
+            generateEthereumAddress(userData.seed_phrases, network),
+            generateSolanaAddress(userData.seed_phrases, network),
+            generateBSCAddress(userData.seed_phrases, network)
+        ]);
+        
+        const [ethAddress, solAddress, bscAddress] = addresses;
+        
+        const tokens = network === 'mainnet' ? TOKENS : TESTNET_TOKENS;
+        
+        const usdcTokens = [
+            {
+                ...tokens.USDC_ETH,
+                address: ethAddress,
+                blockchain: 'Ethereum',
+                name: 'USD Coin (ERC20)',
+                displayName: 'ERC20 USDC',
+                showBlockchain: true,
+                showUSDCBadge: true
+            },
+            {
+                ...tokens.USDC_SOL,
+                address: solAddress,
+                blockchain: 'Solana',
+                name: 'USD Coin (SPL)',
+                displayName: 'SPL USDC',
+                showBlockchain: true,
+                showUSDCBadge: true
+            },
+            {
+                ...tokens.USDC_BSC,
+                address: bscAddress,
+                blockchain: 'BSC',
+                name: 'USD Coin (BEP20)',
+                displayName: 'BEP20 USDC',
+                showBlockchain: true,
+                showUSDCBadge: true
+            }
+        ];
+        
+        const wallets = usdcTokens.map(token => ({
+            ...token,
+            balance: '0',
+            isActive: true,
+            network: network,
+            id: `usdc_${token.blockchain.toLowerCase()}_${Date.now()}`,
+            showBlockchain: true,
+            showUSDCBadge: true
+        }));
+        
+        return await getRealBalances(wallets);
+    } catch (error) {
+        console.error('Error getting USDC tokens for detail:', error);
+        return [];
+    }
+};
+
 export const getBlockchainIcon = (blockchain) => {
     const icons = {
         'TON': 'https://cryptologos.cc/logos/toncoin-ton-logo.png',
         'Ethereum': 'https://cryptologos.cc/logos/ethereum-eth-logo.png',
         'Solana': 'https://cryptologos.cc/logos/solana-sol-logo.png',
         'Bitcoin': 'https://cryptologos.cc/logos/bitcoin-btc-logo.png',
-        'BSC': 'https://cryptologos.cc/logos/bnb-bnb-logo.png'
+        'BSC': 'https://cryptologos.cc/logos/bnb-bnb-logo.png',
+        'BitcoinCash': 'https://cryptologos.cc/logos/bitcoin-cash-bch-logo.png',
+        'Litecoin': 'https://cryptologos.cc/logos/litecoin-ltc-logo.png',
+        'Cardano': 'https://cryptologos.cc/logos/cardano-ada-logo.png',
+        'EthereumClassic': 'https://cryptologos.cc/logos/ethereum-classic-etc-logo.png',
+        'NEAR': 'https://cryptologos.cc/logos/near-protocol-near-logo.png',
+        'XRP': 'https://cryptologos.cc/logos/xrp-xrp-logo.png',
+        'TRON': 'https://cryptologos.cc/logos/tron-trx-logo.png'
     };
     
     return icons[blockchain] || '';
@@ -1167,6 +1800,7 @@ export default {
     getHistoricalChartData,
     calculateTotalBalance,
     getTotalUSDTBalance,
+    getTotalUSDCBalance,
     validateAddress,
     revealSeedPhrase,
     saveSeedPhraseToAPI,
@@ -1180,6 +1814,7 @@ export default {
     startPriceUpdates,
     getCurrentPrices,
     getUSDTTokensForDetail,
+    getUSDCTokensForDetail,
     getBlockchainIcon,
     TOKENS,
     TESTNET_TOKENS

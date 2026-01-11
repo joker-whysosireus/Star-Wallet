@@ -1,0 +1,112 @@
+/* USDCDetail.css */
+.page-container {
+    min-height: 100vh;
+    background-color: #000000;
+    color: white;
+    font-family: 'Rubik', sans-serif;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    padding-top: 90px;
+    padding-bottom: 80px;
+}
+
+.page-content {
+    flex: 1;
+    padding: 20px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    width: 100%;
+    overflow-y: auto;
+}
+
+.token-icon-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 5px 0;
+}
+
+.token-icon-large {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid rgba(38, 161, 123, 0.2);
+}
+
+.total-usdc-balance-display {
+    text-align: center;
+    margin-bottom: 15px;
+    width: 100%;
+}
+
+.total-usdc-amount-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.total-usdc-amount {
+    font-size: 24px;
+    font-weight: 600;
+    color: white;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.total-usdc-badge {
+    background-color: #26A17B;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.total-usdc-value {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0;
+}
+
+.usdc-tokens-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    width: 100%;
+    max-width: 400px;
+    margin-top: 10px;
+}
+
+.usdc-token-block {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    border: none;
+}
+
+.usdc-token-block:hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: none;
+}
+
+.no-tokens-message {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: 20px;
+    font-size: 14px;
+}

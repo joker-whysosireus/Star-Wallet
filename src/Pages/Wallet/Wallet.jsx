@@ -99,6 +99,8 @@ function Wallet({ isActive, userData }) {
             const sortedWallets = updatedWallets.sort((a, b) => {
                 if (a.symbol === 'USDT' && b.symbol !== 'USDT') return -1;
                 if (a.symbol !== 'USDT' && b.symbol === 'USDT') return 1;
+                if (a.symbol === 'USDC' && b.symbol !== 'USDC') return -1;
+                if (a.symbol !== 'USDC' && b.symbol === 'USDC') return 1;
                 return 0;
             });
             
@@ -241,6 +243,13 @@ function Wallet({ isActive, userData }) {
         if (wallet && wallet.symbol) {
             if (wallet.symbol === 'USDT') {
                 navigate(`/usdt-detail`, { 
+                    state: { 
+                        userData: userData,
+                        network: currentNetwork
+                    }
+                });
+            } else if (wallet.symbol === 'USDC') {
+                navigate(`/usdc-detail`, { 
                     state: { 
                         userData: userData,
                         network: currentNetwork
@@ -448,6 +457,7 @@ function Wallet({ isActive, userData }) {
                                     wallet={wallet} 
                                     network={currentNetwork}
                                     isUSDTInList={wallet.symbol === 'USDT'}
+                                    isUSDCInList={wallet.symbol === 'USDC'}
                                 />
                             </div>
                         ))
