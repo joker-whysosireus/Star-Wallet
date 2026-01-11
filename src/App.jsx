@@ -12,8 +12,8 @@ import ReceiveToken from './Pages/Wallet/Subpages/Receive/ReceiveToken';
 import BackupSeedPhrase from './Pages/Wallet/Subpages/BackupSeedPhrase/BackupSeedPhrase';
 import PinCodeScreen from './assets/PIN/PinCodeScreen.jsx';
 import Loader from './assets/Loader/Loader.jsx';
-import USDTDetail from './Pages/Wallet/Subpages/USDT/USDTDetail.jsx';
-import USDCDetail from './Pages/Wallet/Subpages/USDC/USDCDetail.jsX';
+import USDTDetail from './Pages/Wallet/Subpages/USDT/USDTDetail';
+import USDCDetails from './Pages/Wallet/Subpages/USDCfolder/USDCDetails.jsx';
 import { initializeUserWallets } from './Pages/Wallet/Services/storageService.js';
 import { setupAppCloseListener, clearAllData } from './Pages/Wallet/Services/storageService.js';
 
@@ -290,7 +290,7 @@ const App = () => {
                 } />
 
                 <Route path="/usdc-detail" element={
-                    <USDCDetail isActive={isActive} userData={userData} />
+                    <USDCDetails isActive={isActive} userData={userData} />
                 } />
 
                 <Route path="/history" element={
