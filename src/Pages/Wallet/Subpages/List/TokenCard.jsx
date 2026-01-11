@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getTokenPrices } from '../../Services/storageService';
 import './TokenCard.css';
 
-const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInList = false }) => {
+const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInList = false, isUSDCInList = false }) => {
     const [usdBalance, setUsdBalance] = useState('$0.00');
     const [tokenPrice, setTokenPrice] = useState('$0.00');
     
@@ -88,13 +88,20 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInLis
                 <div className="token-right">
                     <div className="token-balance skeleton-loader" style={{ width: '80px', height: '18px', marginBottom: '6px' }}></div>
                     <div className="token-usd-balance skeleton-loader" style={{ width: '60px', height: '14px' }}></div>
-                    <div className="blockchain-badge skeleton-loader" style={{ width: '40px', height: '12px', marginTop: '4px' }}></div>
+                    <div className="blockchain-badge-tokencard skeleton-loader" style={{ width: '40px', height: '12px', marginTop: '4px' }}></div>
                 </div>
             </div>
         );
     }
     
-    const getBlockchainBadge = (blockchain) => {
+    const getBlockchainBadge = (blockchain, symbol) => {
+        if (symbol === 'USDT') {
+            return { color: '#26A17B', text: 'USDT' };
+        }
+        if (symbol === 'USDC') {
+            return { color: '#2775CA', text: 'USDC' };
+        }
+        
         const badges = {
             'TON': { color: '#0088cc', bg: 'rgba(0, 136, 204, 0.1)', text: 'TON' },
             'Solana': { color: '#00ff88', bg: 'rgba(0, 255, 136, 0.1)', text: 'SOL' },
@@ -102,13 +109,20 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInLis
             'Tron': { color: '#ff0000', bg: 'rgba(255, 0, 0, 0.1)', text: 'TRX' },
             'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)', text: 'BTC' },
             'Litecoin': { color: '#bfbbbf', bg: 'rgba(191, 187, 191, 0.1)', text: 'LTC' },
-            'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)', text: 'BNB' }
+            'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)', text: 'BNB' },
+            // Новые блокчейны
+            'BitcoinCash': { color: '#8dc351', bg: 'rgba(141, 195, 81, 0.1)', text: 'BCH' },
+            'Cardano': { color: '#0033ad', bg: 'rgba(0, 51, 173, 0.1)', text: 'ADA' },
+            'EthereumClassic': { color: '#6c8cf2', bg: 'rgba(108, 140, 242, 0.1)', text: 'ETC' },
+            'NEAR': { color: '#000000', bg: 'rgba(0, 0, 0, 0.1)', text: 'NEAR' },
+            'XRP': { color: '#23292f', bg: 'rgba(35, 41, 47, 0.1)', text: 'XRP' },
+            'TRON': { color: '#ff060a', bg: 'rgba(255, 6, 10, 0.1)', text: 'TRX' }
         };
         
         return badges[blockchain] || { color: '#666', text: blockchain };
     };
     
-    const badge = getBlockchainBadge(wallet.blockchain);
+    const badge = getBlockchainBadge(wallet.blockchain, wallet.symbol);
     const formattedBalance = formatBalance(wallet.balance);
 
     if (isUSDTInList) {
@@ -145,10 +159,54 @@ const TokenCard = ({ wallet, isLoading = false, network = 'mainnet', isUSDTInLis
                     </div>
                     <div 
                         className="blockchain-badge-tokencard" 
-                        style={{ backgroundColor: '#26A17B' }}
+                        style={{ backgroundColor: badge.color }}
                         title="USDT"
                     >
-                        USDT
+                        {badge.text}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (isUSDCInList) {
+        return (
+            <div className="token-card">
+                <div className="token-left">
+                    <div className="token-icon">
+                        <img 
+                            src={wallet.logo} 
+                            alt={wallet.symbol}
+                            className="token-logo"
+                            onError={(e) => {
+                                console.error(`Failed to load logo for ${wallet.symbol}:`, e);
+                                e.target.style.display = 'none';
+                                const fallback = document.createElement('div');
+                                fallback.className = 'token-logo-fallback';
+                                fallback.textContent = wallet.symbol.substring(0, 2);
+                                e.target.parentNode.appendChild(fallback);
+                            }}
+                        />
+                    </div>
+                    <div className="token-names">
+                        <div className="token-name" style={{ fontSize: '14px', color: 'white' }}>USD Coin</div>
+                        <div className="token-symbol" style={{ fontSize: '16px', fontWeight: '600', color: 'white' }}>USDC</div>
+                        <div className="token-price">{tokenPrice}</div>
+                    </div>
+                </div>
+                <div className="token-right">
+                    <div className="token-balance" style={{ fontSize: '16px', fontWeight: '600', color: 'white' }}>
+                        {formattedBalance}
+                    </div>
+                    <div className="token-usd-balance" style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.5)' }}>
+                        {usdBalance}
+                    </div>
+                    <div 
+                        className="blockchain-badge-tokencard" 
+                        style={{ backgroundColor: badge.color }}
+                        title="USDC"
+                    >
+                        {badge.text}
                     </div>
                 </div>
             </div>

@@ -6,7 +6,7 @@
     display: flex;
     flex-direction: column;
     position: relative;
-    padding-top: 90px;
+    padding-top: 105px;
     padding-bottom: 80px;
 }
 
@@ -51,6 +51,7 @@
     flex-direction: column;
     align-items: center;
     gap: 8px;
+    width: 100%;
 }
 
 .total-usdt-amount-container {
@@ -106,8 +107,7 @@
 }
 
 .usdt-token-block:hover {
-    background: rgba(255, 255, 255, 0.05);
-    transform: none;
+    background: rgba(255, 255, 255, 0.08);
 }
 
 .no-tokens-message {
@@ -115,4 +115,80 @@
     color: rgba(255, 255, 255, 0.5);
     margin-top: 20px;
     font-size: 14px;
+}
+
+/* Скелетоны */
+.skeleton-loader {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+}
+
+.skeleton-total-balance {
+    height: 30px;
+    width: 180px;
+}
+
+.skeleton-badge {
+    height: 24px;
+    width: 60px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.skeleton-value {
+    height: 18px;
+    width: 120px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    margin: 0 auto;
+}
+
+.skeleton-token {
+    background: rgba(255, 255, 255, 0.03) !important;
+}
+
+.skeleton-icon {
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+}
+
+.skeleton-line {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+.skeleton-name {
+    height: 14px;
+    width: 80px;
+    margin-bottom: 6px;
+}
+
+.skeleton-symbol {
+    height: 18px;
+    width: 60px;
+    margin-bottom: 2px;
+}
+
+.skeleton-price {
+    height: 12px;
+    width: 50px;
+}
+
+.skeleton-balance {
+    height: 18px;
+    width: 80px;
+    margin-bottom: 6px;
+}
+
+.skeleton-usd {
+    height: 14px;
+    width: 60px;
+    margin-bottom: 4px;
+}
+
+.skeleton-badge {
+    height: 12px;
+    width: 40px;
 }

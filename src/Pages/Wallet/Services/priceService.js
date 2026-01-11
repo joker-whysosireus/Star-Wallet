@@ -9,6 +9,14 @@ class PriceService {
             'BNB': 600.00,
             'BTC': 68000.00,
             'USDT': 1.00,
+            'USDC': 1.00,
+            'BCH': 500.00,
+            'LTC': 85.00,
+            'ADA': 0.50,
+            'ETC': 30.00,
+            'NEAR': 5.00,
+            'XRP': 0.60,
+            'TRX': 0.10,
             lastUpdated: Date.now()
         };
         
@@ -38,7 +46,15 @@ class PriceService {
             'SOL': 'solana',
             'BNB': 'binancecoin',
             'BTC': 'bitcoin',
-            'USDT': 'tether'
+            'USDT': 'tether',
+            'USDC': 'usd-coin',
+            'BCH': 'bitcoin-cash',
+            'LTC': 'litecoin',
+            'ADA': 'cardano',
+            'ETC': 'ethereum-classic',
+            'NEAR': 'near',
+            'XRP': 'ripple',
+            'TRX': 'tron'
         };
 
         const days = daysMap[period] || '7';
@@ -181,7 +197,23 @@ class PriceService {
         this.isUpdating = true;
 
         try {
-            const coinIds = ['the-open-network', 'ethereum', 'solana', 'binancecoin', 'bitcoin', 'tether'];
+            const coinIds = [
+                'the-open-network', 
+                'ethereum', 
+                'solana', 
+                'binancecoin', 
+                'bitcoin',
+                'tether',
+                'usd-coin',
+                'bitcoin-cash',
+                'litecoin',
+                'cardano',
+                'ethereum-classic',
+                'near',
+                'ripple',
+                'tron'
+            ];
+            
             const response = await fetch(
                 `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds.join(',')}&vs_currencies=usd`
             );
@@ -196,6 +228,14 @@ class PriceService {
                     'BNB': data.binancecoin?.usd || this.currentPrices.BNB,
                     'BTC': data.bitcoin?.usd || this.currentPrices.BTC,
                     'USDT': data.tether?.usd || 1.00,
+                    'USDC': data['usd-coin']?.usd || 1.00,
+                    'BCH': data['bitcoin-cash']?.usd || this.currentPrices.BCH,
+                    'LTC': data.litecoin?.usd || this.currentPrices.LTC,
+                    'ADA': data.cardano?.usd || this.currentPrices.ADA,
+                    'ETC': data['ethereum-classic']?.usd || this.currentPrices.ETC,
+                    'NEAR': data.near?.usd || this.currentPrices.NEAR,
+                    'XRP': data.ripple?.usd || this.currentPrices.XRP,
+                    'TRX': data.tron?.usd || this.currentPrices.TRX,
                     lastUpdated: Date.now()
                 };
             }

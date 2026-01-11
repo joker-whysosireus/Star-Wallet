@@ -484,25 +484,26 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
         const walletArray = [];
         const tokens = network === 'mainnet' ? TOKENS : TESTNET_TOKENS;
         
+        // Новый порядок: LTC и BCH под Bitcoin, Ethereum Classic под Ethereum
         walletArray.push(createWallet(tokens.TON, tonAddress, network));
         walletArray.push(createWallet(tokens.USDT_TON, tonAddress, network));
         walletArray.push(createWallet(tokens.ETH, ethAddress, network));
+        walletArray.push(createWallet(tokens.USDT_ETH, ethAddress, network));
+        walletArray.push(createWallet(tokens.USDC_ETH, ethAddress, network));
+        walletArray.push(createWallet(tokens.ETC, etcAddress, network)); // Ethereum Classic под Ethereum
         walletArray.push(createWallet(tokens.SOL, solAddress, network));
+        walletArray.push(createWallet(tokens.USDT_SOL, solAddress, network));
+        walletArray.push(createWallet(tokens.USDC_SOL, solAddress, network));
         walletArray.push(createWallet(tokens.BTC, bitcoinAddress, network));
+        walletArray.push(createWallet(tokens.BCH, bchAddress, network)); // Bitcoin Cash под Bitcoin
+        walletArray.push(createWallet(tokens.LTC, ltcAddress, network)); // Litecoin под Bitcoin
         walletArray.push(createWallet(tokens.BNB, bscAddress, network));
         walletArray.push(createWallet(tokens.USDT_BSC, bscAddress, network));
-        
-        walletArray.push(createWallet(tokens.BCH, bchAddress, network));
-        walletArray.push(createWallet(tokens.LTC, ltcAddress, network));
+        walletArray.push(createWallet(tokens.USDC_BSC, bscAddress, network));
         walletArray.push(createWallet(tokens.ADA, adaAddress, network));
-        walletArray.push(createWallet(tokens.ETC, etcAddress, network));
         walletArray.push(createWallet(tokens.NEAR, nearAddress, network));
         walletArray.push(createWallet(tokens.XRP, xrpAddress, network));
         walletArray.push(createWallet(tokens.TRX, trxAddress, network));
-        
-        walletArray.push(createWallet(tokens.USDC_ETH, ethAddress, network));
-        walletArray.push(createWallet(tokens.USDC_SOL, solAddress, network));
-        walletArray.push(createWallet(tokens.USDC_BSC, bscAddress, network));
         
         return walletArray;
     } catch (error) {
