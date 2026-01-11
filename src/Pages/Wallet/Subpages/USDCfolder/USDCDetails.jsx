@@ -162,23 +162,72 @@ const USDCDetail = () => {
                             </div>
                         ))
                     ) : usdcTokens.length > 0 ? (
-                        usdcTokens.map(token => (
-                            <div 
-                                key={token.id} 
-                                className="usdc-token-block"
-                                onClick={() => handleTokenClick(token)}
-                            >
-                                <TokenCard 
-                                    wallet={{
-                                        ...token,
-                                        symbol: 'USDC',
-                                        name: token.displayName || token.name,
-                                        showBlockchain: true
-                                    }} 
-                                    network={network}
-                                />
-                            </div>
-                        ))
+                        usdcTokens.map(token => {
+                            // Определяем бейдж для каждого блокчейна USDC
+                            let badgeColor = '';
+                            let badgeText = '';
+                            
+                            switch(token.blockchain) {
+                                case 'Ethereum':
+                                    badgeColor = '#8c8cff';
+                                    badgeText = 'ETH';
+                                    break;
+                                case 'Solana':
+                                    badgeColor = '#00ff88';
+                                    badgeText = 'SOL';
+                                    break;
+                                case 'BSC':
+                                    badgeColor = '#bfcd43';
+                                    badgeText = 'BNB';
+                                    break;
+                                default:
+                                    badgeColor = '#2775CA';
+                                    badgeText = 'USDC';
+                            }
+                            
+                            return (
+                                <div 
+                                    key={token.id} 
+                                    className="usdc-token-block"
+                                    onClick={() => handleTokenClick(token)}
+                                >
+                                    <div className="token-card">
+                                        <div className="token-left">
+                                            <div className="token-icon">
+                                                <img 
+                                                    src={token.logo} 
+                                                    alt={token.symbol}
+                                                    className="token-logo"
+                                                    onError={(e) => {
+                                                        e.target.style.display = 'none';
+                                                        const fallback = document.createElement('div');
+                                                        fallback.className = 'token-logo-fallback';
+                                                        fallback.textContent = token.symbol.substring(0, 2);
+                                                        e.target.parentNode.appendChild(fallback);
+                                                    }}
+                                                />
+                                            </div>
+                                            <div className="token-names">
+                                                <div className="token-name">{token.displayName || token.name}</div>
+                                                <div className="token-symbol">USDC</div>
+                                                <div className="token-price">$1.00</div>
+                                            </div>
+                                        </div>
+                                        <div className="token-right">
+                                            <div className="token-balance">{token.balance || '0'}</div>
+                                            <div className="token-usd-balance">${(parseFloat(token.balance || 0) * 1.00).toFixed(2)}</div>
+                                            <div 
+                                                className="blockchain-badge-tokencard" 
+                                                style={{ backgroundColor: badgeColor }}
+                                                title={badgeText}
+                                            >
+                                                {badgeText}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })
                     ) : (
                         <div className="no-tokens-message">
                             <p>No USDC tokens found</p>
