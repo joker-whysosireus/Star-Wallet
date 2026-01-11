@@ -21,7 +21,6 @@ const USDTDetail = () => {
     const [totalUSDTBalance, setTotalUSDTBalance] = useState('0.00');
     const [totalUSDTValue, setTotalUSDTValue] = useState('0.00');
     const [isLoading, setIsLoading] = useState(true);
-    const [showSkeleton, setShowSkeleton] = useState(true);
     
     const usdtLogo = TOKENS.USDT_TON?.logo || 'https://cryptologos.cc/logos/tether-usdt-logo.svg';
     
@@ -34,7 +33,6 @@ const USDTDetail = () => {
         const loadData = async () => {
             try {
                 setIsLoading(true);
-                setShowSkeleton(true);
                 
                 const tokens = await getUSDTTokensForDetail(userData, network);
                 const updatedTokens = await getBalances(tokens);
@@ -55,7 +53,6 @@ const USDTDetail = () => {
                 setTotalUSDTValue('0.00');
             } finally {
                 setIsLoading(false);
-                setShowSkeleton(false);
             }
         };
         
@@ -127,33 +124,21 @@ const USDTDetail = () => {
                 </div>
                 
                 <div className="total-usdt-balance-display">
-                    {showSkeleton ? (
-                        <div className="total-usdt-skeleton-container">
-                            <div className="total-usdt-amount-container">
-                                <div className="skeleton-loader skeleton-total-balance"></div>
-                                <div className="skeleton-badge"></div>
-                            </div>
-                            <div className="skeleton-value"></div>
+                    <div className="total-usdt-amount-container">
+                        <div className="total-usdt-amount">
+                            {totalUSDTBalance} USDT
                         </div>
-                    ) : (
-                        <>
-                            <div className="total-usdt-amount-container">
-                                <div className="total-usdt-amount">
-                                    {totalUSDTBalance} USDT
-                                </div>
-                                <div className="total-usdt-badge">
-                                    USDT
-                                </div>
-                            </div>
-                            <div className="total-usdt-value">
-                                ${totalUSDTValue}
-                            </div>
-                        </>
-                    )}
+                        <div className="total-usdt-badge">
+                            USDT
+                        </div>
+                    </div>
+                    <div className="total-usdt-value">
+                        ${totalUSDTValue}
+                    </div>
                 </div>
                 
                 <div className="usdt-tokens-grid">
-                    {showSkeleton ? (
+                    {isLoading ? (
                         Array.from({ length: 4 }).map((_, index) => (
                             <div 
                                 key={`skeleton-${index}`} 
@@ -191,7 +176,6 @@ const USDTDetail = () => {
                                         showBlockchain: true
                                     }} 
                                     network={network}
-                                    isUSDTInList={true}
                                 />
                             </div>
                         ))
