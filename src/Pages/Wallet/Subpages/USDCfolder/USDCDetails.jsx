@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
-import TokenCard from '../List/TokenCard';
 import { 
     getUSDCTokensForDetail, 
     getTotalUSDCBalance,
@@ -21,6 +20,7 @@ const USDCDetail = () => {
     const [totalUSDCBalance, setTotalUSDCBalance] = useState('0.00');
     const [totalUSDCValue, setTotalUSDCValue] = useState('0.00');
     const [isLoading, setIsLoading] = useState(true);
+    const [usdcPrice, setUsdcPrice] = useState(1.00);
     
     const usdcLogo = TOKENS.USDC_ETH?.logo || 'https://cryptologos.cc/logos/usd-coin-usdc-logo.svg';
     
@@ -34,6 +34,11 @@ const USDCDetail = () => {
             try {
                 setIsLoading(true);
                 
+                // Получаем реальную цену USDC из priceService
+                const prices = await getTokenPrices();
+                const currentUsdcPrice = prices['USDC'] || 1.00;
+                setUsdcPrice(currentUsdcPrice);
+                
                 const tokens = await getUSDCTokensForDetail(userData, network);
                 const updatedTokens = await getBalances(tokens);
                 setUsdcTokens(updatedTokens);
@@ -41,9 +46,7 @@ const USDCDetail = () => {
                 const total = await getTotalUSDCBalance(userData, network);
                 setTotalUSDCBalance(total);
                 
-                const prices = await getTokenPrices();
-                const usdcPrice = prices['USDC'] || 1.00;
-                const totalValue = parseFloat(total) * usdcPrice;
+                const totalValue = parseFloat(total) * currentUsdcPrice;
                 setTotalUSDCValue(totalValue.toFixed(2));
                 
             } catch (error) {
@@ -74,7 +77,8 @@ const USDCDetail = () => {
                 name: token.displayName || token.name,
                 userData: userData,
                 network: network,
-                blockchain: token.blockchain
+                blockchain: token.blockchain,
+                price: usdcPrice
             }
         });
     };
@@ -185,6 +189,9 @@ const USDCDetail = () => {
                                     badgeText = 'USDC';
                             }
                             
+                            const tokenBalance = parseFloat(token.balance || 0);
+                            const tokenValue = tokenBalance * usdcPrice;
+                            
                             return (
                                 <div 
                                     key={token.id} 
@@ -210,12 +217,12 @@ const USDCDetail = () => {
                                             <div className="token-names">
                                                 <div className="token-name">{token.displayName || token.name}</div>
                                                 <div className="token-symbol">USDC</div>
-                                                <div className="token-price">$1.00</div>
+                                                <div className="token-price">${usdcPrice.toFixed(4)}</div>
                                             </div>
                                         </div>
                                         <div className="token-right">
                                             <div className="token-balance">{token.balance || '0'}</div>
-                                            <div className="token-usd-balance">${(parseFloat(token.balance || 0) * 1.00).toFixed(2)}</div>
+                                            <div className="token-usd-balance">${tokenValue.toFixed(2)}</div>
                                             <div 
                                                 className="blockchain-badge-tokencard" 
                                                 style={{ backgroundColor: badgeColor }}

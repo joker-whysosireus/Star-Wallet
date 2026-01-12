@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Header from '../../../../assets/Header/Header';
 import Menu from '../../../../assets/Menus/Menu/Menu';
-import TokenCard from '../List/TokenCard';
 import { 
     getUSDTTokensForDetail, 
     getTotalUSDTBalance,
@@ -21,6 +20,7 @@ const USDTDetail = () => {
     const [totalUSDTBalance, setTotalUSDTBalance] = useState('0.00');
     const [totalUSDTValue, setTotalUSDTValue] = useState('0.00');
     const [isLoading, setIsLoading] = useState(true);
+    const [usdtPrice, setUsdtPrice] = useState(1.00);
     
     const usdtLogo = TOKENS.USDT_TON?.logo || 'https://cryptologos.cc/logos/tether-usdt-logo.svg';
     
@@ -34,6 +34,11 @@ const USDTDetail = () => {
             try {
                 setIsLoading(true);
                 
+                // Получаем реальную цену USDT из priceService
+                const prices = await getTokenPrices();
+                const currentUsdtPrice = prices['USDT'] || 1.00;
+                setUsdtPrice(currentUsdtPrice);
+                
                 const tokens = await getUSDTTokensForDetail(userData, network);
                 const updatedTokens = await getBalances(tokens);
                 setUsdtTokens(updatedTokens);
@@ -41,9 +46,7 @@ const USDTDetail = () => {
                 const total = await getTotalUSDTBalance(userData, network);
                 setTotalUSDTBalance(total);
                 
-                const prices = await getTokenPrices();
-                const usdtPrice = prices['USDT'] || 1.00;
-                const totalValue = parseFloat(total) * usdtPrice;
+                const totalValue = parseFloat(total) * currentUsdtPrice;
                 setTotalUSDTValue(totalValue.toFixed(2));
                 
             } catch (error) {
@@ -74,7 +77,8 @@ const USDTDetail = () => {
                 name: token.displayName || token.name,
                 userData: userData,
                 network: network,
-                blockchain: token.blockchain
+                blockchain: token.blockchain,
+                price: usdtPrice
             }
         });
     };
@@ -139,7 +143,7 @@ const USDTDetail = () => {
                 
                 <div className="usdt-tokens-grid">
                     {isLoading ? (
-                        Array.from({ length: 4 }).map((_, index) => (
+                        Array.from({ length: 5 }).map((_, index) => (
                             <div 
                                 key={`skeleton-${index}`} 
                                 className="usdt-token-block skeleton-token"
@@ -193,6 +197,9 @@ const USDTDetail = () => {
                                     badgeText = 'USDT';
                             }
                             
+                            const tokenBalance = parseFloat(token.balance || 0);
+                            const tokenValue = tokenBalance * usdtPrice;
+                            
                             return (
                                 <div 
                                     key={token.id} 
@@ -218,12 +225,12 @@ const USDTDetail = () => {
                                             <div className="token-names">
                                                 <div className="token-name">{token.displayName || token.name}</div>
                                                 <div className="token-symbol">USDT</div>
-                                                <div className="token-price">$1.00</div>
+                                                <div className="token-price">${usdtPrice.toFixed(4)}</div>
                                             </div>
                                         </div>
                                         <div className="token-right">
                                             <div className="token-balance">{token.balance || '0'}</div>
-                                            <div className="token-usd-balance">${(parseFloat(token.balance || 0) * 1.00).toFixed(2)}</div>
+                                            <div className="token-usd-balance">${tokenValue.toFixed(2)}</div>
                                             <div 
                                                 className="blockchain-badge-tokencard" 
                                                 style={{ backgroundColor: badgeColor }}
