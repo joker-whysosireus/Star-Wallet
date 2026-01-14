@@ -11,6 +11,7 @@ import { JsonRpcProvider } from '@near-js/providers';
 import base58 from 'bs58';
 import crypto from 'crypto';
 import { bech32 } from 'bech32';
+import * as xrpl from 'xrpl';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -49,7 +50,7 @@ const MAINNET_CONFIG = {
     ETHEREUM_CLASSIC: {
         RPC_URL: 'https://etc.rivet.link',
         CHAIN_ID: 61,
-        BLOCKSCOUT_API: 'https://blockscout.com/etc/mainnet/api'
+        BLOCKSCOUT_API: 'https://etc-mordor.blockscout.com/api/v2'
     },
     NEAR: {
         RPC_URL: 'https://rpc.mainnet.near.org',
@@ -108,7 +109,7 @@ const TESTNET_CONFIG = {
     ETHEREUM_CLASSIC: {
         RPC_URL: 'https://etc.etcdesktop.com',
         CHAIN_ID: 62,
-        BLOCKSCOUT_API: 'https://blockscout.com/etc/mordor/api'
+        BLOCKSCOUT_API: 'https://etc-mordor.blockscout.com/api/v2'
     },
     NEAR: {
         RPC_URL: 'https://rpc.testnet.near.org',
@@ -606,18 +607,7 @@ const generateLitecoinAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-const generateEthereumClassicAddress = async (seedPhrase, network = 'mainnet') => {
-    try {
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const path = network === 'mainnet' ? "m/44'/61'/0'/0/0" : "m/44'/1'/0'/0/0";
-        const wallet = masterNode.derivePath(path);
-        return wallet.address;
-    } catch (error) {
-        console.error('Error generating Ethereum Classic address:', error);
-        return '';
-    }
-};
+const generateEthereumClassicAddress = generateEthereumAddress;
 
 const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
     try {
@@ -660,47 +650,11 @@ const generateTronAddress = async (seedPhrase, network = 'mainnet') => {
 
 const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
     try {
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const root = bip32.fromSeed(seedBuffer);
-        
-        const child = root.derivePath("m/44'/144'/0'/0/0");
-        const publicKey = child.publicKey;
-        
-        const sha256Hash = crypto.createHash('sha256').update(publicKey).digest();
-        const ripemd160 = crypto.createHash('ripemd160').update(sha256Hash).digest();
-        
-        const prefix = network === 'mainnet' ? Buffer.from([0x00]) : Buffer.from([0x04]);
-        const payload = Buffer.concat([prefix, ripemd160]);
-        
-        const hash1 = crypto.createHash('sha256').update(payload).digest();
-        const hash2 = crypto.createHash('sha256').update(hash1).digest();
-        const checksum = hash2.slice(0, 4);
-        
-        const finalBytes = Buffer.concat([payload, checksum]);
-        
-        const base58Encode = (buffer, alphabet) => {
-            let result = '';
-            let n = BigInt('0x' + buffer.toString('hex'));
-            
-            while (n > 0) {
-                const remainder = Number(n % 58n);
-                result = alphabet[remainder] + result;
-                n = n / 58n;
-            }
-            
-            for (let i = 0; i < buffer.length; i++) {
-                if (buffer[i] === 0) {
-                    result = alphabet[0] + result;
-                } else {
-                    break;
-                }
-            }
-            
-            return result;
-        };
-        
-        const XRP_ALPHABET = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz';
-        return base58Encode(finalBytes, XRP_ALPHABET);
+        const mnemonic = seedPhrase;
+        const wallet = xrpl.Wallet.fromMnemonic(mnemonic, {
+            derivationPath: "m/44'/144'/0'/0/0"
+        });
+        return wallet.address;
     } catch (error) {
         console.error('Error generating XRP address:', error);
         return '';
@@ -1027,8 +981,7 @@ const getLitecoinBalance = async (address, network = 'mainnet') => {
 const getEthereumClassicBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        
-        const blockscoutUrl = `${config.ETHEREUM_CLASSIC.BLOCKSCOUT_API}?module=account&action=balance&address=${address}`;
+        const blockscoutUrl = `${config.ETHEREUM_CLASSIC.BLOCKSCOUT_API}/addresses/${address}`;
         
         const response = await fetch(blockscoutUrl, {
             headers: {
@@ -1037,12 +990,16 @@ const getEthereumClassicBalance = async (address, network = 'mainnet') => {
             }
         });
         
-        if (response.ok) {
-            const data = await response.json();
-            if (data.result) {
-                const balanceInWei = data.result;
-                return ethers.formatEther(balanceInWei);
-            }
+        if (!response.ok) {
+            console.warn(`Blockscout API failed: ${response.status}`);
+            return '0';
+        }
+        
+        const data = await response.json();
+        
+        if (data.coin_balance) {
+            const balanceInWei = data.coin_balance;
+            return ethers.formatEther(balanceInWei);
         }
         
         return '0';
@@ -1186,6 +1143,8 @@ const getTRC20Balance = async (address, contractAddress, network = 'mainnet') =>
 const getCardanoBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        
+        // Попробуем Chain49 API согласно документации
         const chain49Url = `${config.CARDANO.CHAIN49_API}/addresses/${address}`;
         
         const response = await fetch(chain49Url, {
@@ -1195,16 +1154,44 @@ const getCardanoBalance = async (address, network = 'mainnet') => {
             }
         });
         
-        if (!response.ok) {
-            console.warn(`Chain49 API failed: ${response.status}`);
-            return '0';
+        if (response.ok) {
+            const data = await response.json();
+            
+            // Согласно документации Chain49, баланс возвращается в lovelace
+            // https://chain49.readme.io/reference/getting-started-with-cardano
+            if (data.balance || data.balance === 0) {
+                const balanceInLovelace = parseInt(data.balance);
+                return (balanceInLovelace / 1_000_000).toString();
+            }
+            
+            // Если структура ответа отличается, попробуем найти баланс в других полях
+            if (data.amount) {
+                const balanceInLovelace = parseInt(data.amount);
+                return (balanceInLovelace / 1_000_000).toString();
+            }
+            
+            // Если есть поле utxo_sum, используем его
+            if (data.utxo_sum) {
+                const balanceInLovelace = parseInt(data.utxo_sum);
+                return (balanceInLovelace / 1_000_000).toString();
+            }
         }
         
-        const data = await response.json();
-        
-        if (data.balance) {
-            const balanceInLovelace = parseInt(data.balance);
-            return (balanceInLovelace / 1_000_000).toString();
+        // Если Chain49 не сработал, попробуем Koios API как запасной вариант
+        try {
+            const koiosUrl = `${config.CARDANO.KOIOS_API}/address_info?_address=${address}`;
+            const koiosResponse = await fetch(koiosUrl);
+            
+            if (koiosResponse.ok) {
+                const koiosData = await koiosResponse.json();
+                
+                if (Array.isArray(koiosData) && koiosData.length > 0 && koiosData[0].balance) {
+                    const balanceInLovelace = parseInt(koiosData[0].balance);
+                    return (balanceInLovelace / 1_000_000).toString();
+                }
+            }
+        } catch (koiosError) {
+            console.warn('Koios API failed:', koiosError.message);
         }
         
         return '0';
