@@ -44,12 +44,12 @@ const MAINNET_CONFIG = {
     LITECOIN: {
         EXPLORER_API: 'https://blockchair.com/litecoin',
         TESTNET_API: 'https://litecoinspace.org/testnet/api',
-        NETWORK: bitcoin.networks.bitcoin  // Исправлено: используем bitcoin сеть для mainnet
+        NETWORK: bitcoin.networks.bitcoin
     },
     ETHEREUM_CLASSIC: {
         RPC_URL: 'https://etc.rivet.link',
         CHAIN_ID: 61,
-        BLOCKSCOUT_API: 'https://etc-mordor.blockscout.com/api/v2'
+        BLOCKSCOUT_API: 'https://blockscout.com/etc/mainnet/api'
     },
     NEAR: {
         RPC_URL: 'https://rpc.mainnet.near.org',
@@ -108,7 +108,7 @@ const TESTNET_CONFIG = {
     ETHEREUM_CLASSIC: {
         RPC_URL: 'https://etc.etcdesktop.com',
         CHAIN_ID: 62,
-        BLOCKSCOUT_API: 'https://etc-mordor.blockscout.com/api/v2'
+        BLOCKSCOUT_API: 'https://blockscout.com/etc/mordor/api'
     },
     NEAR: {
         RPC_URL: 'https://rpc.testnet.near.org',
@@ -580,7 +580,17 @@ const generateLitecoinAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         const networkConfig = network === 'testnet' 
             ? bitcoin.networks.testnet 
-            : bitcoin.networks.bitcoin; // ИСПРАВЛЕНО: mainnet использует bitcoin сеть
+            : {
+                messagePrefix: '\x19Litecoin Signed Message:\n',
+                bech32: 'ltc',
+                bip32: {
+                    public: 0x019da462,
+                    private: 0x019d9cfe
+                },
+                pubKeyHash: 0x30,
+                scriptHash: 0x32,
+                wif: 0xb0
+            };
         
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const root = bip32.fromSeed(seedBuffer, networkConfig);
@@ -596,7 +606,18 @@ const generateLitecoinAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-const generateEthereumClassicAddress = generateEthereumAddress;
+const generateEthereumClassicAddress = async (seedPhrase, network = 'mainnet') => {
+    try {
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
+        const path = network === 'mainnet' ? "m/44'/61'/0'/0/0" : "m/44'/1'/0'/0/0";
+        const wallet = masterNode.derivePath(path);
+        return wallet.address;
+    } catch (error) {
+        console.error('Error generating Ethereum Classic address:', error);
+        return '';
+    }
+};
 
 const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
     try {
@@ -641,6 +662,7 @@ const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const root = bip32.fromSeed(seedBuffer);
+        
         const child = root.derivePath("m/44'/144'/0'/0/0");
         const publicKey = child.publicKey;
         
@@ -655,8 +677,30 @@ const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
         const checksum = hash2.slice(0, 4);
         
         const finalBytes = Buffer.concat([payload, checksum]);
-        const RIPPLE_ALPHABET = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz';
-        return base58.encode(finalBytes, RIPPLE_ALPHABET);
+        
+        const base58Encode = (buffer, alphabet) => {
+            let result = '';
+            let n = BigInt('0x' + buffer.toString('hex'));
+            
+            while (n > 0) {
+                const remainder = Number(n % 58n);
+                result = alphabet[remainder] + result;
+                n = n / 58n;
+            }
+            
+            for (let i = 0; i < buffer.length; i++) {
+                if (buffer[i] === 0) {
+                    result = alphabet[0] + result;
+                } else {
+                    break;
+                }
+            }
+            
+            return result;
+        };
+        
+        const XRP_ALPHABET = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz';
+        return base58Encode(finalBytes, XRP_ALPHABET);
     } catch (error) {
         console.error('Error generating XRP address:', error);
         return '';
@@ -983,7 +1027,8 @@ const getLitecoinBalance = async (address, network = 'mainnet') => {
 const getEthereumClassicBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const blockscoutUrl = `${config.ETHEREUM_CLASSIC.BLOCKSCOUT_API}/addresses/${address}`;
+        
+        const blockscoutUrl = `${config.ETHEREUM_CLASSIC.BLOCKSCOUT_API}?module=account&action=balance&address=${address}`;
         
         const response = await fetch(blockscoutUrl, {
             headers: {
@@ -992,16 +1037,12 @@ const getEthereumClassicBalance = async (address, network = 'mainnet') => {
             }
         });
         
-        if (!response.ok) {
-            console.warn(`Blockscout API failed: ${response.status}`);
-            return '0';
-        }
-        
-        const data = await response.json();
-        
-        if (data.coin_balance) {
-            const balanceInWei = data.coin_balance;
-            return ethers.formatEther(balanceInWei);
+        if (response.ok) {
+            const data = await response.json();
+            if (data.result) {
+                const balanceInWei = data.result;
+                return ethers.formatEther(balanceInWei);
+            }
         }
         
         return '0';
