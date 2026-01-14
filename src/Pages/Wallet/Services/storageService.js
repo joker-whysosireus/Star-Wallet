@@ -8,10 +8,11 @@ import * as ecc from 'tiny-secp256k1';
 import * as bitcoin from 'bitcoinjs-lib';
 import priceService from './priceService';
 import { JsonRpcProvider } from '@near-js/providers';
-import base58 from 'bs58';
+import bs58 from 'bs58';
 import crypto from 'crypto';
 import { bech32 } from 'bech32';
 import * as xrpl from 'xrpl';
+import baseX from 'base-x';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -48,10 +49,9 @@ const MAINNET_CONFIG = {
         NETWORK: bitcoin.networks.bitcoin
     },
     ETHEREUM_CLASSIC: {
-        // ОСНОВНОЙ API для Ethereum Classic mainnet
+        // Основной RPC для Ethereum Classic mainnet
         RPC_URL: 'https://etc.etcdesktop.com',
-        CHAIN_ID: 61,
-        BLOCKSCOUT_API: 'https://blockscout.com/etc/mainnet/api/v2'  // Исправлен на mainnet API
+        CHAIN_ID: 61
     },
     NEAR: {
         RPC_URL: 'https://rpc.mainnet.near.org',
@@ -66,16 +66,6 @@ const MAINNET_CONFIG = {
     TRON: {
         RPC_URL: 'https://api.trongrid.io',
         NETWORK: 'mainnet'
-    },
-    CARDANO: {
-        // Используем Chain49 RPC согласно документации
-        BLOCKFROST_URL: 'https://cardano-mainnet.blockfrost.io/api/v0',
-        NETWORK: 'mainnet',
-        KOIOS_API: 'https://api.koios.rest/api/v1',
-        // Chain49 RPC endpoints
-        CHAIN49_API: 'https://cardano-mainnet.chain49.io/v1',
-        CHAIN49_RPC: 'https://cardano-mainnet.chain49.io',
-        CHAIN49_PREVIEW_RPC: 'https://cardano-preview.chain49.io'
     }
 };
 
@@ -112,9 +102,9 @@ const TESTNET_CONFIG = {
         NETWORK: bitcoin.networks.testnet
     },
     ETHEREUM_CLASSIC: {
-        RPC_URL: 'https://etc.etcdesktop.com',
-        CHAIN_ID: 62,
-        BLOCKSCOUT_API: 'https://etc-mordor.blockscout.com/api/v2'  // Testnet API остается
+        // Публичный RPC для Mordor тестнета
+        RPC_URL: 'https://geth-mordor.etc-network.info',
+        CHAIN_ID: 63
     },
     NEAR: {
         RPC_URL: 'https://rpc.testnet.near.org',
@@ -129,15 +119,6 @@ const TESTNET_CONFIG = {
     TRON: {
         RPC_URL: 'https://api.shasta.trongrid.io',
         NETWORK: 'testnet'
-    },
-    CARDANO: {
-        BLOCKFROST_URL: 'https://cardano-testnet.blockfrost.io/api/v0',
-        NETWORK: 'testnet',
-        KOIOS_API: 'https://testnet.koios.rest/api/v1',
-        // Chain49 RPC для preview сети (testnet)
-        CHAIN49_API: 'https://cardano-preview.chain49.io/v1',
-        CHAIN49_RPC: 'https://cardano-preview.chain49.io',
-        CHAIN49_PREVIEW_RPC: 'https://cardano-preview.chain49.io'
     }
 };
 
@@ -238,14 +219,6 @@ export const TOKENS = {
         decimals: 8, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' 
-    },
-    ADA: { 
-        symbol: 'ADA', 
-        name: 'Cardano', 
-        blockchain: 'Cardano', 
-        decimals: 6, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/cardano-ada-logo.png' 
     },
     ETC: { 
         symbol: 'ETC', 
@@ -409,14 +382,6 @@ export const TESTNET_TOKENS = {
         decimals: 8, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/litecoin-ltc-logo.png' 
-    },
-    ADA: { 
-        symbol: 'ADA', 
-        name: 'Cardano', 
-        blockchain: 'Cardano', 
-        decimals: 6, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/cardano-ada-logo.png' 
     },
     ETC: { 
         symbol: 'ETC', 
@@ -649,7 +614,7 @@ const generateTronAddress = async (seedPhrase, network = 'mainnet') => {
         const checksum = hash2.subarray(0, 4);
         
         const addressWithChecksum = Buffer.concat([addressWithPrefix, checksum]);
-        return base58.encode(addressWithChecksum);
+        return bs58.encode(addressWithChecksum);
     } catch (error) {
         console.error('Error generating Tron address:', error);
         return '';
@@ -658,49 +623,47 @@ const generateTronAddress = async (seedPhrase, network = 'mainnet') => {
 
 const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
     try {
-        const mnemonic = seedPhrase;
-        const wallet = xrpl.Wallet.fromMnemonic(mnemonic, {
-            derivationPath: "m/44'/144'/0'/0/0"
-        });
-        
-        // Исправление: получаем чистый адрес без тега и обрезаем на 2 символа
-        let address = wallet.address;
-        
-        // Убираем возможный тег (все что после двоеточия)
-        if (address.includes(':')) {
-            address = address.split(':')[0];
-        }
-        
-        // Обрезаем адрес на 2 символа короче, как требуется
-        if (address.length > 32) {
-            address = address.substring(0, address.length - 2);
-        }
-        
-        return address;
-    } catch (error) {
-        console.error('Error generating XRP address:', error);
-        return '';
-    }
-};
-
-const generateCardanoAddress = async (seedPhrase, network = 'mainnet') => {
-    try {
+        // 1. Генерация seed из мнемонической фразы
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const root = bip32.fromSeed(seedBuffer);
-        const child = root.derivePath("m/1852'/1815'/0'/0/0");
         
+        // 2. Деривация по пути m/44'/144'/0'/0/0 (стандарт для XRP)
+        const child = root.derivePath("m/44'/144'/0'/0/0");
         const publicKey = child.publicKey;
-        const sha3Hash = crypto.createHash('sha3-256').update(publicKey).digest();
-        const pubKeyHash = sha3Hash.slice(0, 28);
         
-        const header = network === 'mainnet' ? 0x61 : 0x60;
-        const addressBytes = Buffer.concat([Buffer.from([header]), pubKeyHash]);
+        // 3. SHA-256 публичного ключа
+        const sha256Hash = crypto.createHash('sha256').update(publicKey).digest();
         
-        const words = bech32.toWords(addressBytes);
-        const prefix = network === 'mainnet' ? 'addr' : 'addr_test';
-        return bech32.encode(prefix, words);
+        // 4. RIPEMD-160 результата (получаем Account ID)
+        const ripemd160 = crypto.createHash('ripemd160');
+        ripemd160.update(sha256Hash);
+        const accountId = ripemd160.digest();
+        
+        // 5. Добавляем префикс типа адреса (0x00 для обычного адреса)
+        const addressTypePrefix = Buffer.from([0x00]);
+        const payload = Buffer.concat([addressTypePrefix, accountId]);
+        
+        // 6. Вычисляем контрольную сумму (двойной SHA-256, первые 4 байта)
+        const checksumHash1 = crypto.createHash('sha256').update(payload).digest();
+        const checksumHash2 = crypto.createHash('sha256').update(checksumHash1).digest();
+        const checksum = checksumHash2.slice(0, 4);
+        
+        // 7. Кодируем в base58 с алфавитом XRPL
+        const dataToEncode = Buffer.concat([payload, checksum]);
+        const xrplAlphabet = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz';
+        const base58 = baseX(xrplAlphabet);
+        
+        const address = base58.encode(dataToEncode);
+        
+        // 8. Проверяем соответствие спецификациям XRPL
+        if (address.length >= 25 && address.length <= 35 && address.startsWith('r')) {
+            return address;
+        } else {
+            console.error('Сгенерированный XRP адрес не соответствует спецификациям');
+            return '';
+        }
     } catch (error) {
-        console.error('Error generating Cardano address:', error);
+        console.error('Error generating XRP address:', error);
         return '';
     }
 };
@@ -711,7 +674,7 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
 
         const [
             tonAddress, ethAddress, solAddress, bitcoinAddress, bscAddress,
-            bchAddress, ltcAddress, adaAddress, etcAddress, nearAddress,
+            bchAddress, ltcAddress, etcAddress, nearAddress,
             xrpAddress, trxAddress
         ] = await Promise.all([
             generateTonAddress(seedPhrase, network),
@@ -721,7 +684,6 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
             generateBSCAddress(seedPhrase, network),
             generateBitcoinCashAddress(seedPhrase, network),
             generateLitecoinAddress(seedPhrase, network),
-            generateCardanoAddress(seedPhrase, network),
             generateEthereumClassicAddress(seedPhrase, network),
             generateNearAddress(seedPhrase, network),
             generateXrpAddress(seedPhrase, network),
@@ -747,7 +709,6 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
         walletArray.push(createWallet(tokens.USDT_BSC, bscAddress, network));
         walletArray.push(createWallet(tokens.USDT_TRON, trxAddress, network));
         walletArray.push(createWallet(tokens.USDC_BSC, bscAddress, network));
-        walletArray.push(createWallet(tokens.ADA, adaAddress, network));
         walletArray.push(createWallet(tokens.NEAR, nearAddress, network));
         walletArray.push(createWallet(tokens.XRP, xrpAddress, network));
         walletArray.push(createWallet(tokens.TRX, trxAddress, network));
@@ -1004,31 +965,10 @@ const getEthereumClassicBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
-        // Исправление: используем mainnet API для mainnet сети
-        const blockscoutUrl = network === 'mainnet' 
-            ? 'https://blockscout.com/etc/mainnet/api/v2/addresses/${address}'  // Mainnet API
-            : 'https://etc-mordor.blockscout.com/api/v2/addresses/${address}';  // Testnet API
-        
-        const response = await fetch(blockscoutUrl, {
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (!response.ok) {
-            console.warn(`Blockscout API failed: ${response.status}`);
-            return '0';
-        }
-        
-        const data = await response.json();
-        
-        if (data.coin_balance) {
-            const balanceInWei = data.coin_balance;
-            return ethers.formatEther(balanceInWei);
-        }
-        
-        return '0';
+        // Используем RPC-вызов через ethers.js для обеих сетей
+        const provider = new ethers.JsonRpcProvider(config.ETHEREUM_CLASSIC.RPC_URL);
+        const balance = await provider.getBalance(address);
+        return ethers.formatEther(balance);
     } catch (error) {
         console.error('ETC balance error:', error);
         return '0';
@@ -1166,93 +1106,6 @@ const getTRC20Balance = async (address, contractAddress, network = 'mainnet') =>
     }
 };
 
-const getCardanoBalance = async (address, network = 'mainnet') => {
-    try {
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        
-        // Исправление: используем Chain49 RPC API согласно документации
-        const chain49RpcUrl = network === 'mainnet' 
-            ? config.CARDANO.CHAIN49_RPC 
-            : config.CARDANO.CHAIN49_PREVIEW_RPC;
-        
-        // Попробуем Chain49 RPC endpoint для получения баланса
-        const chain49QueryUrl = `${chain49RpcUrl}/addresses/${address}`;
-        
-        const response = await fetch(chain49QueryUrl, {
-            headers: { 
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            
-            // Chain49 возвращает баланс в lovelace
-            if (data.balance || data.balance === 0) {
-                const balanceInLovelace = parseInt(data.balance);
-                return (balanceInLovelace / 1_000_000).toString();
-            }
-            
-            // Альтернативные поля
-            if (data.amount) {
-                const balanceInLovelace = parseInt(data.amount);
-                return (balanceInLovelace / 1_000_000).toString();
-            }
-            
-            if (data.utxo_sum) {
-                const balanceInLovelace = parseInt(data.utxo_sum);
-                return (balanceInLovelace / 1_000_000).toString();
-            }
-            
-            // Если есть массив utxos, суммируем их
-            if (Array.isArray(data.utxos)) {
-                let totalLovelace = 0;
-                for (const utxo of data.utxos) {
-                    if (utxo.amount && Array.isArray(utxo.amount)) {
-                        for (const asset of utxo.amount) {
-                            if (asset.unit === 'lovelace' || asset.unit === 'ada') {
-                                totalLovelace += parseInt(asset.quantity || '0');
-                            }
-                        }
-                    }
-                }
-                return (totalLovelace / 1_000_000).toString();
-            }
-        }
-        
-        // Fallback: попробуем Blockfrost API
-        try {
-            const blockfrostUrl = `${config.CARDANO.BLOCKFROST_URL}/addresses/${address}`;
-            const blockfrostResponse = await fetch(blockfrostUrl, {
-                headers: {
-                    'project_id': '' // Нужно добавить project_id если используется Blockfrost
-                }
-            });
-            
-            if (blockfrostResponse.ok) {
-                const blockfrostData = await blockfrostResponse.json();
-                
-                if (blockfrostData.amount && Array.isArray(blockfrostData.amount)) {
-                    for (const asset of blockfrostData.amount) {
-                        if (asset.unit === 'lovelace') {
-                            const balanceInLovelace = parseInt(asset.quantity);
-                            return (balanceInLovelace / 1_000_000).toString();
-                        }
-                    }
-                }
-            }
-        } catch (blockfrostError) {
-            console.warn('Blockfrost API failed:', blockfrostError.message);
-        }
-        
-        return '0';
-    } catch (error) {
-        console.error('ADA balance error:', error);
-        return '0';
-    }
-};
-
 export const getRealBalances = async (wallets) => {
     if (!Array.isArray(wallets)) return wallets;
     
@@ -1292,9 +1145,6 @@ export const getRealBalances = async (wallets) => {
                             break;
                         case 'Litecoin':
                             balance = await getLitecoinBalance(wallet.address, wallet.network);
-                            break;
-                        case 'Cardano':
-                            balance = await getCardanoBalance(wallet.address, wallet.network);
                             break;
                         case 'EthereumClassic':
                             balance = await getEthereumClassicBalance(wallet.address, wallet.network);
@@ -1703,12 +1553,6 @@ export const validateAddress = async (blockchain, address, network = 'mainnet') 
                 } catch { 
                     return false; 
                 }
-            case 'Cardano':
-                if (network === 'mainnet') {
-                    return address.startsWith('addr1') && address.length > 50;
-                } else {
-                    return address.startsWith('addr_test') && address.length > 50;
-                }
             case 'NEAR':
                 const nearRegex = /^[a-z0-9._-]+\.(near|testnet)$/;
                 return nearRegex.test(address);
@@ -1820,7 +1664,6 @@ export const estimateTransactionFee = async (blockchain, network = 'mainnet') =>
         'Bitcoin': '0.0001',
         'BitcoinCash': '0.0001',
         'Litecoin': '0.0001',
-        'Cardano': '0.17',
         'EthereumClassic': '0.0001',
         'NEAR': '0.0001',
         'XRP': '0.00001',
@@ -1846,7 +1689,6 @@ export const getTokenPricesFromRPC = async () => {
             'USDC': 1.00,
             'BCH': 500.00,
             'LTC': 85.00,
-            'ADA': 0.50,
             'ETC': 30.00,
             'NEAR': 5.00,
             'XRP': 0.60,
@@ -2050,7 +1892,6 @@ export const getBlockchainIcon = (blockchain) => {
         'BSC': 'https://cryptologos.cc/logos/bnb-bnb-logo.png',
         'BitcoinCash': 'https://cryptologos.cc/logos/bitcoin-cash-bch-logo.png',
         'Litecoin': 'https://cryptologos.cc/logos/litecoin-ltc-logo.png',
-        'Cardano': 'https://cryptologos.cc/logos/cardano-ada-logo.png',
         'EthereumClassic': 'https://cryptologos.cc/logos/ethereum-classic-etc-logo.png',
         'NEAR': 'https://cryptologos.cc/logos/near-protocol-near-logo.png',
         'XRP': 'https://cryptologos.cc/logos/xrp-xrp-logo.png',
