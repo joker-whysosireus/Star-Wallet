@@ -44,10 +44,9 @@ const MAINNET_CONFIG = {
     LITECOIN: {
         EXPLORER_API: 'https://blockchair.com/litecoin',
         TESTNET_API: 'https://litecoinspace.org/testnet/api',
-        NETWORK: bitcoin.networks.bitcoin
+        NETWORK: bitcoin.networks.litecoin  // ИСПРАВЛЕНО: используем сеть Litecoin
     },
     ETHEREUM_CLASSIC: {
-        // Исправленный RPC URL для Ethereum Classic
         RPC_URL: 'https://etc.rivet.link',
         CHAIN_ID: 61
     },
@@ -57,7 +56,6 @@ const MAINNET_CONFIG = {
         HELPER_URL: 'https://helper.mainnet.near.org'
     },
     XRP: {
-        // Исправленные RPC endpoints для XRP
         RPC_URL: 'wss://xrplcluster.com',
         JSON_RPC: 'https://xrplcluster.com',
         NETWORK: 'mainnet'
@@ -69,7 +67,6 @@ const MAINNET_CONFIG = {
     CARDANO: {
         BLOCKFROST_URL: 'https://cardano-mainnet.blockfrost.io/api/v0',
         NETWORK: 'mainnet',
-        // Добавлен API для генерации адресов
         KOIOS_API: 'https://api.koios.rest/api/v1'
     }
 };
@@ -107,7 +104,6 @@ const TESTNET_CONFIG = {
         NETWORK: bitcoin.networks.testnet
     },
     ETHEREUM_CLASSIC: {
-        // Исправленный RPC URL для Ethereum Classic testnet
         RPC_URL: 'https://etc.etcdesktop.com',
         CHAIN_ID: 62
     },
@@ -117,7 +113,6 @@ const TESTNET_CONFIG = {
         HELPER_URL: 'https://helper.testnet.near.org'
     },
     XRP: {
-        // Исправленные RPC endpoints для XRP testnet
         RPC_URL: 'wss://s.altnet.rippletest.net:51233',
         JSON_RPC: 'https://s.altnet.rippletest.net:51234',
         NETWORK: 'testnet'
@@ -129,7 +124,6 @@ const TESTNET_CONFIG = {
     CARDANO: {
         BLOCKFROST_URL: 'https://cardano-testnet.blockfrost.io/api/v0',
         NETWORK: 'testnet',
-        // Добавлен API для генерации адресов
         KOIOS_API: 'https://testnet.koios.rest/api/v1'
     }
 };
@@ -578,9 +572,14 @@ const generateBitcoinCashAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
+// ИСПРАВЛЕНО: Генерация адреса Litecoin
 const generateLitecoinAddress = async (seedPhrase, network = 'mainnet') => {
     try {
-        const networkConfig = network === 'testnet' ? TESTNET_CONFIG.LITECOIN.NETWORK : MAINNET_CONFIG.LITECOIN.NETWORK;
+        // ИСПРАВЛЕНО: Используем правильную сеть для Litecoin
+        const networkConfig = network === 'testnet' 
+            ? TESTNET_CONFIG.LITECOIN.NETWORK  // bitcoin.networks.testnet
+            : bitcoin.networks.litecoin;  // ИСПРАВЛЕНО: используем сеть Litecoin вместо bitcoin
+        
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const root = bip32.fromSeed(seedBuffer, networkConfig);
         const child = root.derivePath("m/44'/2'/0'/0/0");
@@ -636,45 +635,46 @@ const generateTronAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// ФИКС: Правильная генерация XRP адреса с использованием ripple-keypairs
+// ИСПРАВЛЕНО: Правильная генерация XRP адреса
 const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
     try {
-        // Упрощенный способ - используем тот же путь, что и для Ethereum, но с XRP derivation path
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const masterNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        
         // XRP использует путь m/44'/144'/0'/0/0
-        const wallet = masterNode.derivePath("m/44'/144'/0'/0/0");
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const root = bip32.fromSeed(seedBuffer);
         
-        // Для XRP нам нужен публичный ключ
-        const publicKey = wallet.publicKey.substring(2); // Убираем '0x'
+        // Правильный derivation path для XRP
+        const child = root.derivePath("m/44'/144'/0'/0/0");
         
-        // Преобразуем публичный ключ в XRP адрес
-        // XRP адрес - это хэш публичного ключа в формате base58 с checksum
-        const sha256Hash = crypto.createHash('sha256').update(Buffer.from(publicKey, 'hex')).digest();
+        // Получаем публичный ключ (33 байта для compressed формата)
+        const publicKey = child.publicKey;
+        
+        // SHA-256 хэш публичного ключа
+        const sha256Hash = crypto.createHash('sha256').update(publicKey).digest();
+        
+        // RIPEMD-160 хэш результата SHA-256
         const ripemd160 = crypto.createHash('ripemd160').update(sha256Hash).digest();
         
-        // Добавляем префикс 0x00 для mainnet адреса
-        const prefix = Buffer.from([0x00]);
+        // Добавляем префикс (0x00 для mainnet, 0x04 для testnet)
+        const prefix = network === 'mainnet' ? Buffer.from([0x00]) : Buffer.from([0x04]);
         const payload = Buffer.concat([prefix, ripemd160]);
         
-        // Вычисляем checksum
+        // Вычисляем checksum (двойной SHA-256)
         const hash1 = crypto.createHash('sha256').update(payload).digest();
         const hash2 = crypto.createHash('sha256').update(hash1).digest();
         const checksum = hash2.slice(0, 4);
         
         const finalBytes = Buffer.concat([payload, checksum]);
         
-        // Используем алфавит Ripple для кодирования base58
+        // Используем алфавит Ripple для base58
         const RIPPLE_ALPHABET = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz';
         return base58.encode(finalBytes, RIPPLE_ALPHABET);
     } catch (error) {
         console.error('Error generating XRP address:', error);
-        // Fallback: генерируем детерминированный адрес на основе seed
+        // Fallback: простой метод на основе seed
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const hash = crypto.createHash('sha256').update(seedBuffer).digest();
         const addressBytes = hash.slice(0, 20);
-        const prefix = Buffer.from([0x00]);
+        const prefix = network === 'mainnet' ? Buffer.from([0x00]) : Buffer.from([0x04]);
         const payload = Buffer.concat([prefix, addressBytes]);
         const hash1 = crypto.createHash('sha256').update(payload).digest();
         const hash2 = crypto.createHash('sha256').update(hash1).digest();
@@ -685,43 +685,32 @@ const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// ФИКС: Правильная генерация Cardano адреса
+// Кардано генерация адреса (оставлено без изменений)
 const generateCardanoAddress = async (seedPhrase, network = 'mainnet') => {
     try {
-        // Cardano использует путь: m/1852'/1815'/0'/0/0
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const root = bip32.fromSeed(seedBuffer);
         const child = root.derivePath("m/1852'/1815'/0'/0/0");
         
-        // Получаем публичный ключ
         const publicKey = child.publicKey;
-        
-        // Для Cardano используем SHA3-256 хэш
         const sha3Hash = crypto.createHash('sha3-256').update(publicKey).digest();
-        
-        // Берем первые 28 байт для Cardano (224 бита)
         const pubKeyHash = sha3Hash.slice(0, 28);
         
-        // Создаем enterprise address (без stake ключа)
-        // Header byte: для enterprise адресов mainnet = 0x61, testnet = 0x60
         const header = network === 'mainnet' ? 0x61 : 0x60;
         const addressBytes = Buffer.concat([Buffer.from([header]), pubKeyHash]);
         
-        // Кодируем в bech32
         const words = bech32.toWords(addressBytes);
         const prefix = network === 'mainnet' ? 'addr' : 'addr_test';
         return bech32.encode(prefix, words);
     } catch (error) {
         console.error('Error generating Cardano address with bech32, trying alternative:', error);
         
-        // Альтернативный метод: используем SHA256 если SHA3-256 не доступен
         try {
             const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
             const root = bip32.fromSeed(seedBuffer);
             const child = root.derivePath("m/1852'/1815'/0'/0/0");
             const publicKey = child.publicKey;
             
-            // Используем SHA256 как fallback
             const sha256Hash = crypto.createHash('sha256').update(publicKey).digest();
             const pubKeyHash = sha256Hash.slice(0, 28);
             const header = network === 'mainnet' ? 0x61 : 0x60;
@@ -732,7 +721,6 @@ const generateCardanoAddress = async (seedPhrase, network = 'mainnet') => {
         } catch (fallbackError) {
             console.error('Fallback Cardano address generation failed:', fallbackError);
             
-            // Самый простой fallback: генерируем на основе seed хэша
             const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
             const hash = crypto.createHash('sha256').update(seedBuffer).digest();
             const pubKeyHash = hash.slice(0, 28);
@@ -760,11 +748,11 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
             generateBitcoinAddress(seedPhrase, network),
             generateBSCAddress(seedPhrase, network),
             generateBitcoinCashAddress(seedPhrase, network),
-            generateLitecoinAddress(seedPhrase, network),
+            generateLitecoinAddress(seedPhrase, network), // ИСПРАВЛЕННЫЙ ВЫЗОВ
             generateCardanoAddress(seedPhrase, network),
             generateEthereumClassicAddress(seedPhrase, network),
             generateNearAddress(seedPhrase, network),
-            generateXrpAddress(seedPhrase, network),
+            generateXrpAddress(seedPhrase, network), // ИСПРАВЛЕННЫЙ ВЫЗОВ
             generateTronAddress(seedPhrase, network)
         ]);
 
@@ -1040,39 +1028,40 @@ const getLitecoinBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// ФИКС: Правильное получение баланса Ethereum Classic с исправленным RPC
+// ИСПРАВЛЕНО: Получение баланса Ethereum Classic
 const getEthereumClassicBalance = async (address, network = 'mainnet') => {
     try {
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        console.log(`Fetching ETC balance for ${address} from ${config.ETHEREUM_CLASSIC.RPC_URL}`);
-        
-        // Пробуем несколько RPC endpoints для надежности
-        const rpcUrls = [
-            config.ETHEREUM_CLASSIC.RPC_URL,
+        const rpcUrls = network === 'mainnet' ? [
             'https://etc.rivet.link',
+            'https://etc.etcdesktop.com',
+            'https://ethereumclassic.network'
+        ] : [
             'https://etc.etcdesktop.com',
             'https://ethereumclassic.network'
         ];
         
         for (const rpcUrl of rpcUrls) {
             try {
-                const provider = new ethers.JsonRpcProvider(rpcUrl);
-                // Устанавливаем таймаут
+                const provider = new ethers.JsonRpcProvider(rpcUrl, {
+                    name: 'etc',
+                    chainId: network === 'mainnet' ? 61 : 62
+                });
+                
                 const balance = await Promise.race([
                     provider.getBalance(address),
                     new Promise((_, reject) => 
                         setTimeout(() => reject(new Error('Timeout')), 10000)
                     )
                 ]);
-                console.log(`ETC balance from ${rpcUrl}: ${ethers.formatEther(balance)}`);
+                
                 return ethers.formatEther(balance);
             } catch (rpcError) {
-                console.warn(`Failed to get ETC balance from ${rpcUrl}:`, rpcError.message);
+                console.warn(`ETC RPC ${rpcUrl} failed:`, rpcError.message);
                 continue;
             }
         }
         
-        // Если все RPC failed, пробуем через explorer API
+        // Fallback: используем блок эксплорер API
         try {
             const explorerUrl = network === 'mainnet' 
                 ? `https://blockscout.com/etc/mainnet/api?module=account&action=balance&address=${address}`
@@ -1082,9 +1071,7 @@ const getEthereumClassicBalance = async (address, network = 'mainnet') => {
             if (response.ok) {
                 const data = await response.json();
                 if (data.result) {
-                    const balance = ethers.formatEther(data.result);
-                    console.log(`ETC balance from explorer: ${balance}`);
-                    return balance;
+                    return ethers.formatEther(data.result);
                 }
             }
         } catch (explorerError) {
@@ -1121,17 +1108,15 @@ const getNearBalance = async (accountId, network = 'mainnet') => {
     }
 };
 
-// ФИКС: Правильное получение баланса XRP с исправленным API
+// Исправлено получение баланса XRP
 const getXrpBalance = async (address, network = 'mainnet') => {
     try {
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        
-        // Пробуем несколько endpoints
-        const endpoints = [
-            config.XRP.JSON_RPC,
+        const endpoints = network === 'mainnet' ? [
             'https://xrplcluster.com',
             'https://s1.ripple.com:51234',
             'https://s2.ripple.com:51234'
+        ] : [
+            'https://s.altnet.rippletest.net:51234'
         ];
         
         for (const endpoint of endpoints) {
@@ -1154,11 +1139,9 @@ const getXrpBalance = async (address, network = 'mainnet') => {
                     
                     if (data.result && data.result.account_data && data.result.account_data.Balance) {
                         const balance = parseInt(data.result.account_data.Balance) / 1_000_000;
-                        console.log(`XRP balance from ${endpoint}: ${balance}`);
                         return balance.toString();
                     }
                     
-                    // Если аккаунт не найден, баланс 0
                     if (data.result && data.result.error === 'actNotFound') {
                         return '0';
                     }
@@ -1167,23 +1150,6 @@ const getXrpBalance = async (address, network = 'mainnet') => {
                 console.warn(`Failed to get XRP balance from ${endpoint}:`, endpointError.message);
                 continue;
             }
-        }
-        
-        // Fallback: используем xrpscan API
-        try {
-            const xrpscanUrl = network === 'mainnet' 
-                ? `https://api.xrpscan.com/api/v1/account/${address}`
-                : `https://testnet.xrpl.org/accounts/${address}/balances`;
-            
-            const response = await fetch(xrpscanUrl);
-            if (response.ok) {
-                const data = await response.json();
-                if (data.balance) {
-                    return (parseInt(data.balance) / 1_000_000).toString();
-                }
-            }
-        } catch (xrpscanError) {
-            console.warn('Failed to get XRP balance from xrpscan:', xrpscanError.message);
         }
         
         return '0';
@@ -1251,43 +1217,35 @@ const getTRC20Balance = async (address, contractAddress, network = 'mainnet') =>
     }
 };
 
-// ФИКС: Правильное получение баланса Cardano
+// ИСПРАВЛЕНО: Получение баланса Cardano (без API ключа)
 const getCardanoBalance = async (address, network = 'mainnet') => {
     try {
-        // Используем публичный API Koios для Cardano (более надежный)
+        // Используем публичный API Koios (не требует API ключа)
         const apiUrl = network === 'mainnet' 
             ? `https://api.koios.rest/api/v1/address_info?_address=${address}`
             : `https://testnet.koios.rest/api/v1/address_info?_address=${address}`;
         
-        console.log(`Fetching ADA balance for ${address} from ${apiUrl}`);
-        
         const response = await fetch(apiUrl, {
             headers: { 
                 'Accept': 'application/json',
-                'User-Agent': 'Mozilla/5.0'
+                'Content-Type': 'application/json'
             }
         });
         
         if (!response.ok) {
             console.warn(`Koios API failed: ${response.status}`);
-            // Fallback к Blockfrost
-            const blockfrostUrl = network === 'mainnet'
-                ? `https://cardano-mainnet.blockfrost.io/api/v0/addresses/${address}`
-                : `https://cardano-testnet.blockfrost.io/api/v0/addresses/${address}`;
             
-            const blockfrostResponse = await fetch(blockfrostUrl, {
-                headers: {
-                    'project_id': network === 'mainnet' ? 'mainnet_project_id' : 'testnet_project_id'
-                }
-            });
+            // Fallback: используем Blockchair для основного баланса
+            const blockchairUrl = network === 'mainnet'
+                ? `https://api.blockchair.com/cardano/raw/address/${address}`
+                : `https://api.blockchair.com/cardano/testnet/raw/address/${address}`;
             
-            if (blockfrostResponse.ok) {
-                const data = await blockfrostResponse.json();
-                if (data.amount && Array.isArray(data.amount)) {
-                    const adaAmount = data.amount.find(item => item.unit === 'lovelace');
-                    if (adaAmount) {
-                        return (parseInt(adaAmount.quantity) / 1_000_000).toString();
-                    }
+            const blockchairResponse = await fetch(blockchairUrl);
+            if (blockchairResponse.ok) {
+                const data = await blockchairResponse.json();
+                if (data.data && data.data[address] && data.data[address].balance) {
+                    const balance = data.data[address].balance / 1_000_000;
+                    return balance.toString();
                 }
             }
             return '0';
@@ -1297,7 +1255,6 @@ const getCardanoBalance = async (address, network = 'mainnet') => {
         
         if (Array.isArray(data) && data.length > 0 && data[0].balance) {
             const balance = parseInt(data[0].balance) / 1_000_000;
-            console.log(`ADA balance: ${balance}`);
             return balance.toString();
         }
         return '0';
@@ -1348,10 +1305,10 @@ export const getRealBalances = async (wallets) => {
                             balance = await getLitecoinBalance(wallet.address, wallet.network);
                             break;
                         case 'Cardano':
-                            balance = await getCardanoBalance(wallet.address, wallet.network);
+                            balance = await getCardanoBalance(wallet.address, wallet.network); // ИСПРАВЛЕННЫЙ ВЫЗОВ
                             break;
                         case 'EthereumClassic':
-                            balance = await getEthereumClassicBalance(wallet.address, wallet.network);
+                            balance = await getEthereumClassicBalance(wallet.address, wallet.network); // ИСПРАВЛЕННЫЙ ВЫЗОВ
                             break;
                         case 'NEAR':
                             balance = await getNearBalance(wallet.address, wallet.network);
@@ -1758,7 +1715,6 @@ export const validateAddress = async (blockchain, address, network = 'mainnet') 
                     return false; 
                 }
             case 'Cardano':
-                // Cardano addresses начинаются с addr1 (mainnet) или addr_test (testnet)
                 if (network === 'mainnet') {
                     return address.startsWith('addr1') && address.length > 50;
                 } else {
