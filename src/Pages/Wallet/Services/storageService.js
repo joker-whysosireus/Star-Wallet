@@ -48,9 +48,10 @@ const MAINNET_CONFIG = {
         NETWORK: bitcoin.networks.bitcoin
     },
     ETHEREUM_CLASSIC: {
-        RPC_URL: 'https://etc.rivet.link',
+        // ОСНОВНОЙ API для Ethereum Classic mainnet
+        RPC_URL: 'https://etc.etcdesktop.com',
         CHAIN_ID: 61,
-        BLOCKSCOUT_API: 'https://etc-mordor.blockscout.com/api/v2'
+        BLOCKSCOUT_API: 'https://blockscout.com/etc/mainnet/api/v2'  // Исправлен на mainnet API
     },
     NEAR: {
         RPC_URL: 'https://rpc.mainnet.near.org',
@@ -67,10 +68,14 @@ const MAINNET_CONFIG = {
         NETWORK: 'mainnet'
     },
     CARDANO: {
+        // Используем Chain49 RPC согласно документации
         BLOCKFROST_URL: 'https://cardano-mainnet.blockfrost.io/api/v0',
         NETWORK: 'mainnet',
         KOIOS_API: 'https://api.koios.rest/api/v1',
-        CHAIN49_API: 'https://cardano-mainnet.chain49.io/v1'
+        // Chain49 RPC endpoints
+        CHAIN49_API: 'https://cardano-mainnet.chain49.io/v1',
+        CHAIN49_RPC: 'https://cardano-mainnet.chain49.io',
+        CHAIN49_PREVIEW_RPC: 'https://cardano-preview.chain49.io'
     }
 };
 
@@ -109,7 +114,7 @@ const TESTNET_CONFIG = {
     ETHEREUM_CLASSIC: {
         RPC_URL: 'https://etc.etcdesktop.com',
         CHAIN_ID: 62,
-        BLOCKSCOUT_API: 'https://etc-mordor.blockscout.com/api/v2'
+        BLOCKSCOUT_API: 'https://etc-mordor.blockscout.com/api/v2'  // Testnet API остается
     },
     NEAR: {
         RPC_URL: 'https://rpc.testnet.near.org',
@@ -129,7 +134,10 @@ const TESTNET_CONFIG = {
         BLOCKFROST_URL: 'https://cardano-testnet.blockfrost.io/api/v0',
         NETWORK: 'testnet',
         KOIOS_API: 'https://testnet.koios.rest/api/v1',
-        CHAIN49_API: 'https://cardano-preview.chain49.io/v1'
+        // Chain49 RPC для preview сети (testnet)
+        CHAIN49_API: 'https://cardano-preview.chain49.io/v1',
+        CHAIN49_RPC: 'https://cardano-preview.chain49.io',
+        CHAIN49_PREVIEW_RPC: 'https://cardano-preview.chain49.io'
     }
 };
 
@@ -654,7 +662,21 @@ const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
         const wallet = xrpl.Wallet.fromMnemonic(mnemonic, {
             derivationPath: "m/44'/144'/0'/0/0"
         });
-        return wallet.address;
+        
+        // Исправление: получаем чистый адрес без тега и обрезаем на 2 символа
+        let address = wallet.address;
+        
+        // Убираем возможный тег (все что после двоеточия)
+        if (address.includes(':')) {
+            address = address.split(':')[0];
+        }
+        
+        // Обрезаем адрес на 2 символа короче, как требуется
+        if (address.length > 32) {
+            address = address.substring(0, address.length - 2);
+        }
+        
+        return address;
     } catch (error) {
         console.error('Error generating XRP address:', error);
         return '';
@@ -981,7 +1003,11 @@ const getLitecoinBalance = async (address, network = 'mainnet') => {
 const getEthereumClassicBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        const blockscoutUrl = `${config.ETHEREUM_CLASSIC.BLOCKSCOUT_API}/addresses/${address}`;
+        
+        // Исправление: используем mainnet API для mainnet сети
+        const blockscoutUrl = network === 'mainnet' 
+            ? 'https://blockscout.com/etc/mainnet/api/v2/addresses/${address}'  // Mainnet API
+            : 'https://etc-mordor.blockscout.com/api/v2/addresses/${address}';  // Testnet API
         
         const response = await fetch(blockscoutUrl, {
             headers: {
@@ -1144,10 +1170,15 @@ const getCardanoBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         
-        // Попробуем Chain49 API согласно документации
-        const chain49Url = `${config.CARDANO.CHAIN49_API}/addresses/${address}`;
+        // Исправление: используем Chain49 RPC API согласно документации
+        const chain49RpcUrl = network === 'mainnet' 
+            ? config.CARDANO.CHAIN49_RPC 
+            : config.CARDANO.CHAIN49_PREVIEW_RPC;
         
-        const response = await fetch(chain49Url, {
+        // Попробуем Chain49 RPC endpoint для получения баланса
+        const chain49QueryUrl = `${chain49RpcUrl}/addresses/${address}`;
+        
+        const response = await fetch(chain49QueryUrl, {
             headers: { 
                 'Accept': 'application/json',
                 'Content-Type': 'application/json'
@@ -1157,41 +1188,62 @@ const getCardanoBalance = async (address, network = 'mainnet') => {
         if (response.ok) {
             const data = await response.json();
             
-            // Согласно документации Chain49, баланс возвращается в lovelace
-            // https://chain49.readme.io/reference/getting-started-with-cardano
+            // Chain49 возвращает баланс в lovelace
             if (data.balance || data.balance === 0) {
                 const balanceInLovelace = parseInt(data.balance);
                 return (balanceInLovelace / 1_000_000).toString();
             }
             
-            // Если структура ответа отличается, попробуем найти баланс в других полях
+            // Альтернативные поля
             if (data.amount) {
                 const balanceInLovelace = parseInt(data.amount);
                 return (balanceInLovelace / 1_000_000).toString();
             }
             
-            // Если есть поле utxo_sum, используем его
             if (data.utxo_sum) {
                 const balanceInLovelace = parseInt(data.utxo_sum);
                 return (balanceInLovelace / 1_000_000).toString();
             }
+            
+            // Если есть массив utxos, суммируем их
+            if (Array.isArray(data.utxos)) {
+                let totalLovelace = 0;
+                for (const utxo of data.utxos) {
+                    if (utxo.amount && Array.isArray(utxo.amount)) {
+                        for (const asset of utxo.amount) {
+                            if (asset.unit === 'lovelace' || asset.unit === 'ada') {
+                                totalLovelace += parseInt(asset.quantity || '0');
+                            }
+                        }
+                    }
+                }
+                return (totalLovelace / 1_000_000).toString();
+            }
         }
         
-        // Если Chain49 не сработал, попробуем Koios API как запасной вариант
+        // Fallback: попробуем Blockfrost API
         try {
-            const koiosUrl = `${config.CARDANO.KOIOS_API}/address_info?_address=${address}`;
-            const koiosResponse = await fetch(koiosUrl);
+            const blockfrostUrl = `${config.CARDANO.BLOCKFROST_URL}/addresses/${address}`;
+            const blockfrostResponse = await fetch(blockfrostUrl, {
+                headers: {
+                    'project_id': '' // Нужно добавить project_id если используется Blockfrost
+                }
+            });
             
-            if (koiosResponse.ok) {
-                const koiosData = await koiosResponse.json();
+            if (blockfrostResponse.ok) {
+                const blockfrostData = await blockfrostResponse.json();
                 
-                if (Array.isArray(koiosData) && koiosData.length > 0 && koiosData[0].balance) {
-                    const balanceInLovelace = parseInt(koiosData[0].balance);
-                    return (balanceInLovelace / 1_000_000).toString();
+                if (blockfrostData.amount && Array.isArray(blockfrostData.amount)) {
+                    for (const asset of blockfrostData.amount) {
+                        if (asset.unit === 'lovelace') {
+                            const balanceInLovelace = parseInt(asset.quantity);
+                            return (balanceInLovelace / 1_000_000).toString();
+                        }
+                    }
                 }
             }
-        } catch (koiosError) {
-            console.warn('Koios API failed:', koiosError.message);
+        } catch (blockfrostError) {
+            console.warn('Blockfrost API failed:', blockfrostError.message);
         }
         
         return '0';
