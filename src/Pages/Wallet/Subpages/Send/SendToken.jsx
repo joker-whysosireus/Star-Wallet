@@ -23,8 +23,6 @@ const SendToken = () => {
     const [comment, setComment] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [showQRScanner, setShowQRScanner] = useState(false);
-    const [transactionStatus, setTransactionStatus] = useState(null);
-    const [transactionFee, setTransactionFee] = useState('0');
     const [isAddressValid, setIsAddressValid] = useState(true);
     const [balance, setBalance] = useState('0');
     const [isCameraAvailable, setIsCameraAvailable] = useState(true);
@@ -101,12 +99,6 @@ const SendToken = () => {
         }
     }, [toAddress, token, network]);
     
-    useEffect(() => {
-        if (amount && token && toAddress && isAddressValid) {
-            estimateFeeAsync();
-        }
-    }, [amount, token, toAddress, isAddressValid, network]);
-    
     const loadBalances = async () => {
         try {
             const updatedWallets = await getBalances([token], userData);
@@ -132,16 +124,6 @@ const SendToken = () => {
         } catch (error) {
             console.error('Address validation error:', error);
             setIsAddressValid(false);
-        }
-    };
-    
-    const estimateFeeAsync = async () => {
-        try {
-            const fee = await estimateTransactionFee(token.blockchain, network);
-            setTransactionFee(fee);
-        } catch (error) {
-            console.error('Fee estimation error:', error);
-            setTransactionFee('0');
         }
     };
     
@@ -172,14 +154,13 @@ const SendToken = () => {
             }
         }
 
-        const totalAmount = parseFloat(amount) + parseFloat(transactionFee || 0);
+        const totalAmount = parseFloat(amount);
         if (totalAmount > parseFloat(balance || 0)) {
             showToastMessage('Insufficient balance', 'error');
             return;
         }
 
         setIsLoading(true);
-        setTransactionStatus(null);
         setSendSuccess(false);
         setShowSuccessModal(false);
         setShowErrorModal(false);
@@ -198,6 +179,8 @@ const SendToken = () => {
                 txParams.contractAddress = token.contractAddress;
             }
 
+            console.log(`Sending ${token.blockchain} transaction with params:`, txParams);
+            
             const result = await sendTransaction(txParams);
 
             if (result.success) {
@@ -207,12 +190,7 @@ const SendToken = () => {
                 // Показываем модальное окно успеха
                 setShowSuccessModal(true);
                 
-                setTransactionStatus({ 
-                    type: 'success', 
-                    message: `Successfully sent ${amount} ${token.symbol}`,
-                    hash: result.hash,
-                    explorerUrl: result.explorerUrl
-                });
+                console.log('Transaction successful:', result);
                 
                 // Обновляем баланс через 2 секунды
                 setTimeout(async () => {
@@ -227,27 +205,20 @@ const SendToken = () => {
                     setAmount('');
                     setToAddress('');
                     setComment('');
-                    setTransactionStatus(null);
                     setSendSuccess(false);
                 }, 5000);
             } else {
                 setTransactionResult(result);
                 setShowErrorModal(true);
                 
-                setTransactionStatus({ 
-                    type: 'error', 
-                    message: `Transaction failed: ${result.error}` 
-                });
+                console.error('Transaction failed:', result.error);
             }
         } catch (error) {
             console.error('Transaction error:', error);
             setTransactionResult({ error: error.message });
             setShowErrorModal(true);
             
-            setTransactionStatus({ 
-                type: 'error', 
-                message: `Error: ${error.message}` 
-            });
+            console.error('Transaction failed:', error.message);
         } finally {
             setIsLoading(false);
         }
@@ -271,14 +242,14 @@ const SendToken = () => {
     
     const handleMaxAmount = () => {
         if (balance) {
-            const maxAmount = Math.max(0, parseFloat(balance) - parseFloat(transactionFee || 0));
+            const maxAmount = parseFloat(balance);
             setAmount(maxAmount.toFixed(6));
         }
     };
     
     const handleSetAmount = (percent) => {
         if (balance) {
-            const availableBalance = parseFloat(balance) - parseFloat(transactionFee || 0);
+            const availableBalance = parseFloat(balance);
             const value = (availableBalance * percent / 100).toFixed(6);
             setAmount(Math.max(0, parseFloat(value)).toString());
         }
@@ -321,7 +292,6 @@ const SendToken = () => {
         setAmount('');
         setToAddress('');
         setComment('');
-        setTransactionStatus(null);
         setSendSuccess(false);
     };
     
@@ -473,27 +443,6 @@ const SendToken = () => {
                             </button>
                         </div>
                     </div>
-                    
-                    {transactionStatus && (
-                        <div className={`transaction-status ${transactionStatus.type}`}>
-                            {transactionStatus.message}
-                            {transactionStatus.hash && (
-                                <>
-                                    <div className="transaction-hash">
-                                        Hash: {transactionStatus.hash}
-                                    </div>
-                                    {transactionStatus.explorerUrl && (
-                                        <button 
-                                            className="view-explorer-btn"
-                                            onClick={() => window.open(transactionStatus.explorerUrl, '_blank')}
-                                        >
-                                            View on Explorer
-                                        </button>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    )}
                 </div>
                 
                 <button 

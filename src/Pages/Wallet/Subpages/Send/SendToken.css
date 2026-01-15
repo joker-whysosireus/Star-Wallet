@@ -329,7 +329,7 @@
     font-weight: bold;
 }
 
-/* ОБНОВЛЕННЫЕ СТИЛИ ДЛЯ БЕЙДЖЕЙ - ТАКИЕ ЖЕ КАК В USDTDetail */
+/* ОБНОВЛЕННЫЕ СТИЛИ ДЛЯ БЕЙДЖЕЙ */
 .blockchain-badge {
     padding: 4px 12px;
     border-radius: 12px;
@@ -403,54 +403,6 @@
 
 .percentage-button.max-button:hover {
     background: rgba(255, 215, 0, 0.15);
-}
-
-/* Transaction Status */
-.transaction-status {
-    padding: 10px;
-    border-radius: 8px;
-    margin: 5px 0;
-    text-align: center;
-    font-size: 12px;
-    font-weight: 500;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.transaction-status.success {
-    background: rgba(0, 255, 0, 0.1);
-    border: 1px solid rgba(0, 255, 0, 0.3);
-    color: #00FF00;
-}
-
-.transaction-status.error {
-    background: rgba(255, 0, 0, 0.1);
-    border: 1px solid rgba(255, 0, 0, 0.3);
-    color: #FF5555;
-}
-
-.transaction-hash {
-    font-size: 10px;
-    margin-top: 5px;
-    word-break: break-all;
-    opacity: 0.8;
-}
-
-.view-explorer-btn {
-    background: rgba(255, 255, 255, 0.1);
-    border: none;
-    border-radius: 6px;
-    padding: 5px 10px;
-    color: white;
-    font-size: 11px;
-    cursor: pointer;
-    margin-top: 8px;
-    transition: all 0.2s;
-    display: inline-block;
-}
-
-.view-explorer-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
 }
 
 /* Toast Notifications */
