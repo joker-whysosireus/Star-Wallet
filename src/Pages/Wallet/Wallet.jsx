@@ -36,6 +36,8 @@ function Wallet({ isActive, userData }) {
     const [showPinForBackup, setShowPinForBackup] = useState(false);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
     const [contentMargin, setContentMargin] = useState(0);
+    const [isNetworkChanging, setIsNetworkChanging] = useState(false);
+    
     const navigate = useNavigate();
     
     const hasInitialized = useRef(false);
@@ -62,7 +64,7 @@ function Wallet({ isActive, userData }) {
 
             isUpdatingRef.current = true;
             
-            if ((showSkeletonLoading && isRefreshing) || isInitialLoad) {
+            if ((showSkeletonLoading && isRefreshing) || isInitialLoad || isNetworkChanging) {
                 setShowSkeleton(true);
             }
             
@@ -80,6 +82,7 @@ function Wallet({ isActive, userData }) {
                     setIsRefreshing(false);
                     setContentMargin(0);
                     setIsInitialLoad(false);
+                    setIsNetworkChanging(false);
                     isUpdatingRef.current = false;
                     return;
                 }
@@ -132,11 +135,12 @@ function Wallet({ isActive, userData }) {
                 setShowSkeleton(false);
                 setContentMargin(0);
                 setIsInitialLoad(false);
+                setIsNetworkChanging(false);
                 isUpdatingRef.current = false;
                 loadingTimerRef.current = null;
             }, 300);
         }
-    }, [userData, wallets, isInitialLoad, isRefreshing, currentNetwork]);
+    }, [userData, wallets, isInitialLoad, isRefreshing, currentNetwork, isNetworkChanging]);
 
     useEffect(() => {
         if (!userData) return;
@@ -313,17 +317,24 @@ function Wallet({ isActive, userData }) {
     };
 
     const handleNetworkChange = (newNetwork) => {
+        if (newNetwork === currentNetwork) return;
+        
+        setIsNetworkChanging(true);
         localStorage.setItem('selected_network', newNetwork);
         setCurrentNetwork(newNetwork);
         setWallets([]);
+        setTotalBalance('$0.00');
         localStorage.removeItem('cached_wallets');
         localStorage.removeItem('cached_total_balance');
         
         stopPriceUpdates();
         
+        // Показываем скелетоны на 300ms перед загрузкой данных
         setTimeout(() => {
-            updateAllData(true, true, newNetwork);
-        }, 100);
+            updateAllData(true, true, newNetwork).finally(() => {
+                setIsNetworkChanging(false);
+            });
+        }, 300);
     };
 
     if (showPinForBackup) {
@@ -362,7 +373,7 @@ function Wallet({ isActive, userData }) {
                     <div className="balance-display">
                         <p className="total-balance-label">Total Balance</p>
                         <div className="balance-amount-container">
-                            {showSkeleton ? (
+                            {showSkeleton || isNetworkChanging ? (
                                 <div className="skeleton-loader skeleton-total-balance"></div>
                             ) : (
                                 <p className="total-balance-amount">{totalBalance}</p>
@@ -375,7 +386,7 @@ function Wallet({ isActive, userData }) {
                     <button 
                         className="wallet-action-btn"
                         onClick={() => handleActionClick('receive')}
-                        disabled={isRefreshing}
+                        disabled={isRefreshing || isNetworkChanging}
                     >
                         <span className="wallet-action-btn-icon gold-icon">↓</span>
                         <span className="wallet-action-btn-text">Receive</span>
@@ -383,7 +394,7 @@ function Wallet({ isActive, userData }) {
                     <button 
                         className="wallet-action-btn"
                         onClick={() => handleActionClick('send')}
-                        disabled={isRefreshing}
+                        disabled={isRefreshing || isNetworkChanging}
                     >
                         <span className="wallet-action-btn-icon gold-icon">↑</span>
                         <span className="wallet-action-btn-text">Send</span>
@@ -391,7 +402,7 @@ function Wallet({ isActive, userData }) {
                     <button 
                         className="wallet-action-btn"
                         onClick={() => handleActionClick('stake')}
-                        disabled={isRefreshing}
+                        disabled={isRefreshing || isNetworkChanging}
                     >
                         <span className="wallet-action-btn-icon gold-icon">💰</span>
                         <span className="wallet-action-btn-text">Stake</span>
@@ -399,7 +410,7 @@ function Wallet({ isActive, userData }) {
                     <button 
                         className="wallet-action-btn"
                         onClick={() => handleActionClick('swap')}
-                        disabled={isRefreshing}
+                        disabled={isRefreshing || isNetworkChanging}
                     >
                         <span className="wallet-action-btn-icon gold-icon">↔</span>
                         <span className="wallet-action-btn-text">Swap</span>
@@ -422,7 +433,7 @@ function Wallet({ isActive, userData }) {
                 </div>
 
                 <div className="assets-container">
-                    {showSkeleton && (isInitialLoad || isRefreshing) ? (
+                    {(showSkeleton || isNetworkChanging) ? (
                         Array.from({ length: 9 }).map((_, index) => (
                             <div 
                                 key={`skeleton-${index}`} 

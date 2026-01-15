@@ -75,6 +75,38 @@
     cursor: not-allowed;
 }
 
+/* Spinner for send button */
+.spinner-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #000;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.send-button-loading {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.send-button-success {
+    background: linear-gradient(135deg, #00ff00, #00cc00);
+}
+
 /* Секция адреса */
 .address-section {
     width: 100%;
@@ -401,6 +433,7 @@
     font-size: 10px;
     margin-top: 5px;
     word-break: break-all;
+    opacity: 0.8;
 }
 
 .view-explorer-btn {
@@ -413,10 +446,207 @@
     cursor: pointer;
     margin-top: 8px;
     transition: all 0.2s;
+    display: inline-block;
 }
 
 .view-explorer-btn:hover {
     background: rgba(255, 255, 255, 0.2);
+}
+
+/* Toast Notifications */
+.toast-notification {
+    position: fixed;
+    bottom: 150px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: calc(100% - 40px);
+    max-width: 350px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    z-index: 1000;
+    animation: slideUp 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+.toast-success {
+    background: rgba(0, 255, 0, 0.1);
+    border: 1px solid rgba(0, 255, 0, 0.3);
+    color: #00ff00;
+}
+
+.toast-error {
+    background: rgba(255, 0, 0, 0.1);
+    border: 1px solid rgba(255, 0, 0, 0.3);
+    color: #ff5555;
+}
+
+.toast-info {
+    background: rgba(255, 215, 0, 0.1);
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    color: #FFD700;
+}
+
+.toast-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.toast-message {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 10px;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.toast-close:hover {
+    opacity: 1;
+}
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.modal-content {
+    background: #1a1a1a;
+    border-radius: 16px;
+    padding: 30px;
+    width: calc(100% - 40px);
+    max-width: 320px;
+    text-align: center;
+    animation: slideUpModal 0.3s ease;
+}
+
+@keyframes slideUpModal {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-icon {
+    font-size: 60px;
+    margin-bottom: 20px;
+}
+
+.success-modal .modal-icon {
+    color: #00ff00;
+}
+
+.error-modal .modal-icon {
+    color: #ff5555;
+}
+
+.modal-title {
+    color: white;
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0 0 15px 0;
+}
+
+.modal-message {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0 0 25px 0;
+}
+
+.modal-button {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: all 0.2s ease;
+}
+
+.explorer-button {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    color: #000;
+}
+
+.explorer-button:hover {
+    opacity: 0.9;
+}
+
+.copy-button {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.copy-button:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.close-button {
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.close-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.modal-actions .modal-button {
+    flex: 1;
+    margin-top: 0;
 }
 
 /* Исправление для фокуса */

@@ -29,9 +29,16 @@ const SendToken = () => {
     const [balance, setBalance] = useState('0');
     const [isCameraAvailable, setIsCameraAvailable] = useState(true);
     const [sendSuccess, setSendSuccess] = useState(false);
+    const [showToast, setShowToast] = useState(false);
+    const [toastMessage, setToastMessage] = useState('');
+    const [toastType, setToastType] = useState('success');
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [showErrorModal, setShowErrorModal] = useState(false);
+    const [transactionResult, setTransactionResult] = useState(null);
     
     const amountInputRef = useRef(null);
     const underlineRef = useRef(null);
+    const toastTimeoutRef = useRef(null);
     
     useEffect(() => {
         if (!wallet || !userData) {
@@ -41,9 +48,36 @@ const SendToken = () => {
         
         setToken(wallet);
         loadBalances();
-        
         checkCameraAvailability();
+        
+        return () => {
+            if (toastTimeoutRef.current) {
+                clearTimeout(toastTimeoutRef.current);
+            }
+        };
     }, []);
+    
+    const showToastMessage = (message, type = 'success') => {
+        setToastMessage(message);
+        setToastType(type);
+        setShowToast(true);
+        
+        if (toastTimeoutRef.current) {
+            clearTimeout(toastTimeoutRef.current);
+        }
+        
+        toastTimeoutRef.current = setTimeout(() => {
+            setShowToast(false);
+        }, 5000);
+    };
+    
+    const copyToClipboard = (text) => {
+        navigator.clipboard.writeText(text).then(() => {
+            showToastMessage('Copied to clipboard!', 'info');
+        }).catch(err => {
+            console.error('Copy failed:', err);
+        });
+    };
     
     const checkCameraAvailability = async () => {
         try {
@@ -72,14 +106,6 @@ const SendToken = () => {
             estimateFeeAsync();
         }
     }, [amount, token, toAddress, isAddressValid, network]);
-    
-    useEffect(() => {
-        if (amountInputRef.current === document.activeElement) {
-            if (underlineRef.current) {
-                underlineRef.current.classList.add('pulsing');
-            }
-        }
-    }, [amount]);
     
     const loadBalances = async () => {
         try {
@@ -121,43 +147,44 @@ const SendToken = () => {
     
     const handleSend = async () => {
         if (!toAddress || !amount || parseFloat(amount) <= 0) {
-            setTransactionStatus({ type: 'error', message: 'Please enter valid address and amount' });
+            showToastMessage('Please enter valid address and amount', 'error');
             return;
         }
 
         if (!isAddressValid) {
-            setTransactionStatus({ type: 'error', message: 'Invalid recipient address' });
+            showToastMessage('Invalid recipient address', 'error');
             return;
         }
 
-        // Для Bitcoin и NEAR - дополнительные проверки
+        // Проверка минимальных сумм
         if (token.blockchain === 'Bitcoin') {
             const amountSats = parseFloat(amount) * 100000000;
-            if (amountSats < 546) { // Минимальный выход в сатоши
-                setTransactionStatus({ type: 'error', message: 'Minimum Bitcoin amount is 0.00000546 BTC' });
+            if (amountSats < 546) {
+                showToastMessage('Minimum Bitcoin amount is 0.00000546 BTC', 'error');
                 return;
             }
         }
 
         if (token.blockchain === 'NEAR') {
-            if (parseFloat(amount) < 0.001) { // Минимальная сумма NEAR
-                setTransactionStatus({ type: 'error', message: 'Minimum NEAR amount is 0.001' });
+            if (parseFloat(amount) < 0.001) {
+                showToastMessage('Minimum NEAR amount is 0.001', 'error');
                 return;
             }
         }
 
         const totalAmount = parseFloat(amount) + parseFloat(transactionFee || 0);
         if (totalAmount > parseFloat(balance || 0)) {
-            setTransactionStatus({ type: 'error', message: 'Insufficient balance' });
+            showToastMessage('Insufficient balance', 'error');
             return;
         }
 
         setIsLoading(true);
         setTransactionStatus(null);
         setSendSuccess(false);
+        setShowSuccessModal(false);
+        setShowErrorModal(false);
 
         try {
-            // Особые параметры для разных блокчейнов
             const txParams = {
                 blockchain: token.blockchain,
                 toAddress: toAddress,
@@ -167,12 +194,7 @@ const SendToken = () => {
                 network: network
             };
 
-            // Для Tron (нативный TRX) - не передаем contractAddress
-            if (token.blockchain === 'Tron' && token.symbol === 'TRX') {
-                // Ничего не добавляем, contractAddress не нужен для нативного TRX
-            } 
-            // Для других токенов с контрактами
-            else if (token.contractAddress) {
+            if (token.contractAddress && !(token.blockchain === 'TRON' && token.symbol === 'TRX')) {
                 txParams.contractAddress = token.contractAddress;
             }
 
@@ -180,6 +202,11 @@ const SendToken = () => {
 
             if (result.success) {
                 setSendSuccess(true);
+                setTransactionResult(result);
+                
+                // Показываем модальное окно успеха
+                setShowSuccessModal(true);
+                
                 setTransactionStatus({ 
                     type: 'success', 
                     message: `Successfully sent ${amount} ${token.symbol}`,
@@ -187,11 +214,16 @@ const SendToken = () => {
                     explorerUrl: result.explorerUrl
                 });
                 
+                // Обновляем баланс через 2 секунды
                 setTimeout(async () => {
                     await loadBalances();
                 }, 2000);
                 
+                // Сбрасываем форму через 5 секунд
                 setTimeout(() => {
+                    if (showSuccessModal) {
+                        setShowSuccessModal(false);
+                    }
                     setAmount('');
                     setToAddress('');
                     setComment('');
@@ -199,6 +231,9 @@ const SendToken = () => {
                     setSendSuccess(false);
                 }, 5000);
             } else {
+                setTransactionResult(result);
+                setShowErrorModal(true);
+                
                 setTransactionStatus({ 
                     type: 'error', 
                     message: `Transaction failed: ${result.error}` 
@@ -206,6 +241,9 @@ const SendToken = () => {
             }
         } catch (error) {
             console.error('Transaction error:', error);
+            setTransactionResult({ error: error.message });
+            setShowErrorModal(true);
+            
             setTransactionStatus({ 
                 type: 'error', 
                 message: `Error: ${error.message}` 
@@ -216,10 +254,8 @@ const SendToken = () => {
     };
     
     const handleScanQR = (scannedData) => {
-        console.log('Scanned data received:', scannedData);
-        
         if (!scannedData || typeof scannedData !== 'string') {
-            console.error('Invalid QR code data');
+            showToastMessage('Invalid QR code data', 'error');
             return;
         }
         
@@ -270,25 +306,33 @@ const SendToken = () => {
             'Ethereum': { color: '#8c8cff', bg: 'rgba(140, 140, 255, 0.1)', text: 'ETH' },
             'Bitcoin': { color: '#f7931a', bg: 'rgba(247, 147, 26, 0.1)', text: 'BTC' },
             'BSC': { color: '#bfcd43', bg: 'rgba(191, 205, 67, 0.1)', text: 'BNB' },
-            // Новые блокчейны
             'BitcoinCash': { color: '#8dc351', bg: 'rgba(141, 195, 81, 0.1)', text: 'BCH' },
             'Litecoin': { color: '#bfbbbf', bg: 'rgba(191, 187, 191, 0.1)', text: 'LTC' },
-            'Cardano': { color: '#0033ad', bg: 'rgba(0, 51, 173, 0.1)', text: 'ADA' },
             'EthereumClassic': { color: '#6c8cf2', bg: 'rgba(108, 140, 242, 0.1)', text: 'ETC' },
             'NEAR': { color: '#000000', bg: 'rgba(0, 0, 0, 0.1)', text: 'NEAR' },
-            'XRP': { color: '#23292f', bg: 'rgba(35, 41, 47, 0.1)', text: 'XRP' },
             'TRON': { color: '#ff060a', bg: 'rgba(255, 6, 10, 0.1)', text: 'TRX' }
         };
         
         return badges[blockchain] || { color: '#666', bg: 'rgba(102, 102, 102, 0.1)', text: blockchain.substring(0, 4).toUpperCase() };
     };
     
-    const handleQRButtonClick = () => {
-        if (!isCameraAvailable) {
-            alert('Camera is not available on this device');
-            return;
+    const handleCloseSuccessModal = () => {
+        setShowSuccessModal(false);
+        setAmount('');
+        setToAddress('');
+        setComment('');
+        setTransactionStatus(null);
+        setSendSuccess(false);
+    };
+    
+    const handleCloseErrorModal = () => {
+        setShowErrorModal(false);
+    };
+    
+    const handleViewExplorer = () => {
+        if (transactionResult?.explorerUrl) {
+            window.open(transactionResult.explorerUrl, '_blank');
         }
-        setShowQRScanner(true);
     };
     
     if (!token || !userData) {
@@ -297,7 +341,6 @@ const SendToken = () => {
     
     const badge = getBlockchainBadge(token.blockchain);
     const buttonText = sendSuccess ? '✓ Sent!' : (isLoading ? 'Sending...' : 'Send');
-    const buttonClass = sendSuccess ? 'send-button send-button-success' : 'send-button';
     
     return (
         <div className="wallet-page">
@@ -322,11 +365,12 @@ const SendToken = () => {
                                 onChange={(e) => setToAddress(e.target.value)}
                                 placeholder={`Enter ${token.blockchain} address`}
                                 className={`address-input ${!isAddressValid && toAddress ? 'invalid' : ''}`}
+                                disabled={isLoading}
                             />
                             <div className="qr-button-wrapper">
                                 <button 
                                     className="qr-button"
-                                    onClick={handleQRButtonClick}
+                                    onClick={() => setShowQRScanner(true)}
                                     disabled={isLoading || !isCameraAvailable}
                                     title="Scan QR Code"
                                 >
@@ -343,6 +387,7 @@ const SendToken = () => {
                             onChange={(e) => setComment(e.target.value)}
                             placeholder="Comment (optional)"
                             className="comment-input"
+                            disabled={isLoading}
                         />
                     </div>
                     
@@ -362,6 +407,7 @@ const SendToken = () => {
                                         max={balance}
                                         step="0.000001"
                                         inputMode="decimal"
+                                        disabled={isLoading}
                                     />
                                     <div 
                                         ref={underlineRef}
@@ -400,44 +446,137 @@ const SendToken = () => {
                             <button 
                                 className="percentage-button"
                                 onClick={() => handleSetAmount(25)}
+                                disabled={isLoading}
                             >
                                 25%
                             </button>
                             <button 
                                 className="percentage-button"
                                 onClick={() => handleSetAmount(50)}
+                                disabled={isLoading}
                             >
                                 50%
                             </button>
                             <button 
                                 className="percentage-button"
                                 onClick={() => handleSetAmount(75)}
+                                disabled={isLoading}
                             >
                                 75%
                             </button>
                             <button 
                                 className="percentage-button max-button"
                                 onClick={handleMaxAmount}
+                                disabled={isLoading}
                             >
                                 MAX
                             </button>
                         </div>
                     </div>
                     
-                    {transactionStatus && transactionStatus.type === 'error' && (
+                    {transactionStatus && (
                         <div className={`transaction-status ${transactionStatus.type}`}>
                             {transactionStatus.message}
+                            {transactionStatus.hash && (
+                                <>
+                                    <div className="transaction-hash">
+                                        Hash: {transactionStatus.hash}
+                                    </div>
+                                    {transactionStatus.explorerUrl && (
+                                        <button 
+                                            className="view-explorer-btn"
+                                            onClick={() => window.open(transactionStatus.explorerUrl, '_blank')}
+                                        >
+                                            View on Explorer
+                                        </button>
+                                    )}
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
                 
                 <button 
-                    className={buttonClass}
+                    className={`send-button ${sendSuccess ? 'send-button-success' : ''} ${isLoading ? 'send-button-loading' : ''}`}
                     onClick={handleSend}
                     disabled={isLoading || !toAddress || !amount || !isAddressValid || sendSuccess}
                 >
-                    {buttonText}
+                    {isLoading ? (
+                        <div className="spinner-container">
+                            <div className="spinner"></div>
+                            <span>Sending...</span>
+                        </div>
+                    ) : buttonText}
                 </button>
+                
+                {/* Toast Notifications */}
+                {showToast && (
+                    <div className={`toast-notification toast-${toastType}`}>
+                        <div className="toast-content">
+                            <span className="toast-message">{toastMessage}</span>
+                            <button 
+                                className="toast-close"
+                                onClick={() => setShowToast(false)}
+                            >
+                                ×
+                            </button>
+                        </div>
+                    </div>
+                )}
+                
+                {/* Success Modal */}
+                {showSuccessModal && (
+                    <div className="modal-overlay">
+                        <div className="modal-content success-modal">
+                            <div className="modal-icon">✓</div>
+                            <h3 className="modal-title">Success!</h3>
+                            <p className="modal-message">
+                                You have successfully sent {amount} {token.symbol}
+                            </p>
+                            {transactionResult?.explorerUrl && (
+                                <button 
+                                    className="modal-button explorer-button"
+                                    onClick={handleViewExplorer}
+                                >
+                                    View Transaction
+                                </button>
+                            )}
+                            <button 
+                                className="modal-button close-button"
+                                onClick={handleCloseSuccessModal}
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                )}
+                
+                {/* Error Modal */}
+                {showErrorModal && (
+                    <div className="modal-overlay">
+                        <div className="modal-content error-modal">
+                            <div className="modal-icon">✗</div>
+                            <h3 className="modal-title">Transaction Failed</h3>
+                            <p className="modal-message">
+                                {transactionResult?.error || 'Unknown error occurred'}
+                            </p>
+                            <div className="modal-actions">
+                                <button 
+                                    className="modal-button copy-button"
+                                    onClick={() => copyToClipboard(transactionResult?.error || '')}
+                                >
+                                    Copy Error
+                                </button>
+                                <button 
+                                    className="modal-button close-button"
+                                    onClick={handleCloseErrorModal}
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
             
             {showQRScanner && (
