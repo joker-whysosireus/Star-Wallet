@@ -10,7 +10,6 @@ import priceService from './priceService';
 import { JsonRpcProvider } from '@near-js/providers';
 import bs58 from 'bs58';
 import crypto from 'crypto';
-import { bech32 } from 'bech32';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -47,8 +46,9 @@ const MAINNET_CONFIG = {
         NETWORK: bitcoin.networks.bitcoin
     },
     ETHEREUM_CLASSIC: {
-        RPC_URL: 'https://etc.etcdesktop.com',
-        CHAIN_ID: 61
+        RPC_URL: 'https://etc.rivet.link',
+        CHAIN_ID: 61,
+        BLOCKSCOUT_API: 'https://etc-mordor.blockscout.com/api/v2'
     },
     NEAR: {
         RPC_URL: 'https://rpc.mainnet.near.org',
@@ -94,8 +94,9 @@ const TESTNET_CONFIG = {
         NETWORK: bitcoin.networks.testnet
     },
     ETHEREUM_CLASSIC: {
-        RPC_URL: 'https://geth-mordor.etc-network.info',
-        CHAIN_ID: 63
+        RPC_URL: 'https://etc.rivet.link',
+        CHAIN_ID: 61,
+        BLOCKSCOUT_API: 'https://etc-mordor.blockscout.com/api/v2'
     },
     NEAR: {
         RPC_URL: 'https://rpc.testnet.near.org',
@@ -881,15 +882,31 @@ const getLitecoinBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// ОРИГИНАЛЬНОЕ получение баланса Ethereum Classic через RPC
 const getEthereumClassicBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
+        const blockscoutUrl = `${config.ETHEREUM_CLASSIC.BLOCKSCOUT_API}/addresses/${address}`;
         
-        // Используем RPC-вызов через ethers.js для обеих сетей
-        const provider = new ethers.JsonRpcProvider(config.ETHEREUM_CLASSIC.RPC_URL);
-        const balance = await provider.getBalance(address);
-        return ethers.formatEther(balance);
+        const response = await fetch(blockscoutUrl, {
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            console.warn(`Blockscout API failed: ${response.status}`);
+            return '0';
+        }
+        
+        const data = await response.json();
+        
+        if (data.coin_balance) {
+            const balanceInWei = data.coin_balance;
+            return ethers.formatEther(balanceInWei);
+        }
+        
+        return '0';
     } catch (error) {
         console.error('ETC balance error:', error);
         return '0';
