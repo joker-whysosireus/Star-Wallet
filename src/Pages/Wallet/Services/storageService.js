@@ -11,8 +11,6 @@ import { JsonRpcProvider } from '@near-js/providers';
 import bs58 from 'bs58';
 import crypto from 'crypto';
 import { bech32 } from 'bech32';
-import * as xrpl from 'xrpl';
-import baseX from 'base-x';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -49,7 +47,6 @@ const MAINNET_CONFIG = {
         NETWORK: bitcoin.networks.bitcoin
     },
     ETHEREUM_CLASSIC: {
-        // Основной RPC для Ethereum Classic mainnet
         RPC_URL: 'https://etc.etcdesktop.com',
         CHAIN_ID: 61
     },
@@ -57,11 +54,6 @@ const MAINNET_CONFIG = {
         RPC_URL: 'https://rpc.mainnet.near.org',
         NETWORK: 'mainnet',
         HELPER_URL: 'https://helper.mainnet.near.org'
-    },
-    XRP: {
-        RPC_URL: 'wss://xrplcluster.com',
-        JSON_RPC: 'https://xrplcluster.com',
-        NETWORK: 'mainnet'
     },
     TRON: {
         RPC_URL: 'https://api.trongrid.io',
@@ -102,7 +94,6 @@ const TESTNET_CONFIG = {
         NETWORK: bitcoin.networks.testnet
     },
     ETHEREUM_CLASSIC: {
-        // Публичный RPC для Mordor тестнета
         RPC_URL: 'https://geth-mordor.etc-network.info',
         CHAIN_ID: 63
     },
@@ -110,11 +101,6 @@ const TESTNET_CONFIG = {
         RPC_URL: 'https://rpc.testnet.near.org',
         NETWORK: 'testnet',
         HELPER_URL: 'https://helper.testnet.near.org'
-    },
-    XRP: {
-        RPC_URL: 'wss://s.altnet.rippletest.net:51233',
-        JSON_RPC: 'https://s.altnet.rippletest.net:51234',
-        NETWORK: 'testnet'
     },
     TRON: {
         RPC_URL: 'https://api.shasta.trongrid.io',
@@ -235,14 +221,6 @@ export const TOKENS = {
         decimals: 24, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.png' 
-    },
-    XRP: { 
-        symbol: 'XRP', 
-        name: 'XRP', 
-        blockchain: 'XRP', 
-        decimals: 6, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/xrp-xrp-logo.png' 
     },
     TRX: { 
         symbol: 'TRX', 
@@ -398,14 +376,6 @@ export const TESTNET_TOKENS = {
         decimals: 24, 
         isNative: true, 
         logo: 'https://cryptologos.cc/logos/near-protocol-near-logo.png' 
-    },
-    XRP: { 
-        symbol: 'XRP', 
-        name: 'XRP', 
-        blockchain: 'XRP', 
-        decimals: 6, 
-        isNative: true, 
-        logo: 'https://cryptologos.cc/logos/xrp-xrp-logo.png' 
     },
     TRX: { 
         symbol: 'TRX', 
@@ -621,51 +591,13 @@ const generateTronAddress = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// ИЗ ВТОРОЙ ВЕРСИИ: генерация XRP адреса через xrpl.js
-const generateXrpAddress = async (seedPhrase, network = 'mainnet') => {
-    try {
-        console.log('Генерация XRP адреса из seed фразы...');
-        
-        if (!seedPhrase || !bip39.validateMnemonic(seedPhrase)) {
-            throw new Error('Некорректная seed-фраза');
-        }
-        
-        // Создаем детерминированный seed из фразы
-        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        
-        // Для XRP используем первые 16 байт
-        const xrpSeedBytes = seedBuffer.slice(0, 16);
-        const seedHex = xrpSeedBytes.toString('hex');
-        
-        // Создаем кошелек XRP из seed с использованием xrpl.js
-        const wallet = xrpl.Wallet.fromSeed(seedHex);
-        
-        console.log('✅ Сгенерирован уникальный XRP адрес:', wallet.classicAddress);
-        return wallet.classicAddress;
-        
-    } catch (error) {
-        console.error('Error generating XRP address with xrpl.js:', error);
-        
-        // Временный fallback для тестирования - генерируем случайный адрес
-        try {
-            const randomWallet = xrpl.Wallet.generate();
-            console.log('⚠️  Используем случайный XRP адрес из-за ошибки:', randomWallet.classicAddress);
-            return randomWallet.classicAddress;
-        } catch (fallbackError) {
-            console.error('Fallback также не сработал:', fallbackError);
-            throw new Error(`Не удалось сгенерировать XRP адрес: ${error.message}`);
-        }
-    }
-};
-
 export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         if (!seedPhrase) throw new Error('Seed phrase is required');
 
         const [
             tonAddress, ethAddress, solAddress, bitcoinAddress, bscAddress,
-            bchAddress, ltcAddress, etcAddress, nearAddress,
-            xrpAddress, trxAddress
+            bchAddress, ltcAddress, etcAddress, nearAddress, trxAddress
         ] = await Promise.all([
             generateTonAddress(seedPhrase, network),
             generateEthereumAddress(seedPhrase, network),
@@ -676,7 +608,6 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
             generateLitecoinAddress(seedPhrase, network),
             generateEthereumClassicAddress(seedPhrase, network),
             generateNearAddress(seedPhrase, network),
-            generateXrpAddress(seedPhrase, network),
             generateTronAddress(seedPhrase, network)
         ]);
 
@@ -700,7 +631,6 @@ export const generateWalletsFromSeed = async (seedPhrase, network = 'mainnet') =
         walletArray.push(createWallet(tokens.USDT_TRON, trxAddress, network));
         walletArray.push(createWallet(tokens.USDC_BSC, bscAddress, network));
         walletArray.push(createWallet(tokens.NEAR, nearAddress, network));
-        walletArray.push(createWallet(tokens.XRP, xrpAddress, network));
         walletArray.push(createWallet(tokens.TRX, trxAddress, network));
         
         return walletArray;
@@ -951,7 +881,7 @@ const getLitecoinBalance = async (address, network = 'mainnet') => {
     }
 };
 
-// ИЗ СТАРОЙ ВЕРСИИ: получение баланса Ethereum Classic через RPC
+// ОРИГИНАЛЬНОЕ получение баланса Ethereum Classic через RPC
 const getEthereumClassicBalance = async (address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -985,62 +915,6 @@ const getNearBalance = async (accountId, network = 'mainnet') => {
         if (error.message.includes('does not exist') || error.message.includes('Account not found')) {
             return '0';
         }
-        return '0';
-    }
-};
-
-// ИЗ ВТОРОЙ ВЕРСИИ: получение баланса XRP через xrpl.js
-const getXrpBalance = async (address, network = 'mainnet') => {
-    try {
-        const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
-        
-        // Валидация адреса XRP
-        const xrpRegex = /^r[1-9A-HJ-NP-Za-km-z]{25,34}$/;
-        if (!xrpRegex.test(address)) {
-            console.error('Invalid XRP address format:', address);
-            return '0';
-        }
-        
-        console.log(`Получение баланса XRP для адреса: ${address} (${network})`);
-        
-        // Подключаемся к XRPL через WebSocket
-        const client = new xrpl.Client(config.XRP.RPC_URL);
-        
-        try {
-            await client.connect();
-            console.log(`✅ Подключено к XRPL ${network}`);
-            
-            // Запрашиваем информацию об аккаунте
-            const accountInfo = await client.request({
-                command: "account_info",
-                account: address,
-                ledger_index: "validated"
-            });
-            
-            // Получаем баланс в каплях (drops)
-            const balanceDrops = accountInfo.result.account_data?.Balance || "0";
-            
-            // Конвертируем капли в XRP (1 XRP = 1,000,000 drops)
-            const balanceXRP = parseInt(balanceDrops) / 1000000;
-            
-            console.log(`✅ XRP баланс: ${balanceXRP} XRP (${balanceDrops} капель)`);
-            
-            return balanceXRP.toString();
-            
-        } finally {
-            // Всегда отключаемся от клиента
-            await client.disconnect();
-        }
-        
-    } catch (error) {
-        console.error('XRP balance error:', error);
-        
-        // Обработка ошибки "аккаунт не найден"
-        if (error.message?.includes('actNotFound') || error.message?.includes('Account not found')) {
-            console.log('XRP аккаунт не найден, баланс = 0');
-            return '0';
-        }
-        
         return '0';
     }
 };
@@ -1148,9 +1022,6 @@ export const getRealBalances = async (wallets) => {
                             break;
                         case 'NEAR':
                             balance = await getNearBalance(wallet.address, wallet.network);
-                            break;
-                        case 'XRP':
-                            balance = await getXrpBalance(wallet.address, wallet.network);
                             break;
                         case 'TRON':
                             balance = wallet.isNative ?
@@ -1553,9 +1424,6 @@ export const validateAddress = async (blockchain, address, network = 'mainnet') 
             case 'NEAR':
                 const nearRegex = /^[a-z0-9._-]+\.(near|testnet)$/;
                 return nearRegex.test(address);
-            case 'XRP':
-                const xrpRegex = /^r[1-9A-HJ-NP-Za-km-z]{25,34}$/;
-                return xrpRegex.test(address);
             case 'TRON':
                 const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
                 return tronRegex.test(address);
@@ -1619,7 +1487,7 @@ export const sendTransaction = async (transactionData) => {
         };
         
         if (contractAddress && blockchain !== 'Bitcoin' && blockchain !== 'BitcoinCash' && 
-            blockchain !== 'Litecoin' && blockchain !== 'NEAR' && blockchain !== 'XRP') {
+            blockchain !== 'Litecoin' && blockchain !== 'NEAR') {
             txParams.contractAddress = contractAddress;
         }
         
@@ -1663,7 +1531,6 @@ export const estimateTransactionFee = async (blockchain, network = 'mainnet') =>
         'Litecoin': '0.0001',
         'EthereumClassic': '0.0001',
         'NEAR': '0.0001',
-        'XRP': '0.00001',
         'TRON': '0.000001'
     };
     
@@ -1688,7 +1555,6 @@ export const getTokenPricesFromRPC = async () => {
             'LTC': 85.00,
             'ETC': 30.00,
             'NEAR': 5.00,
-            'XRP': 0.60,
             'TRX': 0.10
         };
     }
@@ -1891,7 +1757,6 @@ export const getBlockchainIcon = (blockchain) => {
         'Litecoin': 'https://cryptologos.cc/logos/litecoin-ltc-logo.png',
         'EthereumClassic': 'https://cryptologos.cc/logos/ethereum-classic-etc-logo.png',
         'NEAR': 'https://cryptologos.cc/logos/near-protocol-near-logo.png',
-        'XRP': 'https://cryptologos.cc/logos/xrp-xrp-logo.png',
         'TRON': 'https://cryptologos.cc/logos/tron-trx-logo.png'
     };
     
