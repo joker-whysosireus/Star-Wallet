@@ -505,157 +505,16 @@ const generateBitcoinAddress = async (seedPhrase, network = 'mainnet') => {
 const generateBSCAddress = generateEthereumAddress;
 
 const generateBitcoinCashAddress = async (seedPhrase, network = 'mainnet') => {
-    // Вспомогательные функции для CashAddr кодирования
-    const CASHADDR_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
-    const CASHADDR_GENERATOR = [0x98f2bc8e61, 0x79b76d99e2, 0xf33e5fb3c4, 0xae2eabe2a8, 0x1e4f43e470];
-    
-    // Преобразуем строку в массив uint5
-    function stringToUint5Array(str) {
-        const result = [];
-        for (let i = 0; i < str.length; i++) {
-            result.push(str.charCodeAt(i) & 31);
-        }
-        return result;
-    }
-    
-    // Преобразуем массив uint5 в строку
-    function uint5ArrayToString(arr) {
-        let result = '';
-        for (let i = 0; i < arr.length; i++) {
-            result += CASHADDR_CHARSET[arr[i]];
-        }
-        return result;
-    }
-    
-    // Создаем массив uint5 из числа
-    function uint5ArrayFromUint(value, length) {
-        const result = [];
-        for (let i = 0; i < length; i++) {
-            result.push((value >>> (5 * (7 - i))) & 31);
-        }
-        return result;
-    }
-    
-    // Полиномиальная функция для checksum
-    function polymod(data) {
-        let checksum = 1;
-        
-        for (let i = 0; i < data.length; i++) {
-            const byte = data[i];
-            const top = checksum >>> 35;
-            checksum = ((checksum & 0x07ffffffff) << 5) ^ byte;
-            
-            for (let j = 0; j < 5; j++) {
-                if ((top >>> j) & 1) {
-                    checksum ^= CASHADDR_GENERATOR[j];
-                }
-            }
-        }
-        
-        return checksum ^ 1;
-    }
-    
-    // Конвертация в base32
-    function toBase32(data) {
-        const result = [];
-        let bits = 0;
-        let value = 0;
-        
-        for (let i = 0; i < data.length; i++) {
-            value = (value << 8) | data[i];
-            bits += 8;
-            
-            while (bits >= 5) {
-                bits -= 5;
-                result.push((value >>> bits) & 31);
-            }
-        }
-        
-        if (bits > 0) {
-            result.push((value << (5 - bits)) & 31);
-        }
-        
-        return result;
-    }
-    
-    // Кодирование в CashAddr
-    function encodeCashAddr(prefix, type, hash) {
-        try {
-            // Преобразуем тип в байт
-            const typeBits = type === 'P2PKH' ? 0 : 1;
-            const hashSize = hash.length * 8;
-            
-            // Определяем размер бит
-            let sizeBits;
-            if (hashSize === 160) sizeBits = 0;
-            else if (hashSize === 192) sizeBits = 1;
-            else if (hashSize === 224) sizeBits = 2;
-            else if (hashSize === 256) sizeBits = 3;
-            else if (hashSize === 320) sizeBits = 4;
-            else if (hashSize === 384) sizeBits = 5;
-            else if (hashSize === 448) sizeBits = 6;
-            else if (hashSize === 512) sizeBits = 7;
-            else return null;
-            
-            const versionByte = (typeBits << 4) | sizeBits;
-            
-            // Конвертируем в base32
-            const data = new Uint8Array([versionByte, ...hash]);
-            const base32 = toBase32(data);
-            
-            // Создаем checksum
-            const prefixData = stringToUint5Array(prefix.toLowerCase() + ':');
-            const checksumData = [...prefixData, ...base32, 0, 0, 0, 0, 0, 0];
-            const checksum = polymod(checksumData) ^ 1;
-            const checksumArray = uint5ArrayFromUint(checksum, 8);
-            
-            // Объединяем
-            const fullData = [...base32, ...checksumArray];
-            const encoded = uint5ArrayToString(fullData);
-            
-            return `${prefix}:${encoded}`;
-        } catch (error) {
-            console.error('Error encoding CashAddr:', error);
-            return null;
-        }
-    }
-    
-    // Основная логика генерации адреса
     try {
         const networkConfig = network === 'testnet' ? TESTNET_CONFIG.BITCOIN_CASH.NETWORK : MAINNET_CONFIG.BITCOIN_CASH.NETWORK;
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const root = bip32.fromSeed(seedBuffer, networkConfig);
         const child = root.derivePath("m/44'/145'/0'/0/0");
-        
-        // Получаем публичный ключ
-        const publicKey = child.publicKey;
-        
-        // SHA256 хэш публичного ключа
-        const sha256Hash = crypto.createHash('sha256').update(publicKey).digest();
-        
-        // RIPEMD160 хэш от SHA256
-        const ripemd160 = crypto.createHash('ripemd160');
-        const hash160 = ripemd160.update(sha256Hash).digest();
-        
-        // Определяем префикс
-        const prefix = network === 'mainnet' ? 'bitcoincash' : 'bchtest';
-        const type = 'P2PKH';
-        
-        // Кодируем в CashAddr
-        const cashAddr = encodeCashAddr(prefix, type, hash160);
-        
-        if (cashAddr) {
-            return cashAddr;
-        }
-        
-        // Fallback: генерируем Legacy адрес и конвертируем
-        const { address: legacyAddress } = bitcoin.payments.p2pkh({ 
+        const { address } = bitcoin.payments.p2pkh({ 
             pubkey: child.publicKey, 
             network: networkConfig 
         });
-        
-        // Если не удалось сгенерировать CashAddr, возвращаем Legacy адрес
-        return legacyAddress || '';
+        return address;
     } catch (error) {
         console.error('Error generating Bitcoin Cash address:', error);
         return '';
@@ -1569,29 +1428,6 @@ export const validateAddress = async (blockchain, address, network = 'mainnet') 
                     return false; 
                 }
             case 'BitcoinCash':
-                try {
-                    // Проверяем CashAddr формат
-                    if (address.includes(':')) {
-                        const [prefix, ...rest] = address.split(':');
-                        const addrPart = rest.join(':');
-                        
-                        // Проверяем префикс
-                        const validPrefixes = network === 'testnet' ? ['bchtest'] : ['bitcoincash'];
-                        if (!validPrefixes.includes(prefix.toLowerCase())) return false;
-                        
-                        // Проверяем base32 строку
-                        const cashAddrRegex = /^[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{42,}$/i;
-                        return cashAddrRegex.test(addrPart);
-                    }
-                    // Проверяем Legacy формат как fallback
-                    const networkConfig = network === 'testnet' 
-                        ? bitcoin.networks.testnet 
-                        : bitcoin.networks.bitcoin;
-                    bitcoin.address.toOutputScript(address, networkConfig);
-                    return true;
-                } catch { 
-                    return false; 
-                }
             case 'Litecoin':
                 try {
                     const networkConfig = network === 'testnet' 
