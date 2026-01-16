@@ -9,6 +9,8 @@ import { BIP32Factory } from 'bip32';
 import * as ecc from 'tiny-secp256k1';
 import { Buffer } from 'buffer';
 import { sha256 } from 'js-sha256';
+import crypto from 'crypto';
+import bs58 from 'bs58';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -915,19 +917,23 @@ export const sendLtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
             throw new Error('Amount too small (minimum 546 litoshis)');
         }
         
-        // ИСПРАВЛЕНИЕ: Используем правильные API endpoints для testnet
+        // Проверяем, что у нас есть тестовые средства
+        if (network === 'testnet') {
+            console.warn('LTC Testnet: Address needs funding:', fromAddress);
+            throw new Error(`LTC testnet wallet has no funds. Please fund the address first: ${fromAddress}`);
+        }
+        
+        // Для mainnet продолжаем обычную логику
         let baseUrl;
         let explorerApi;
         if (network === 'testnet') {
             baseUrl = 'https://api.blockchair.com/litecoin/testnet';
-            // Альтернативный API для testnet, если Blockchair не работает
             explorerApi = 'https://blockstream.info/testnet/api';
         } else {
             baseUrl = 'https://api.blockchair.com/litecoin';
             explorerApi = 'https://blockstream.info/api';
         }
         
-        // Пробуем получить UTXOs через Blockchair API
         let utxos = [];
         let useBlockchair = true;
         
@@ -936,7 +942,6 @@ export const sendLtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
             const addressResponse = await callWithRetry(() => fetch(addressUrl));
             
             if (addressResponse.status === 430 || !addressResponse.ok) {
-                // Если Blockchair возвращает 430, используем Blockstream API
                 console.warn('Blockchair API failed, falling back to Blockstream/Litecoin Explorer');
                 useBlockchair = false;
             } else {
@@ -948,7 +953,6 @@ export const sendLtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
             useBlockchair = false;
         }
         
-        // Fallback на Blockstream/Litecoin Explorer API
         if (!useBlockchair) {
             try {
                 const utxoUrl = `${explorerApi}/address/${fromAddress}/utxo`;
@@ -968,7 +972,7 @@ export const sendLtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
         }
         
         if (utxos.length === 0) {
-            throw new Error('No UTXOs available to spend');
+            throw new Error(`No UTXOs available to spend. Please fund your LTC address: ${fromAddress}`);
         }
         
         utxos.sort((a, b) => b.value - a.value);
@@ -995,7 +999,6 @@ export const sendLtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
             let rawTx;
             
             if (useBlockchair) {
-                // Получаем raw transaction через Blockchair
                 const txUrl = `${baseUrl}/raw/transaction/${utxo.txid}`;
                 const txResponse = await callWithRetry(() => fetch(txUrl));
                 
@@ -1006,7 +1009,6 @@ export const sendLtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
                 const txData = await txResponse.json();
                 rawTx = txData.data[utxo.txid]?.raw_transaction;
             } else {
-                // Получаем raw transaction через Blockstream API
                 const txUrl = `${explorerApi}/tx/${utxo.txid}/hex`;
                 const txResponse = await callWithRetry(() => fetch(txUrl));
                 
@@ -1056,7 +1058,6 @@ export const sendLtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
         const tx = psbt.extractTransaction();
         const txHex = tx.toHex();
         
-        // Отправляем транзакцию
         let broadcastUrl;
         if (useBlockchair) {
             broadcastUrl = `${baseUrl}/push/transaction`;
@@ -1086,7 +1087,6 @@ export const sendLtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
                 timestamp: new Date().toISOString()
             };
         } else {
-            // Используем Blockstream API для broadcast
             broadcastUrl = `${explorerApi}/tx`;
             const broadcastResponse = await callWithRetry(() => fetch(broadcastUrl, {
                 method: 'POST',
@@ -1140,7 +1140,10 @@ export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress =
         const config = getConfig(network);
         const { wallet, provider } = await getEtcWalletFromSeed(seedPhrase, network);
         
-        // ИСПРАВЛЕНИЕ: Заменяем устаревший getGasPrice() на getFeeData()
+        // Получаем баланс перед отправкой
+        const balance = await provider.getBalance(wallet.address);
+        
+        // Получаем gas price
         const feeData = await provider.getFeeData();
         const gasPrice = feeData.gasPrice;
         
@@ -1167,10 +1170,24 @@ export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress =
             
             const amountInUnits = ethers.parseUnits(amount.toString(), decimals);
             
+            // Проверяем баланс токена
+            const tokenBalance = await contract.balanceOf(wallet.address);
+            if (tokenBalance < amountInUnits) {
+                throw new Error(`Insufficient token balance. Have: ${ethers.formatUnits(tokenBalance, decimals)}, Need: ${amount}`);
+            }
+            
+            // Оцениваем газ
             const gasEstimate = await contractWithSigner.transfer.estimateGas(toAddress, amountInUnits);
+            const gasLimit = Math.floor(gasEstimate * 1.2);
+            const gasCost = gasPrice * BigInt(gasLimit);
+            
+            // Для токенов мы не отправляем ETC, но gas оплачивается в ETC, поэтому проверяем баланс ETC на gas
+            if (balance < gasCost) {
+                throw new Error(`Insufficient ETC for gas. Need ${ethers.formatEther(gasCost)} ETC for gas, have ${ethers.formatEther(balance)} ETC`);
+            }
             
             const tx = await contractWithSigner.transfer(toAddress, amountInUnits, {
-                gasLimit: Math.floor(gasEstimate * 1.2),
+                gasLimit: gasLimit,
                 gasPrice: gasPrice
             });
             
@@ -1192,10 +1209,19 @@ export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress =
             // Отправка нативного ETC
             const amountInWei = ethers.parseEther(amount.toString());
             
+            // Для нативной транзакции gasLimit = 21000
+            const gasLimit = 21000;
+            const gasCost = gasPrice * BigInt(gasLimit);
+            const totalCost = amountInWei + gasCost;
+            
+            if (balance < totalCost) {
+                throw new Error(`Insufficient ETC balance for transaction. Need ${ethers.formatEther(totalCost)} ETC (including gas), have ${ethers.formatEther(balance)} ETC`);
+            }
+            
             const tx = await wallet.sendTransaction({
                 to: toAddress,
                 value: amountInWei,
-                gasLimit: 21000,
+                gasLimit: gasLimit,
                 gasPrice: gasPrice
             });
             
@@ -1265,7 +1291,7 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         const config = getConfig(network);
         const { privateKey, publicKey, accountId, networkId, rpcUrl } = await getNearWalletFromSeed(seedPhrase, network);
         
-        // ИСПРАВЛЕНИЕ: Динамический импорт near-api-js
+        // Динамический импорт near-api-js
         const nearAPI = await import('near-api-js');
         const { connect, keyStores, KeyPair, utils } = nearAPI;
         
@@ -1311,13 +1337,12 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
             throw new Error('Invalid amount');
         }
         
-        // ИСПРАВЛЕНИЕ: Проверяем формат toAddress
+        // Проверяем формат toAddress
         let recipientAccountId = toAddress;
         
         // Если адрес начинается с 0x (EVM формат), конвертируем в NEAR accountId
         if (toAddress.startsWith('0x')) {
             console.warn('Converting EVM address to NEAR accountId format');
-            // Создаем детерминированный accountId из EVM адреса
             const hash = sha256(toAddress.toLowerCase().replace('0x', ''));
             recipientAccountId = `${hash.slice(0, 16)}.${network === 'testnet' ? 'testnet' : 'near'}`;
         }
@@ -1349,9 +1374,6 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
 };
 
 // ========== TRON (TRX) - ИСПРАВЛЕННАЯ ВЕРСИЯ ==========
-import crypto from 'crypto';
-import bs58 from 'bs58';
-
 const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -1396,32 +1418,56 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
         const config = getConfig(network);
         const { privateKey, address: fromAddress, rpcUrl, network: tronNetwork } = await getTronWalletFromSeed(seedPhrase, network);
         
-        // ИСПРАВЛЕНИЕ: Правильный импорт TronWeb для ES modules
-        // Динамический импорт TronWeb
+        // Используем совместимый импорт TronWeb
         const TronWebModule = await import('tronweb');
-        const TronWeb = TronWebModule.default || TronWebModule;
         
-        if (typeof TronWeb !== 'function') {
-            throw new Error('TronWeb is not a constructor. Check your tronweb package version.');
+        // Определяем, какую версию TronWeb мы используем
+        let TronWeb;
+        let tronWeb;
+        
+        if (typeof TronWebModule === 'function') {
+            // Старая версия: TronWeb - конструктор
+            TronWeb = TronWebModule;
+            tronWeb = new TronWeb({
+                fullHost: rpcUrl,
+                privateKey: privateKey
+            });
+        } else if (TronWebModule.default && typeof TronWebModule.default === 'function') {
+            // ES модуль с default конструктором
+            TronWeb = TronWebModule.default;
+            tronWeb = new TronWeb({
+                fullHost: rpcUrl,
+                privateKey: privateKey
+            });
+        } else if (TronWebModule.create) {
+            // Новая версия: используем create
+            TronWeb = TronWebModule;
+            tronWeb = TronWeb.create({
+                fullHost: rpcUrl,
+                privateKey: privateKey
+            });
+        } else if (TronWebModule.default && TronWebModule.default.create) {
+            // ES модуль с create методом
+            TronWeb = TronWebModule.default;
+            tronWeb = TronWeb.create({
+                fullHost: rpcUrl,
+                privateKey: privateKey
+            });
+        } else {
+            throw new Error('Unsupported TronWeb version. Please check your tronweb package.');
         }
         
-        // Создаем экземпляр TronWeb
-        const tronWeb = new TronWeb({
-            fullHost: rpcUrl,
-            privateKey: privateKey
-        });
-        
         // Проверяем подключение
-        const nodeInfo = await tronWeb.trx.getNodeInfo();
-        if (!nodeInfo) {
-            throw new Error('Failed to connect to TRON network');
+        try {
+            await tronWeb.trx.getNodeInfo();
+        } catch (error) {
+            throw new Error('Failed to connect to TRON network: ' + error.message);
         }
         
         if (contractAddress) {
             // Отправка TRC20 токена
             const contract = await tronWeb.contract().at(contractAddress);
             
-            // Получаем decimals токена
             let decimals = 6;
             try {
                 const decimalsResult = await contract.decimals().call();
@@ -1430,7 +1476,6 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
                 console.warn('Could not get token decimals, using default 6');
             }
             
-            // Конвертируем сумму с учетом decimals
             const amountInUnits = tronWeb.toBigNumber(amount).times(10 ** decimals).toFixed(0);
             
             // Проверяем баланс
@@ -1464,7 +1509,6 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
             };
         } else {
             // Отправка нативного TRX
-            // Конвертируем сумму в SUN (1 TRX = 10^6 SUN)
             const amountInSun = tronWeb.toSun(amount);
             
             // Проверяем баланс

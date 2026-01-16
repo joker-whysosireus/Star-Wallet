@@ -27,16 +27,12 @@ const SendToken = () => {
     const [balance, setBalance] = useState('0');
     const [isCameraAvailable, setIsCameraAvailable] = useState(true);
     const [sendSuccess, setSendSuccess] = useState(false);
-    const [showToast, setShowToast] = useState(false);
-    const [toastMessage, setToastMessage] = useState('');
-    const [toastType, setToastType] = useState('success');
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [showErrorModal, setShowErrorModal] = useState(false);
     const [transactionResult, setTransactionResult] = useState(null);
     
     const amountInputRef = useRef(null);
     const underlineRef = useRef(null);
-    const toastTimeoutRef = useRef(null);
     
     useEffect(() => {
         if (!wallet || !userData) {
@@ -48,31 +44,11 @@ const SendToken = () => {
         loadBalances();
         checkCameraAvailability();
         
-        return () => {
-            if (toastTimeoutRef.current) {
-                clearTimeout(toastTimeoutRef.current);
-            }
-        };
+        return () => {};
     }, []);
     
-    const showToastMessage = (message, type = 'success') => {
-        setToastMessage(message);
-        setToastType(type);
-        setShowToast(true);
-        
-        if (toastTimeoutRef.current) {
-            clearTimeout(toastTimeoutRef.current);
-        }
-        
-        toastTimeoutRef.current = setTimeout(() => {
-            setShowToast(false);
-        }, 5000);
-    };
-    
     const copyToClipboard = (text) => {
-        navigator.clipboard.writeText(text).then(() => {
-            showToastMessage('Copied to clipboard!', 'info');
-        }).catch(err => {
+        navigator.clipboard.writeText(text).catch(err => {
             console.error('Copy failed:', err);
         });
     };
@@ -129,34 +105,17 @@ const SendToken = () => {
     
     const handleSend = async () => {
         if (!toAddress || !amount || parseFloat(amount) <= 0) {
-            showToastMessage('Please enter valid address and amount', 'error');
+            console.error('Please enter valid address and amount');
             return;
         }
 
         if (!isAddressValid) {
-            showToastMessage('Invalid recipient address', 'error');
+            console.error('Invalid recipient address');
             return;
         }
 
-        // Проверка минимальных сумм
-        if (token.blockchain === 'Bitcoin') {
-            const amountSats = parseFloat(amount) * 100000000;
-            if (amountSats < 546) {
-                showToastMessage('Minimum Bitcoin amount is 0.00000546 BTC', 'error');
-                return;
-            }
-        }
-
-        if (token.blockchain === 'NEAR') {
-            if (parseFloat(amount) < 0.001) {
-                showToastMessage('Minimum NEAR amount is 0.001', 'error');
-                return;
-            }
-        }
-
-        const totalAmount = parseFloat(amount);
-        if (totalAmount > parseFloat(balance || 0)) {
-            showToastMessage('Insufficient balance', 'error');
+        if (parseFloat(amount) > parseFloat(balance || 0)) {
+            console.error('Insufficient balance');
             return;
         }
 
@@ -186,18 +145,14 @@ const SendToken = () => {
             if (result.success) {
                 setSendSuccess(true);
                 setTransactionResult(result);
-                
-                // Показываем модальное окно успеха
                 setShowSuccessModal(true);
                 
                 console.log('Transaction successful:', result);
                 
-                // Обновляем баланс через 2 секунды
                 setTimeout(async () => {
                     await loadBalances();
                 }, 2000);
                 
-                // Сбрасываем форму через 5 секунд
                 setTimeout(() => {
                     if (showSuccessModal) {
                         setShowSuccessModal(false);
@@ -210,15 +165,12 @@ const SendToken = () => {
             } else {
                 setTransactionResult(result);
                 setShowErrorModal(true);
-                
                 console.error('Transaction failed:', result.error);
             }
         } catch (error) {
             console.error('Transaction error:', error);
             setTransactionResult({ error: error.message });
             setShowErrorModal(true);
-            
-            console.error('Transaction failed:', error.message);
         } finally {
             setIsLoading(false);
         }
@@ -226,7 +178,7 @@ const SendToken = () => {
     
     const handleScanQR = (scannedData) => {
         if (!scannedData || typeof scannedData !== 'string') {
-            showToastMessage('Invalid QR code data', 'error');
+            console.error('Invalid QR code data');
             return;
         }
         
@@ -457,21 +409,6 @@ const SendToken = () => {
                         </div>
                     ) : buttonText}
                 </button>
-                
-                {/* Toast Notifications */}
-                {showToast && (
-                    <div className={`toast-notification toast-${toastType}`}>
-                        <div className="toast-content">
-                            <span className="toast-message">{toastMessage}</span>
-                            <button 
-                                className="toast-close"
-                                onClick={() => setShowToast(false)}
-                            >
-                                ×
-                            </button>
-                        </div>
-                    </div>
-                )}
                 
                 {/* Success Modal */}
                 {showSuccessModal && (
