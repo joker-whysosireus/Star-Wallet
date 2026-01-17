@@ -33,6 +33,7 @@
     "@ton/crypto": "^3.3.0",
     "@ton/ton": "^16.1.0",
     "@tonconnect/ui-react": "^2.3.1",
+    "@tronweb3/tronwallet-adapters": "^1.2.19",
     "assert": "^2.1.0",
     "axios": "^1.13.2",
     "base-x": "^5.0.1",
