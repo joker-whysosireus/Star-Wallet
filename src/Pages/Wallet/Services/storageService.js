@@ -1,3 +1,4 @@
+// storageService.js - ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ NEAR АДРЕСОВ
 import { mnemonicToWalletKey } from '@ton/crypto';
 import { WalletContractV4, TonClient, Address } from '@ton/ton';
 import { Keypair, Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
@@ -10,6 +11,8 @@ import priceService from './priceService';
 import { JsonRpcProvider } from '@near-js/providers';
 import bs58 from 'bs58';
 import crypto from 'crypto';
+// ИСПРАВЛЕНИЕ: Добавлен импорт tweetnacl для генерации NEAR адресов
+import nacl from 'tweetnacl';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -553,16 +556,26 @@ const generateLitecoinAddress = async (seedPhrase, network = 'mainnet') => {
 
 const generateEthereumClassicAddress = generateEthereumAddress;
 
+// ИСПРАВЛЕНИЕ: Генерация NEAR implicit аккаунта (64 символа hex)
 const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
     try {
-        const ethAddress = await generateEthereumAddress(seedPhrase, network);
-        return ethAddress.toLowerCase();
-    } catch (error) {
-        console.error('Error generating NEAR EVM address:', error);
+        // Генерация seed из мнемонической фразы
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const wallet = ethers.HDNodeWallet.fromSeed(seedBuffer);
-        const derivedWallet = wallet.derivePath("m/44'/60'/0'/0/0");
-        return derivedWallet.address.toLowerCase();
+        
+        // Берем первые 32 байта для seed (совместимо с blockchainService.js)
+        const seed = Buffer.from(seedBuffer).slice(0, 32);
+        
+        // Генерация ключевой пары ed25519 (как в blockchainService.js)
+        const keyPair = nacl.sign.keyPair.fromSeed(seed);
+        
+        // Получаем публичный ключ (32 байта) и конвертируем в hex (64 символа)
+        const publicKeyHex = Buffer.from(keyPair.publicKey).toString('hex');
+        
+        // NEAR implicit аккаунт - это 64 символа hex (без префикса 0x)
+        return publicKeyHex.toLowerCase(); // Приводим к нижнему регистру
+    } catch (error) {
+        console.error('Error generating NEAR address:', error);
+        return '';
     }
 };
 
@@ -918,9 +931,13 @@ const getNearBalance = async (accountId, network = 'mainnet') => {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
         const provider = new JsonRpcProvider({ url: config.NEAR.RPC_URL });
         
+        // Для implicit аккаунтов (hex строк 64 символа) используем напрямую
+        // Для именных аккаунтов формат: account.near или account.testnet
+        const accountQuery = accountId.includes('.') ? accountId : accountId.toLowerCase();
+        
         const result = await provider.query({
             request_type: 'view_account',
-            account_id: accountId,
+            account_id: accountQuery,
             finality: 'final'
         });
         
@@ -1398,6 +1415,7 @@ export const getTotalUSDCBalance = async (userData, network = 'mainnet') => {
     }
 };
 
+// ИСПРАВЛЕНИЕ: Валидация NEAR адресов (implicit и именные)
 export const validateAddress = async (blockchain, address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1439,8 +1457,17 @@ export const validateAddress = async (blockchain, address, network = 'mainnet') 
                     return false; 
                 }
             case 'NEAR':
-                const nearRegex = /^[a-z0-9._-]+\.(near|testnet)$/;
-                return nearRegex.test(address);
+                // Поддержка двух форматов: именные аккаунты и implicit аккаунты
+                const nearNamedRegex = /^(([a-z\d]+[-_])*[a-z\d]+\.)*([a-z\d]+[-_])*[a-z\d]+\.(near|testnet)$/;
+                const nearImplicitRegex = /^[a-fA-F0-9]{64}$/;
+                const addressLower = address.toLowerCase();
+                
+                // Удаляем возможные префиксы
+                let cleanAddress = addressLower;
+                if (cleanAddress.startsWith('near:')) cleanAddress = cleanAddress.substring(5);
+                if (cleanAddress.startsWith('testnet:')) cleanAddress = cleanAddress.substring(8);
+                
+                return nearNamedRegex.test(cleanAddress) || nearImplicitRegex.test(cleanAddress);
             case 'TRON':
                 const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
                 return tronRegex.test(address);
