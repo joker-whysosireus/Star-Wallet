@@ -12,11 +12,10 @@ import { Buffer } from 'buffer';
 import crypto from 'crypto';
 import bs58 from 'bs58';
 import nacl from 'tweetnacl';
-// УБРАН импорт tronweb для решения проблемы инициализации
 
 const bip32 = BIP32Factory(ecc);
 
-// ========== ОБНОВЛЕННЫЕ КОНФИГУРАЦИИ RPC (Официальные эндпоинты) ==========
+// ========== ОБНОВЛЕННЫЕ КОНФИГУРАЦИИ RPC ==========
 const MAINNET_CONFIG = {
     TON: {
         RPC_URL: 'https://toncenter.com/api/v2/jsonRPC',
@@ -55,7 +54,6 @@ const MAINNET_CONFIG = {
         }
     },
     ETHEREUM_CLASSIC: {
-        // Официальные RPC с ethereumclassic.org
         RPC_URLS: [
             'https://etc.etcdesktop.com',
             'https://etc.rpc.proofofstake.cloud',
@@ -1153,33 +1151,37 @@ export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
-// ========== NEAR - ИСПРАВЛЕННАЯ ДЛЯ IMPLICIT АККАУНТОВ ==========
+// ========== NEAR - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ==========
 const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
         
-        // ВАЖНО: Точное соответствие с storageService.js
+        // Генерация seed из мнемонической фразы (совместимо с storageService.js)
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
-        const seed = Buffer.from(seedBuffer).slice(0, 32); // Берем первые 32 байта
+        const seed = Buffer.from(seedBuffer).slice(0, 32);
         
-        const keyPair = nacl.sign.keyPair.fromSeed(seed); // ed25519 из seed
+        // Генерация ключевой пары ed25519
+        const keyPair = nacl.sign.keyPair.fromSeed(seed);
         
-        // В storageService.js адрес генерируется как hex публичного ключа (64 символа)
+        // Форматирование ключей для NEAR
         const publicKeyHex = Buffer.from(keyPair.publicKey).toString('hex');
-        
-        // Для near-api-js нужен ключ в формате ed25519:base58(publicKey)
         const nearPublicKey = `ed25519:${bs58.encode(Buffer.from(keyPair.publicKey))}`;
         
         // accountId - это hex публичного ключа (64 символа), как в storageService.js
         const accountId = publicKeyHex.toLowerCase();
         
+        console.log(`NEAR ${network}: Generated accountId: ${accountId}`);
+        console.log(`NEAR ${network}: Public key: ${nearPublicKey}`);
+        
         return {
-            keyPair: keyPair, // Объект {publicKey, secretKey}
+            keyPair: keyPair,
             publicKeyHex: publicKeyHex,
             nearPublicKey: nearPublicKey,
             accountId: accountId,
             networkId: network === 'testnet' ? 'testnet' : 'mainnet',
-            rpcUrl: config.NEAR.RPC_URL
+            rpcUrl: config.NEAR.RPC_URL,
+            // Сохраняем seed для возможного использования
+            seed: seed
         };
     } catch (error) {
         console.error('Error getting NEAR wallet from seed:', error);
@@ -1187,73 +1189,118 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
+// ========== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ: ПРОВЕРКА И ДОБАВЛЕНИЕ КЛЮЧА ==========
+const ensureNearAccessKey = async (accountId, nearPublicKey, rpcUrl, networkId) => {
+    try {
+        // Проверяем существование аккаунта и ключей через RPC
+        const response = await fetch(rpcUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: 'dontcare',
+                method: 'query',
+                params: {
+                    request_type: 'view_access_key_list',
+                    account_id: accountId,
+                    finality: 'final'
+                }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch access keys: ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.error) {
+            if (result.error.cause?.name === 'UNKNOWN_ACCOUNT') {
+                throw new Error(`Account ${accountId} does not exist`);
+            }
+            throw new Error(result.error.message);
+        }
+
+        // Проверяем наличие нашего ключа в списке
+        const keys = result.result.keys || [];
+        const hasOurKey = keys.some(key => key.public_key === nearPublicKey);
+        
+        if (!hasOurKey) {
+            throw new Error(`Key ${nearPublicKey} is not registered for account ${accountId}`);
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Error ensuring NEAR access key:', error);
+        throw error;
+    }
+};
+
+// ========== ОСНОВНАЯ ФУНКЦИЯ ОТПРАВКИ NEAR ==========
 export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
-        const { keyPair, publicKeyHex, nearPublicKey, accountId, networkId, rpcUrl } = await getNearWalletFromSeed(seedPhrase, network);
+        console.log(`Starting NEAR ${network} transaction...`);
+        console.log(`To: ${toAddress}, Amount: ${amount}`);
         
-        // Используем createTransaction как в transaction-examples
+        // Получаем кошелек из seed phrase
+        const { keyPair, nearPublicKey, accountId, networkId, rpcUrl } = 
+            await getNearWalletFromSeed(seedPhrase, network);
+        
+        console.log(`Account ID: ${accountId}`);
+        console.log(`Public Key: ${nearPublicKey}`);
+        
+        // Проверяем аккаунт и ключ
+        await ensureNearAccessKey(accountId, nearPublicKey, rpcUrl, networkId);
+        
+        // Динамический импорт near-api-js
         const nearAPI = await import('near-api-js');
         const { connect, keyStores, KeyPair, utils, transactions, providers } = nearAPI;
         
-        // Создаем KeyPair из нашего secretKey
+        // Создаем KeyPair для near-api-js
         const nearKeyPair = KeyPair.fromString(nearPublicKey);
-        
         const keyStore = new keyStores.InMemoryKeyStore();
         await keyStore.setKey(networkId, accountId, nearKeyPair);
         
-        // Подключаемся только для получения provider
+        // Проверяем баланс отправителя
         const provider = new providers.JsonRpcProvider({ url: rpcUrl });
         
-        // Получаем информацию об аккаунте отправителя
-        let senderAccountInfo;
-        try {
-            senderAccountInfo = await provider.query({
-                request_type: 'view_account',
-                account_id: accountId,
-                finality: 'final'
-            });
-        } catch (error) {
-            if (error.message.includes('does not exist')) {
-                throw new Error(
-                    `NEAR implicit аккаунт ${accountId} не активирован.\n` +
-                    `Хотя баланс есть, аккаунт не имеет ключей доступа.\n` +
-                    `Решение: Необходимо добавить ключ доступа через near-cli: near add-key ${accountId} ${nearPublicKey}`
-                );
-            }
-            throw error;
-        }
-        
-        // Получаем ключи доступа
-        const accessKeys = await provider.query({
-            request_type: 'view_access_key_list',
+        const senderAccount = await provider.query({
+            request_type: 'view_account',
             account_id: accountId,
             finality: 'final'
         });
         
-        // Проверяем, есть ли наш ключ в списке
-        const hasOurKey = accessKeys.keys.some(key => key.public_key === nearPublicKey);
-        if (!hasOurKey) {
-            throw new Error(
-                `Ключ ${nearPublicKey} не зарегистрирован для аккаунта ${accountId}.\n` +
-                `Баланс есть, но у ключа нет прав на отправку транзакций.\n` +
-                `Решение: Добавьте ключ через near-cli или получите новый перевод на этот адрес.`
-            );
+        const senderBalance = BigInt(senderAccount.amount);
+        const amountInYocto = utils.format.parseNearAmount(amount.toString());
+        
+        if (senderBalance < BigInt(amountInYocto)) {
+            throw new Error(`Insufficient balance. Have: ${utils.format.formatNearAmount(senderAccount.amount)} NEAR, Need: ${amount} NEAR`);
         }
         
         // Получаем последний блок для nonce и hash
         const latestBlock = await provider.block({ finality: 'final' });
         const blockHash = utils.serialize.base_decode(latestBlock.header.hash);
         
-        // Используем nonce из ключа доступа
-        const ourAccessKey = accessKeys.keys.find(key => key.public_key === nearPublicKey);
-        const nonce = ourAccessKey ? parseInt(ourAccessKey.access_key.nonce) + 1 : 1;
+        // Получаем access keys для получения nonce
+        const accessKeys = await provider.query({
+            request_type: 'view_access_key_list',
+            account_id: accountId,
+            finality: 'final'
+        });
+        
+        const ourAccessKey = accessKeys.result.keys.find(key => key.public_key === nearPublicKey);
+        if (!ourAccessKey) {
+            throw new Error(`Access key not found for ${nearPublicKey}`);
+        }
+        
+        const nonce = parseInt(ourAccessKey.access_key.nonce) + 1;
         
         // Создаем действие - перевод
         const actions = [
-            transactions.transfer(utils.format.parseNearAmount(amount.toString()))
+            transactions.transfer(amountInYocto)
         ];
         
-        // Создаем транзакцию вручную
+        // Создаем транзакцию
         const transaction = transactions.createTransaction(
             accountId, // sender
             nearKeyPair.publicKey, // publicKey
@@ -1274,8 +1321,12 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
             })
         });
         
+        console.log('Transaction created and signed, sending...');
+        
         // Отправляем подписанную транзакцию
         const result = await provider.sendTransaction(signedTransaction);
+        
+        console.log('Transaction sent successfully:', result.transaction.hash);
         
         const explorerUrl = network === 'testnet'
             ? `https://explorer.testnet.near.org/transactions/${result.transaction.hash}`
@@ -1292,19 +1343,32 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
     } catch (error) {
         console.error(`[NEAR ${network} ERROR]:`, error);
         
-        if (error.message.includes('does not exist') || error.message.includes('not registered')) {
-            throw new Error(`NEAR аккаунт не имеет зарегистрированного ключа: ${error.message}`);
+        // Улучшенные сообщения об ошибках
+        if (error.message.includes('Account') && error.message.includes('does not exist')) {
+            throw new Error(
+                `NEAR аккаунт не существует: ${error.message}\n\n` +
+                `Для implicit аккаунтов (64 символа hex) необходимо:\n` +
+                `1. Получить минимум 0.001 NEAR на адрес для активации\n` +
+                `2. Или создать именной аккаунт через https://wallet.near.org`
+            );
+        } else if (error.message.includes('Key') && error.message.includes('not registered')) {
+            throw new Error(
+                `Ключ доступа не зарегистрирован для аккаунта.\n\n` +
+                `Решение:\n` +
+                `1. Добавьте ключ через near-cli: near add-key ${accountId} ${nearPublicKey}\n` +
+                `2. Или получите новый перевод на этот адрес от другого кошелька`
+            );
         } else if (error.message.includes('invalid account id')) {
-            throw new Error('Invalid NEAR address format');
-        } else if (error.message.includes('NotEnoughBalance')) {
-            throw new Error('Insufficient NEAR balance');
+            throw new Error(`Invalid NEAR address format: ${toAddress}`);
+        } else if (error.message.includes('Insufficient balance')) {
+            throw new Error('Insufficient NEAR balance for transaction');
         }
         
         throw new Error(`Failed to send NEAR: ${error.message}`);
     }
 };
 
-// ========== TRON (TRX) - БЕЗ tronweb, используя прямые API вызовы ==========
+// ========== TRON (TRX) ==========
 const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);

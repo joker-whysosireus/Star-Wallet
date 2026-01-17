@@ -1,4 +1,4 @@
-// storageService.js - ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ NEAR АДРЕСОВ
+// storageService.js - ИСПРАВЛЕННАЯ ВЕРСИЯ
 import { mnemonicToWalletKey } from '@ton/crypto';
 import { WalletContractV4, TonClient, Address } from '@ton/ton';
 import { Keypair, Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
@@ -11,7 +11,6 @@ import priceService from './priceService';
 import { JsonRpcProvider } from '@near-js/providers';
 import bs58 from 'bs58';
 import crypto from 'crypto';
-// ИСПРАВЛЕНИЕ: Добавлен импорт tweetnacl для генерации NEAR адресов
 import nacl from 'tweetnacl';
 
 const bip32 = BIP32Factory(ecc);
@@ -556,7 +555,7 @@ const generateLitecoinAddress = async (seedPhrase, network = 'mainnet') => {
 
 const generateEthereumClassicAddress = generateEthereumAddress;
 
-// ИСПРАВЛЕНИЕ: Генерация NEAR implicit аккаунта (64 символа hex)
+// ========== ИСПРАВЛЕННАЯ ГЕНЕРАЦИЯ NEAR АДРЕСОВ ==========
 const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
     try {
         // Генерация seed из мнемонической фразы
@@ -565,7 +564,7 @@ const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
         // Берем первые 32 байта для seed (совместимо с blockchainService.js)
         const seed = Buffer.from(seedBuffer).slice(0, 32);
         
-        // Генерация ключевой пары ed25519 (как в blockchainService.js)
+        // Генерация ключевой пары ed25519
         const keyPair = nacl.sign.keyPair.fromSeed(seed);
         
         // Получаем публичный ключ (32 байта) и конвертируем в hex (64 символа)
@@ -576,6 +575,31 @@ const generateNearAddress = async (seedPhrase, network = 'mainnet') => {
     } catch (error) {
         console.error('Error generating NEAR address:', error);
         return '';
+    }
+};
+
+// ========== НОВАЯ ФУНКЦИЯ: ПОЛУЧЕНИЕ NEAR ACCESS KEY ==========
+export const getNearAccessKey = async (seedPhrase) => {
+    try {
+        const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
+        const seed = Buffer.from(seedBuffer).slice(0, 32);
+        const keyPair = nacl.sign.keyPair.fromSeed(seed);
+        
+        // Форматы ключей для NEAR
+        const publicKeyHex = Buffer.from(keyPair.publicKey).toString('hex');
+        const privateKeyHex = Buffer.from(keyPair.secretKey).toString('hex');
+        const nearPublicKey = `ed25519:${bs58.encode(Buffer.from(keyPair.publicKey))}`;
+        
+        return {
+            keyPair,
+            publicKeyHex,
+            privateKeyHex,
+            nearPublicKey,
+            accountId: publicKeyHex.toLowerCase()
+        };
+    } catch (error) {
+        console.error('Error getting NEAR access key:', error);
+        throw error;
     }
 };
 
@@ -926,6 +950,7 @@ const getEthereumClassicBalance = async (address, network = 'mainnet') => {
     }
 };
 
+// ========== ВОЗВРАЩЕННАЯ ФУНКЦИЯ ПОЛУЧЕНИЯ БАЛАНСА NEAR (БЕЗ ИЗМЕНЕНИЙ) ==========
 const getNearBalance = async (accountId, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
@@ -1415,7 +1440,6 @@ export const getTotalUSDCBalance = async (userData, network = 'mainnet') => {
     }
 };
 
-// ИСПРАВЛЕНИЕ: Валидация NEAR адресов (implicit и именные)
 export const validateAddress = async (blockchain, address, network = 'mainnet') => {
     try {
         const config = network === 'testnet' ? TESTNET_CONFIG : MAINNET_CONFIG;
