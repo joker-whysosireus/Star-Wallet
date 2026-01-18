@@ -1,4 +1,3 @@
-// storageService.js - ИСПРАВЛЕННАЯ ВЕРСИЯ
 import { mnemonicToWalletKey } from '@ton/crypto';
 import { WalletContractV4, TonClient, Address } from '@ton/ton';
 import { Keypair, Connection, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
@@ -1539,8 +1538,9 @@ export const revealSeedPhrase = async (userData) => {
 
 export const getBalances = getRealBalances;
 
+// ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ sendTransaction ==========
 export const sendTransaction = async (transactionData) => {
-    const { blockchain, toAddress, amount, seedPhrase, memo, contractAddress, network = 'mainnet' } = transactionData;
+    const { blockchain, toAddress, amount, seedPhrase, memo, contractAddress, network = 'mainnet', userData } = transactionData;
     
     try {
         const { sendTransaction: sendTx } = await import('./blockchainService');
@@ -1553,6 +1553,15 @@ export const sendTransaction = async (transactionData) => {
             memo,
             network
         };
+        
+        // ВАЖНОЕ ИСПРАВЛЕНИЕ: Добавляем fromAddress для TRON и Bitcoin Cash
+        if (blockchain === 'TRON' && userData?.wallet_addresses?.['TRON']?.address) {
+            txParams.fromAddress = userData.wallet_addresses['TRON'].address;
+        }
+        
+        if (blockchain === 'BitcoinCash' && userData?.wallet_addresses?.['BitcoinCash']?.address) {
+            txParams.fromAddress = userData.wallet_addresses['BitcoinCash'].address;
+        }
         
         if (contractAddress && blockchain !== 'Bitcoin' && blockchain !== 'BitcoinCash' && 
             blockchain !== 'Litecoin' && blockchain !== 'NEAR') {
