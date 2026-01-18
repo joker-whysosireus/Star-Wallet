@@ -1016,17 +1016,20 @@ const getEtcWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         const hdNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
         const wallet = hdNode.derivePath("m/44'/61'/0'/0/0");
         
+        // Используем проверенные рабочие RPC для ETC
         const rpcUrls = network === 'testnet' 
             ? config.ETHEREUM_CLASSIC.RPC_URLS
             : [
-                'https://etc.rpc.blxrbdn.com',
-                'https://etc.etcdesktop.com',
-                'https://etc.rivet.link'
+                'https://etc.rpc.blxrbdn.com',  // Основной, самый быстрый
+                'https://etc.etcdesktop.com',   // Резервный
+                'https://etc.rivet.link'        // Запасной
             ];
         
         let lastError;
         for (const rpcUrl of rpcUrls) {
             try {
+                console.log(`Пробуем подключиться к ETC RPC: ${rpcUrl}`);
+                
                 const provider = new ethers.JsonRpcProvider(
                     rpcUrl,
                     {
@@ -1034,14 +1037,16 @@ const getEtcWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
                         name: 'ethereum-classic'
                     },
                     { 
-                        staticNetwork: true, 
-                        timeout: 30000,
-                        batchMaxCount: 1,
+                        staticNetwork: true,
+                        timeout: 45000,  // Увеличиваем таймаут до 45 секунд
+                        batchMaxCount: 1, // Отключаем батчинг для стабильности
                         batchStallTime: 100
                     }
                 );
                 
-                await provider.getBlockNumber();
+                // Проверяем подключение
+                const blockNumber = await provider.getBlockNumber();
+                console.log(`✓ ETC RPC ${rpcUrl} подключен успешно. Текущий блок: ${blockNumber}`);
                 
                 return {
                     wallet: wallet.connect(provider),
@@ -1051,39 +1056,55 @@ const getEtcWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
                 };
             } catch (error) {
                 lastError = error;
-                console.warn(`ETC RPC ${rpcUrl} failed: ${error.message}`);
+                console.warn(`✗ ETC RPC ${rpcUrl} не доступен: ${error.message}`);
+                await delay(2000); // Ждем 2 секунды перед следующей попыткой
                 continue;
             }
         }
         
-        throw lastError || new Error('All ETC RPC endpoints failed');
+        throw lastError || new Error('Все ETC RPC endpoints недоступны. Проверьте интернет-соединение.');
     } catch (error) {
-        console.error('Error getting ETC wallet from seed:', error);
+        console.error('Ошибка при получении ETC кошелька из seed:', error);
         throw error;
     }
 };
 
 export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress = null, network = 'mainnet' }) => {
+    console.log(`[ETC SEND] Начинаем отправку ${amount} ETC на адрес ${toAddress} в сети ${network}`);
+    
     try {
         const config = getConfig(network);
         const { wallet, provider, address: fromAddress } = await getEtcWalletFromSeed(seedPhrase, network);
         
+        console.log(`[ETC SEND] Кошелек: ${fromAddress}`);
+        
+        // Получаем баланс ETC
         const balanceWei = await provider.getBalance(fromAddress);
         const balanceETC = ethers.formatEther(balanceWei);
+        console.log(`[ETC SEND] Баланс кошелька: ${balanceETC} ETC`);
+        
+        if (parseFloat(balanceETC) < parseFloat(amount)) {
+            throw new Error(`Недостаточно ETC. На балансе: ${balanceETC} ETC, требуется: ${amount} ETC`);
+        }
         
         let gasPrice;
         let nonce;
         let feeData;
         
         try {
+            console.log(`[ETC SEND] Получаем данные о газе...`);
             feeData = await provider.getFeeData();
             gasPrice = feeData.gasPrice || (await provider.getGasPrice());
             nonce = await provider.getTransactionCount(fromAddress, 'pending');
+            console.log(`[ETC SEND] Gas Price: ${ethers.formatUnits(gasPrice, 'gwei')} Gwei, Nonce: ${nonce}`);
         } catch (error) {
-            throw new Error(`ETC RPC error: ${error.message}. Please try again later.`);
+            console.error(`[ETC SEND] Ошибка получения данных о газе:`, error);
+            throw new Error(`Ошибка ETC RPC: ${error.message}. Попробуйте позже.`);
         }
         
         if (contractAddress) {
+            console.log(`[ETC SEND] Отправка токена по контракту: ${contractAddress}`);
+            
             const abi = [
                 'function balanceOf(address) view returns (uint256)',
                 'function decimals() view returns (uint8)',
@@ -1096,38 +1117,58 @@ export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress =
             let decimals = 18;
             try {
                 decimals = await contract.decimals();
+                console.log(`[ETC SEND] Децималы токена: ${decimals}`);
             } catch (e) {
-                console.warn('Using default decimals 18');
+                console.warn('[ETC SEND] Не удалось получить децималы, используем по умолчанию 18');
             }
             
             const amountInUnits = ethers.parseUnits(amount.toString(), decimals);
+            console.log(`[ETC SEND] Сумма в юнитах: ${amountInUnits.toString()}`);
             
+            // Проверяем баланс токена
+            console.log(`[ETC SEND] Проверяем баланс токена...`);
             const tokenBalance = await contract.balanceOf(fromAddress);
+            console.log(`[ETC SEND] Баланс токена: ${ethers.formatUnits(tokenBalance, decimals)}`);
+            
             if (tokenBalance < amountInUnits) {
-                throw new Error(`Insufficient token balance. Have: ${ethers.formatUnits(tokenBalance, decimals)}, Need: ${amount}`);
+                throw new Error(`Недостаточно токенов. Имеется: ${ethers.formatUnits(tokenBalance, decimals)}, требуется: ${amount}`);
             }
             
+            // Оцениваем газ для токеновой транзакции
             let gasEstimate;
             try {
+                console.log(`[ETC SEND] Оцениваем газ для трансфера токена...`);
                 gasEstimate = await contractWithSigner.transfer.estimateGas(toAddress, amountInUnits);
+                console.log(`[ETC SEND] Gas Estimate: ${gasEstimate.toString()}`);
             } catch (error) {
-                throw new Error(`Gas estimation failed: ${error.message}`);
+                console.error(`[ETC SEND] Ошибка оценки газа:`, error);
+                throw new Error(`Ошибка оценки газа: ${error.message}`);
             }
             
-            const gasLimit = Math.floor(Number(gasEstimate) * 1.2);
+            const gasLimit = Math.floor(Number(gasEstimate) * 1.3); // Запас 30%
+            console.log(`[ETC SEND] Gas Limit: ${gasLimit}`);
             
+            // Проверяем достаточно ли ETC для газа
             const gasCost = gasPrice * BigInt(gasLimit);
+            console.log(`[ETC SEND] Стоимость газа: ${ethers.formatEther(gasCost)} ETC`);
+            
             if (balanceWei < gasCost) {
-                throw new Error(`Insufficient ETC for gas. Need ${ethers.formatEther(gasCost)} ETC for gas, have ${balanceETC} ETC`);
+                throw new Error(`Недостаточно ETC для газа. Требуется ${ethers.formatEther(gasCost)} ETC для газа, имеется ${balanceETC} ETC`);
             }
             
+            // Создаем и отправляем транзакцию
+            console.log(`[ETC SEND] Отправляем транзакцию...`);
             const tx = await contractWithSigner.transfer(toAddress, amountInUnits, {
                 gasLimit: gasLimit,
                 gasPrice: gasPrice,
                 nonce: nonce
             });
             
+            console.log(`[ETC SEND] Транзакция отправлена. Хеш: ${tx.hash}`);
+            console.log(`[ETC SEND] Ждем подтверждения...`);
+            
             const receipt = await tx.wait();
+            console.log(`[ETC SEND] Транзакция подтверждена в блоке ${receipt.blockNumber}`);
             
             const explorerUrl = network === 'testnet'
                 ? `https://blockscout.com/etc/mordor/tx/${tx.hash}`
@@ -1136,22 +1177,31 @@ export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress =
             return {
                 success: true,
                 hash: tx.hash,
-                message: `Successfully sent ${amount} ETC Token`,
+                message: `Успешно отправлено ${amount} ETC Token`,
                 explorerUrl,
                 timestamp: new Date().toISOString(),
                 blockNumber: receipt.blockNumber
             };
         } else {
+            console.log(`[ETC SEND] Отправка нативного ETC`);
+            
             const amountInWei = ethers.parseEther(amount.toString());
+            console.log(`[ETC SEND] Сумма в wei: ${amountInWei.toString()}`);
             
+            // Базовый gas для обычного перевода ETC
             const gasLimit = 21000n;
+            console.log(`[ETC SEND] Gas Limit: ${gasLimit}`);
             
+            // Проверяем общий баланс (сумма + газ)
             const totalCost = amountInWei + (gasPrice * gasLimit);
+            console.log(`[ETC SEND] Общая стоимость: ${ethers.formatEther(totalCost)} ETC`);
             
             if (balanceWei < totalCost) {
-                throw new Error(`Insufficient ETC balance. Need ${ethers.formatEther(totalCost)} ETC (${amount} ETC + ${ethers.formatEther(gasPrice * gasLimit)} gas), have ${balanceETC} ETC`);
+                throw new Error(`Недостаточно ETC. Требуется ${ethers.formatEther(totalCost)} ETC (${amount} ETC + ${ethers.formatEther(gasPrice * gasLimit)} газа), имеется ${balanceETC} ETC`);
             }
             
+            // Создаем и отправляем транзакцию
+            console.log(`[ETC SEND] Отправляем транзакцию...`);
             const tx = await wallet.sendTransaction({
                 to: toAddress,
                 value: amountInWei,
@@ -1160,7 +1210,11 @@ export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress =
                 nonce: nonce
             });
             
+            console.log(`[ETC SEND] Транзакция отправлена. Хеш: ${tx.hash}`);
+            console.log(`[ETC SEND] Ждем подтверждения...`);
+            
             const receipt = await tx.wait();
+            console.log(`[ETC SEND] Транзакция подтверждена в блоке ${receipt.blockNumber}`);
             
             const explorerUrl = network === 'testnet'
                 ? `https://blockscout.com/etc/mordor/tx/${tx.hash}`
@@ -1169,7 +1223,7 @@ export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress =
             return {
                 success: true,
                 hash: tx.hash,
-                message: `Successfully sent ${amount} ETC`,
+                message: `Успешно отправлено ${amount} ETC`,
                 explorerUrl,
                 timestamp: new Date().toISOString(),
                 blockNumber: receipt.blockNumber
@@ -1179,16 +1233,16 @@ export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress =
         console.error(`[ETC ${network} ERROR]:`, error);
         
         if (error.message.includes('timeout') || error.message.includes('Load failed')) {
-            throw new Error('ETC RPC timeout. Please try again later.');
-        } else if (error.message.includes('insufficient funds') || error.message.includes('Insufficient')) {
+            throw new Error('Таймаут ETC RPC. Пожалуйста, попробуйте позже.');
+        } else if (error.message.includes('insufficient funds') || error.message.includes('Недостаточно')) {
             throw new Error(error.message);
         } else if (error.message.includes('nonce')) {
-            throw new Error('Nonce error. Please wait a moment and try again.');
+            throw new Error('Ошибка nonce. Подождите немного и попробуйте снова.');
         } else if (error.message.includes('could not detect network')) {
-            throw new Error('ETC network connection failed. Please check your internet connection and try again.');
+            throw new Error('Не удалось подключиться к сети ETC. Проверьте интернет-соединение и попробуйте снова.');
         }
         
-        throw new Error(`Failed to send ETC: ${error.message}`);
+        throw new Error(`Не удалось отправить ETC: ${error.message}`);
     }
 };
 
@@ -1221,49 +1275,73 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
             walletUrl: config.NEAR.WALLET_URL
         };
     } catch (error) {
-        console.error('Error getting NEAR wallet from seed:', error);
+        console.error('Ошибка при получении NEAR кошелька из seed:', error);
         throw error;
     }
 };
 
-// Функция для очистки NEAR адресов от префиксов
-const cleanNearAddress = (address) => {
+// Функция для преобразования hex-адреса NEAR в правильный формат
+const formatNearAddress = (address) => {
     if (!address) return '';
     
-    let cleanAddress = address.toLowerCase();
+    console.log(`[NEAR FORMAT] Исходный адрес: ${address}`);
     
+    // Приводим к нижнему регистру
+    let cleanAddress = address.toLowerCase().trim();
+    
+    // Удаляем префиксы 0x, near:, testnet:
     if (cleanAddress.startsWith('0x')) {
         cleanAddress = cleanAddress.substring(2);
+        console.log(`[NEAR FORMAT] Удален префикс 0x: ${cleanAddress}`);
     }
     
     if (cleanAddress.startsWith('near:')) {
         cleanAddress = cleanAddress.substring(5);
+        console.log(`[NEAR FORMAT] Удален префикс near:: ${cleanAddress}`);
     }
     
     if (cleanAddress.startsWith('testnet:')) {
         cleanAddress = cleanAddress.substring(8);
+        console.log(`[NEAR FORMAT] Удален префикс testnet:: ${cleanAddress}`);
     }
     
+    // Проверяем, является ли адрес implicit account (64 hex символа)
     if (cleanAddress.length === 64 && /^[0-9a-f]+$/.test(cleanAddress)) {
+        console.log(`[NEAR FORMAT] Адрес является implicit account: ${cleanAddress}`);
         return cleanAddress;
     }
     
-    return address;
+    // Если это именной аккаунт (account.near или account.testnet)
+    if (cleanAddress.includes('.near') || cleanAddress.includes('.testnet')) {
+        console.log(`[NEAR FORMAT] Адрес является именным аккаунтом: ${cleanAddress}`);
+        return cleanAddress;
+    }
+    
+    console.log(`[NEAR FORMAT] Неизвестный формат адреса: ${cleanAddress}`);
+    return cleanAddress;
 };
 
 export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
+    console.log(`[NEAR SEND] Начинаем отправку ${amount} NEAR на адрес ${toAddress} в сети ${network}`);
+    
     try {
         const config = getConfig(network);
         const { keyPair, accountId, networkId, rpcUrl } = await getNearWalletFromSeed(seedPhrase, network);
         
-        // Очищаем адреса от префиксов
-        const cleanAccountId = cleanNearAddress(accountId);
-        const cleanToAddress = cleanNearAddress(toAddress);
+        // Форматируем адреса
+        const cleanAccountId = formatNearAddress(accountId);
+        const cleanToAddress = formatNearAddress(toAddress);
         
-        console.log('Sending NEAR from:', cleanAccountId, 'to:', cleanToAddress);
+        console.log(`[NEAR SEND] Отправляем с: ${cleanAccountId}`);
+        console.log(`[NEAR SEND] Отправляем на: ${cleanToAddress}`);
         
-        if (!/^[0-9a-f]{64}$/.test(cleanToAddress)) {
-            throw new Error(`Invalid NEAR address format. Expected 64-character hex string, got: ${cleanToAddress}`);
+        // Проверяем, что адрес получателя валидный
+        if (!cleanToAddress || (cleanToAddress.length !== 64 && !cleanToAddress.includes('.near') && !cleanToAddress.includes('.testnet'))) {
+            throw new Error(`Неверный формат NEAR адреса: ${cleanToAddress}. Должен быть 64-символьный hex или именной аккаунт (account.near)`);
+        }
+        
+        if (!/^[0-9a-f]{64}$/.test(cleanAccountId)) {
+            throw new Error(`Неверный формат адреса отправителя: ${cleanAccountId}`);
         }
         
         const connectionConfig = {
@@ -1274,16 +1352,40 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
             keyStore: new nearAPI.keyStores.InMemoryKeyStore()
         };
         
+        console.log(`[NEAR SEND] Подключаемся к сети NEAR...`);
         await connectionConfig.keyStore.setKey(networkId, cleanAccountId, keyPair);
         
         const nearConnection = await nearAPI.connect(connectionConfig);
         
+        console.log(`[NEAR SEND] Получаем аккаунт отправителя...`);
         const account = await nearConnection.account(cleanAccountId);
         
+        // Получаем баланс перед отправкой
+        try {
+            const balance = await account.getAccountBalance();
+            const balanceNear = nearAPI.utils.format.formatNearAmount(balance.total);
+            console.log(`[NEAR SEND] Баланс кошелька: ${balanceNear} NEAR`);
+            
+            if (parseFloat(balanceNear) < parseFloat(amount)) {
+                throw new Error(`Недостаточно NEAR. На балансе: ${balanceNear} NEAR, требуется: ${amount} NEAR`);
+            }
+        } catch (balanceError) {
+            console.warn(`[NEAR SEND] Не удалось получить баланс: ${balanceError.message}`);
+        }
+        
+        console.log(`[NEAR SEND] Конвертируем сумму...`);
+        const amountInYocto = nearAPI.utils.format.parseNearAmount(amount.toString());
+        if (!amountInYocto) {
+            throw new Error(`Неверная сумма: ${amount}`);
+        }
+        
+        console.log(`[NEAR SEND] Отправляем транзакцию...`);
         const result = await account.sendMoney(
             cleanToAddress,
-            nearAPI.utils.format.parseNearAmount(amount.toString())
+            amountInYocto
         );
+        
+        console.log(`[NEAR SEND] Транзакция отправлена. Хеш: ${result.transaction.hash}`);
         
         const explorerUrl = network === 'testnet'
             ? `https://explorer.testnet.near.org/transactions/${result.transaction.hash}`
@@ -1292,25 +1394,26 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         return {
             success: true,
             hash: result.transaction.hash,
-            message: `Successfully sent ${amount} NEAR to ${toAddress}`,
+            message: `Успешно отправлено ${amount} NEAR на ${toAddress}`,
             explorerUrl,
             timestamp: new Date().toISOString()
         };
         
     } catch (error) {
         console.error(`[NEAR ${network} ERROR]:`, error);
+        console.error(`[NEAR ${network}] Детали ошибки:`, error.stack);
         
         if (error.message.includes('does not exist') || error.message.includes('not activated')) {
-            throw new Error('NEAR account not found or not activated. Send at least 0.001 NEAR to activate it.');
+            throw new Error('Аккаунт NEAR не найден или не активирован. Отправьте минимум 0.001 NEAR для активации.');
         } else if (error.message.includes('NotEnoughBalance')) {
-            throw new Error('Insufficient NEAR balance.');
+            throw new Error('Недостаточно NEAR на балансе.');
         } else if (error.message.includes('PARSE_ERROR') || error.message.includes('Unexpected length')) {
-            throw new Error('NEAR transaction encoding error. Please try again.');
+            throw new Error('Ошибка кодирования транзакции NEAR. Пожалуйста, попробуйте снова.');
         } else if (error.message.includes("Unknown letter: '0'") || error.message.includes('base-58')) {
-            throw new Error('Invalid NEAR address format. Please ensure address is a valid 64-character hex string without 0x prefix.');
+            throw new Error(`Неверный формат адреса NEAR. Убедитесь, что адрес является 64-символьным hex без префикса 0x. Полученный адрес: ${toAddress}`);
         }
         
-        throw new Error(`Failed to send NEAR: ${error.message}`);
+        throw new Error(`Не удалось отправить NEAR: ${error.message}`);
     }
 };
 
@@ -1338,38 +1441,59 @@ const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         const addressWithChecksum = Buffer.concat([addressWithPrefix, checksum]);
         const address = bs58.encode(addressWithChecksum);
         
+        // Используем проверенные RPC для TRON
+        const rpcUrls = network === 'testnet' 
+            ? config.TRON.RPC_URLS
+            : [
+                'https://api.trongrid.io',
+                'https://api.tronstack.io',
+                'https://trx.nodeinfra.com',
+                'https://tron-mainnet.token.im'
+            ];
+        
         return {
             privateKey: privateKeyHex,
             address: address,
-            rpcUrls: config.TRON.RPC_URLS,
+            rpcUrls: rpcUrls,
             network: network
         };
     } catch (error) {
-        console.error('Error getting TRON wallet from seed:', error);
+        console.error('Ошибка при получении TRON кошелька из seed:', error);
         throw error;
     }
 };
 
 export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress = null, network = 'mainnet', fromAddress }) => {
+    console.log(`[TRON SEND] Начинаем отправку ${amount} TRX на адрес ${toAddress} в сети ${network}`);
+    
     try {
         const { privateKey, address: generatedAddress, rpcUrls } = await getTronWalletFromSeed(seedPhrase, network);
         
         const senderAddress = fromAddress || generatedAddress;
         
         if (!senderAddress) {
-            throw new Error('fromAddress is required for TRON transactions. Please provide fromAddress or ensure seed phrase is valid.');
+            throw new Error('Требуется fromAddress для TRON транзакций. Укажите fromAddress или убедитесь, что seed phrase валиден.');
         }
         
+        console.log(`[TRON SEND] Отправляем с адреса: ${senderAddress}`);
+        console.log(`[TRON SEND] Приватный ключ (первые 10 символов): ${privateKey.substring(0, 10)}...`);
+        
         const amountInSun = Math.floor(amount * 1000000);
+        console.log(`[TRON SEND] Сумма в SUN: ${amountInSun}`);
         
         let lastError;
+        let attemptCount = 0;
         
+        // Пробуем разные RPC узлы
         for (const rpcUrl of rpcUrls) {
+            attemptCount++;
+            console.log(`[TRON SEND] Попытка ${attemptCount}/${rpcUrls.length}: RPC ${rpcUrl}`);
+            
             try {
-                console.log(`Trying TRON RPC: ${rpcUrl}`);
-                
+                // Проверяем подключение к сети TRON
+                console.log(`[TRON SEND] Проверяем подключение к RPC...`);
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                const timeoutId = setTimeout(() => controller.abort(), 15000);
                 
                 try {
                     const testResponse = await fetch(`${rpcUrl}/wallet/getnowblock`, {
@@ -1378,20 +1502,24 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
                     clearTimeout(timeoutId);
                     
                     if (!testResponse.ok) {
-                        throw new Error(`TRON network unreachable: ${testResponse.status}`);
+                        throw new Error(`TRON сеть недоступна: ${testResponse.status}`);
                     }
                     
                     const testData = await testResponse.json();
                     if (!testData.blockID) {
-                        throw new Error('Invalid response from TRON network');
+                        throw new Error('Неверный ответ от TRON сети');
                     }
+                    
+                    console.log(`[TRON SEND] ✓ RPC подключен успешно. Блок: ${testData.block_header.raw_data.number}`);
                 } catch (error) {
                     clearTimeout(timeoutId);
-                    console.warn(`TRON RPC ${rpcUrl} connection failed: ${error.message}`);
+                    console.warn(`[TRON SEND] ✗ Ошибка подключения к RPC ${rpcUrl}: ${error.message}`);
                     continue;
                 }
                 
                 if (contractAddress) {
+                    console.log(`[TRON SEND] Отправка TRC20 токена по контракту: ${contractAddress}`);
+                    
                     const amountHex = amountInSun.toString(16).padStart(64, '0');
                     const toAddressHex = toAddress.replace('T', '').padStart(64, '0');
                     const parameter = toAddressHex + amountHex;
@@ -1406,6 +1534,7 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
                         visible: true
                     };
                     
+                    console.log(`[TRON SEND] Вызываем смарт-контракт...`);
                     const response = await fetchWithRetry(`${rpcUrl}/wallet/triggersmartcontract`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -1415,13 +1544,15 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
                     const result = await response.json();
                     
                     if (result.Error) {
-                        throw new Error(`TRC20 error: ${result.Error}`);
+                        throw new Error(`Ошибка TRC20: ${result.Error}`);
                     }
                     
                     if (!result.transaction) {
-                        throw new Error('No transaction returned from TRON network');
+                        throw new Error('Транзакция не возвращена TRON сетью');
                     }
                     
+                    // Подписываем транзакцию
+                    console.log(`[TRON SEND] Подписываем транзакцию...`);
                     const signResponse = await fetchWithRetry(`${rpcUrl}/wallet/gettransactionsign`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -1434,9 +1565,11 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
                     const signedTx = await signResponse.json();
                     
                     if (!signedTx.signature || signedTx.signature.length === 0) {
-                        throw new Error('Transaction signing failed');
+                        throw new Error('Ошибка подписи транзакции');
                     }
                     
+                    // Отправляем транзакцию
+                    console.log(`[TRON SEND] Отправляем транзакцию в сеть...`);
                     const broadcastResponse = await fetchWithRetry(`${rpcUrl}/wallet/broadcasttransaction`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -1446,10 +1579,12 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
                     const broadcastResult = await broadcastResponse.json();
                     
                     if (!broadcastResult.result) {
-                        throw new Error(`Broadcast failed: ${JSON.stringify(broadcastResult)}`);
+                        throw new Error(`Ошибка отправки: ${JSON.stringify(broadcastResult)}`);
                     }
                     
                     const txHash = broadcastResult.txid;
+                    console.log(`[TRON SEND] Транзакция отправлена. Хеш: ${txHash}`);
+                    
                     const explorerUrl = network === 'testnet'
                         ? `https://shasta.tronscan.org/#/transaction/${txHash}`
                         : `https://tronscan.org/#/transaction/${txHash}`;
@@ -1457,11 +1592,15 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
                     return {
                         success: true,
                         hash: txHash,
-                        message: `Successfully sent ${amount} TRC20`,
+                        message: `Успешно отправлено ${amount} TRC20`,
                         explorerUrl,
                         timestamp: new Date().toISOString()
                     };
                 } else {
+                    console.log(`[TRON SEND] Отправка нативных TRX`);
+                    
+                    // Создаем транзакцию для перевода TRX
+                    console.log(`[TRON SEND] Создаем транзакцию...`);
                     const createTxResponse = await fetchWithRetry(`${rpcUrl}/wallet/createtransaction`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -1473,16 +1612,24 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
                         })
                     });
                     
+                    if (!createTxResponse.ok) {
+                        throw new Error(`Ошибка создания транзакции: HTTP ${createTxResponse.status}`);
+                    }
+                    
                     const transaction = await createTxResponse.json();
                     
                     if (transaction.Error) {
-                        throw new Error(`Transaction error: ${transaction.Error}`);
+                        throw new Error(`Ошибка транзакции: ${transaction.Error}`);
                     }
                     
                     if (!transaction.txID) {
-                        throw new Error('No transaction ID returned from TRON network');
+                        throw new Error('ID транзакции не возвращен TRON сетью');
                     }
                     
+                    console.log(`[TRON SEND] Транзакция создана. ID: ${transaction.txID}`);
+                    
+                    // Подписываем транзакцию
+                    console.log(`[TRON SEND] Подписываем транзакцию...`);
                     const signResponse = await fetchWithRetry(`${rpcUrl}/wallet/gettransactionsign`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -1495,9 +1642,11 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
                     const signedTx = await signResponse.json();
                     
                     if (!signedTx.signature || signedTx.signature.length === 0) {
-                        throw new Error('Transaction signing failed');
+                        throw new Error('Ошибка подписи транзакции');
                     }
                     
+                    // Отправляем транзакцию
+                    console.log(`[TRON SEND] Отправляем транзакцию в сеть...`);
                     const broadcastResponse = await fetchWithRetry(`${rpcUrl}/wallet/broadcasttransaction`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -1507,10 +1656,12 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
                     const broadcastResult = await broadcastResponse.json();
                     
                     if (!broadcastResult.result) {
-                        throw new Error(`Broadcast failed: ${JSON.stringify(broadcastResult)}`);
+                        throw new Error(`Ошибка отправки: ${JSON.stringify(broadcastResult)}`);
                     }
                     
                     const txHash = broadcastResult.txid;
+                    console.log(`[TRON SEND] Транзакция отправлена. Хеш: ${txHash}`);
+                    
                     const explorerUrl = network === 'testnet'
                         ? `https://shasta.tronscan.org/#/transaction/${txHash}`
                         : `https://tronscan.org/#/transaction/${txHash}`;
@@ -1518,35 +1669,36 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
                     return {
                         success: true,
                         hash: txHash,
-                        message: `Successfully sent ${amount} TRX`,
+                        message: `Успешно отправлено ${amount} TRX`,
                         explorerUrl,
                         timestamp: new Date().toISOString()
                     };
                 }
             } catch (error) {
                 lastError = error;
-                console.warn(`TRON RPC ${rpcUrl} failed: ${error.message}`);
-                await delay(1000);
+                console.warn(`[TRON SEND] Попытка ${attemptCount} не удалась: ${error.message}`);
+                await delay(2000); // Ждем 2 секунды перед следующей попыткой
                 continue;
             }
         }
         
-        throw lastError || new Error('All TRON RPC endpoints failed. Please check your internet connection and try again.');
+        throw lastError || new Error('Все TRON RPC endpoints недоступны. Проверьте интернет-соединение и попробуйте снова.');
 
     } catch (error) {
         console.error(`[TRON ${network} ERROR]:`, error);
+        console.error(`[TRON ${network}] Детали ошибки:`, error.stack);
         
         if (error.message.includes('network') || error.message.includes('unreachable')) {
-            throw new Error('Cannot connect to TRON network. Please check your internet connection.');
+            throw new Error('Не удается подключиться к сети TRON. Проверьте интернет-соединение.');
         } else if (error.message.includes('insufficient')) {
-            throw new Error('Insufficient TRX balance for transaction.');
+            throw new Error('Недостаточно TRX для транзакции.');
         } else if (error.message.includes('NullPointerException')) {
-            throw new Error('TRON transaction creation error. Please check addresses and try again.');
+            throw new Error('Ошибка создания транзакции TRON. Проверьте адреса и попробуйте снова.');
         } else if (error.message.includes('Load failed')) {
-            throw new Error('TRON network load failed. Please try again in a moment.');
+            throw new Error('Сеть TRON перегружена. Пожалуйста, попробуйте через мгновение.');
         }
         
-        throw new Error(`Failed to send TRX: ${error.message}`);
+        throw new Error(`Не удалось отправить TRX: ${error.message}`);
     }
 };
 
@@ -1627,6 +1779,12 @@ export const estimateTransactionFee = async (blockchain, network = 'mainnet') =>
 // ========== УНИВЕРСАЛЬНАЯ ФУНКЦИЯ ОТПРАВКИ ==========
 export const sendTransaction = async (params) => {
     const { blockchain, toAddress, amount, seedPhrase, memo, contractAddress, network = 'mainnet', fromAddress } = params;
+    
+    console.log(`[SEND TRANSACTION] Запуск отправки: ${blockchain}, Сеть: ${network}`);
+    console.log(`[SEND TRANSACTION] Адрес получателя: ${toAddress}`);
+    console.log(`[SEND TRANSACTION] Сумма: ${amount}`);
+    console.log(`[SEND TRANSACTION] Контракт: ${contractAddress || 'Нет'}`);
+    console.log(`[SEND TRANSACTION] From Address: ${fromAddress || 'Не указан'}`);
     
     try {
         let result;
@@ -1722,12 +1880,14 @@ export const sendTransaction = async (params) => {
                 });
                 break;
             default:
-                throw new Error(`Unsupported blockchain: ${blockchain}`);
+                throw new Error(`Неподдерживаемый блокчейн: ${blockchain}`);
         }
         
+        console.log(`[SEND TRANSACTION] Успешно отправлено! Хеш: ${result.hash}`);
         return { success: true, ...result };
     } catch (error) {
-        console.error('Transaction error:', error);
+        console.error('[SEND TRANSACTION] Ошибка транзакции:', error);
+        console.error('[SEND TRANSACTION] Детали ошибки:', error.stack);
         return {
             success: false,
             error: error.message

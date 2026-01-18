@@ -30,6 +30,7 @@ const SendToken = () => {
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [showErrorModal, setShowErrorModal] = useState(false);
     const [transactionResult, setTransactionResult] = useState(null);
+    const [detailedErrorLogs, setDetailedErrorLogs] = useState([]);
     
     const amountInputRef = useRef(null);
     const underlineRef = useRef(null);
@@ -44,8 +45,48 @@ const SendToken = () => {
         loadBalances();
         checkCameraAvailability();
         
-        return () => {};
+        // Перехватываем console.log, console.error, console.warn для сбора логов
+        const originalConsoleLog = console.log;
+        const originalConsoleError = console.error;
+        const originalConsoleWarn = console.warn;
+        
+        console.log = (...args) => {
+            originalConsoleLog(...args);
+            addToDetailedLogs('log', args);
+        };
+        
+        console.error = (...args) => {
+            originalConsoleError(...args);
+            addToDetailedLogs('error', args);
+        };
+        
+        console.warn = (...args) => {
+            originalConsoleWarn(...args);
+            addToDetailedLogs('warn', args);
+        };
+        
+        return () => {
+            console.log = originalConsoleLog;
+            console.error = originalConsoleError;
+            console.warn = originalConsoleWarn;
+        };
     }, []);
+    
+    const addToDetailedLogs = (type, args) => {
+        const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+        const message = args.map(arg => 
+            typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+        ).join(' ');
+        
+        setDetailedErrorLogs(prev => {
+            const newLogs = [...prev, { timestamp, type, message }];
+            // Ограничиваем логи последними 50 сообщениями
+            if (newLogs.length > 50) {
+                return newLogs.slice(-50);
+            }
+            return newLogs;
+        });
+    };
     
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text).catch(err => {
@@ -104,20 +145,41 @@ const SendToken = () => {
     };
     
     const handleSend = async () => {
+        // Очищаем предыдущие логи
+        setDetailedErrorLogs([]);
+        
         if (!toAddress || !amount || parseFloat(amount) <= 0) {
-            console.error('Please enter valid address and amount');
+            const errorMsg = 'Please enter valid address and amount';
+            console.error(errorMsg);
+            setTransactionResult({ error: errorMsg });
+            setShowErrorModal(true);
             return;
         }
 
         if (!isAddressValid) {
-            console.error('Invalid recipient address');
+            const errorMsg = 'Invalid recipient address';
+            console.error(errorMsg);
+            setTransactionResult({ error: errorMsg });
+            setShowErrorModal(true);
             return;
         }
 
         if (parseFloat(amount) > parseFloat(balance || 0)) {
-            console.error('Insufficient balance');
+            const errorMsg = `Insufficient balance. Available: ${balance}, Trying to send: ${amount}`;
+            console.error(errorMsg);
+            setTransactionResult({ error: errorMsg });
+            setShowErrorModal(true);
             return;
         }
+
+        console.log('=== STARTING TRANSACTION ===');
+        console.log(`Blockchain: ${token.blockchain}`);
+        console.log(`Token: ${token.symbol}`);
+        console.log(`Network: ${network}`);
+        console.log(`From: ${token.address}`);
+        console.log(`To: ${toAddress}`);
+        console.log(`Amount: ${amount}`);
+        console.log(`Contract: ${token.contractAddress || 'None'}`);
 
         setIsLoading(true);
         setSendSuccess(false);
@@ -163,16 +225,37 @@ const SendToken = () => {
                     setSendSuccess(false);
                 }, 5000);
             } else {
-                setTransactionResult(result);
+                // Собираем все логи для отображения
+                const allLogs = detailedErrorLogs.map(log => 
+                    `[${log.timestamp}] ${log.message}`
+                ).join('\n');
+                
+                const fullError = result.error + (allLogs ? `\n\nПодробные логи:\n${allLogs}` : '');
+                setTransactionResult({ 
+                    error: fullError,
+                    rawError: result.error,
+                    logs: allLogs
+                });
                 setShowErrorModal(true);
                 console.error('Transaction failed:', result.error);
             }
         } catch (error) {
+            // Собираем все логи для отображения
+            const allLogs = detailedErrorLogs.map(log => 
+                `[${log.timestamp}] ${log.message}`
+            ).join('\n');
+            
+            const fullError = error.message + (allLogs ? `\n\nПодробные логи:\n${allLogs}` : '');
             console.error('Transaction error:', error);
-            setTransactionResult({ error: error.message });
+            setTransactionResult({ 
+                error: fullError,
+                rawError: error.message,
+                logs: allLogs
+            });
             setShowErrorModal(true);
         } finally {
             setIsLoading(false);
+            console.log('=== TRANSACTION COMPLETED ===');
         }
     };
     
@@ -245,15 +328,25 @@ const SendToken = () => {
         setToAddress('');
         setComment('');
         setSendSuccess(false);
+        setDetailedErrorLogs([]);
     };
     
     const handleCloseErrorModal = () => {
         setShowErrorModal(false);
+        setDetailedErrorLogs([]);
     };
     
     const handleViewExplorer = () => {
         if (transactionResult?.explorerUrl) {
             window.open(transactionResult.explorerUrl, '_blank');
+        }
+    };
+    
+    const copyDetailedLogs = () => {
+        if (transactionResult?.logs) {
+            copyToClipboard(transactionResult.logs);
+        } else if (transactionResult?.error) {
+            copyToClipboard(transactionResult.error);
         }
     };
     
@@ -440,12 +533,39 @@ const SendToken = () => {
                 {/* Error Modal */}
                 {showErrorModal && (
                     <div className="modal-overlay">
-                        <div className="modal-content error-modal">
+                        <div className="modal-content error-modal detailed-error-modal">
                             <div className="modal-icon">✗</div>
                             <h3 className="modal-title">Transaction Failed</h3>
-                            <p className="modal-message">
-                                {transactionResult?.error || 'Unknown error occurred'}
-                            </p>
+                            
+                            <div className="detailed-error-content">
+                                <div className="error-summary">
+                                    {transactionResult?.rawError || 'Unknown error occurred'}
+                                </div>
+                                
+                                {detailedErrorLogs.length > 0 && (
+                                    <div className="detailed-logs-container">
+                                        <div className="logs-header">
+                                            <h4>Detailed Logs:</h4>
+                                            <button 
+                                                className="copy-logs-button"
+                                                onClick={copyDetailedLogs}
+                                                title="Copy all logs"
+                                            >
+                                                Copy Logs
+                                            </button>
+                                        </div>
+                                        <div className="detailed-logs">
+                                            {detailedErrorLogs.slice(-20).map((log, index) => (
+                                                <div key={index} className={`log-entry log-${log.type}`}>
+                                                    <span className="log-timestamp">[{log.timestamp}]</span>
+                                                    <span className="log-message">{log.message}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            
                             <div className="modal-actions">
                                 <button 
                                     className="modal-button copy-button"
