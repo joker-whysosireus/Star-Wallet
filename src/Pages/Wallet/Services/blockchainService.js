@@ -11,10 +11,7 @@ import { Buffer } from 'buffer';
 import crypto from 'crypto';
 import bs58 from 'bs58';
 import nacl from 'tweetnacl';
-import { JsonRpcProvider } from '@near-js/providers';
-import { actionCreators, createTransaction } from '@near-js/transactions';
-import { serialize } from '@near-js/transactions';
-import { KeyPair } from '@near-js/crypto';
+import * as nearAPI from 'near-api-js';
 
 const bip32 = BIP32Factory(ecc);
 
@@ -68,7 +65,8 @@ const MAINNET_CONFIG = {
     NEAR: {
         RPC_URL: 'https://rpc.mainnet.near.org',
         NETWORK: 'mainnet',
-        HELPER_URL: 'https://helper.mainnet.near.org'
+        HELPER_URL: 'https://helper.mainnet.near.org',
+        WALLET_URL: 'https://wallet.near.org'
     },
     TRON: {
         RPC_URLS: [
@@ -118,7 +116,8 @@ const TESTNET_CONFIG = {
     NEAR: {
         RPC_URL: 'https://rpc.testnet.near.org',
         NETWORK: 'testnet',
-        HELPER_URL: 'https://helper.testnet.near.org'
+        HELPER_URL: 'https://helper.testnet.near.org',
+        WALLET_URL: 'https://wallet.testnet.near.org'
     },
     TRON: {
         RPC_URLS: [
@@ -1201,7 +1200,7 @@ export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
-// ========== NEAR - ИСПРАВЛЕННЫЙ (с правильными импортами) ==========
+// ========== NEAR - ИСПРАВЛЕННЫЙ (с использованием near-api-js) ==========
 const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -1210,7 +1209,7 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const seed = Buffer.from(seedBuffer).slice(0, 32);
         
-        // Генерируем ключевую пару ed25519
+        // Создаем KeyPair из seed
         const keyPair = nacl.sign.keyPair.fromSeed(seed);
         
         // Получаем публичный ключ в hex (64 символа) - implicit адрес
@@ -1222,15 +1221,18 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         // Для implicit аккаунтов используем hex публичного ключа как accountId
         const accountId = publicKeyHex.toLowerCase();
         
+        // Создаем KeyPair для near-api-js
+        const nearKeyPair = nearAPI.KeyPair.fromString(`ed25519:${Buffer.from(keyPair.secretKey).toString('hex')}`);
+        
         return {
-            keyPair: keyPair,
+            keyPair: nearKeyPair,
             publicKeyHex: publicKeyHex,
             nearPublicKey: nearPublicKey,
             accountId: accountId,
             networkId: network === 'testnet' ? 'testnet' : 'mainnet',
             rpcUrl: config.NEAR.RPC_URL,
             helperUrl: config.NEAR.HELPER_URL,
-            secretKey: keyPair.secretKey
+            walletUrl: config.NEAR.WALLET_URL
         };
     } catch (error) {
         console.error('Error getting NEAR wallet from seed:', error);
@@ -1238,107 +1240,42 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     }
 };
 
-// Вспомогательная функция для подписи NEAR транзакции
-const signNearTransaction = (transaction, keyPair) => {
-    // Создаем KeyPair из секретного ключа
-    const keyPairNear = KeyPair.fromString(`ed25519:${Buffer.from(keyPair.secretKey).toString('hex')}`);
-    
-    // Подписываем транзакцию вручную
-    const serializedTx = serialize.serialize(transaction);
-    const hash = crypto.createHash('sha256').update(serializedTx).digest();
-    const signature = keyPairNear.sign(hash);
-    
-    return {
-        ...transaction,
-        signature: signature
-    };
-};
-
 export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     try {
         const config = getConfig(network);
-        const { keyPair, nearPublicKey, accountId, networkId, rpcUrl } = await getNearWalletFromSeed(seedPhrase, network);
+        const { keyPair, accountId, networkId, rpcUrl } = await getNearWalletFromSeed(seedPhrase, network);
         
-        const provider = new JsonRpcProvider({ url: rpcUrl });
+        // Создаем connection к NEAR
+        const connectionConfig = {
+            networkId,
+            nodeUrl: rpcUrl,
+            walletUrl: config.NEAR.WALLET_URL,
+            helperUrl: config.NEAR.HELPER_URL,
+            keyStore: new nearAPI.keyStores.InMemoryKeyStore()
+        };
         
-        // 1. Получаем информацию об аккаунте
-        const accountInfo = await provider.query({
-            request_type: 'view_account',
-            account_id: accountId,
-            finality: 'final'
-        });
+        // Добавляем ключ в keyStore
+        await connectionConfig.keyStore.setKey(networkId, accountId, keyPair);
         
-        if (accountInfo.error) {
-            throw new Error(`NEAR account ${accountId} does not exist or not activated. Send at least 0.001 NEAR to activate it.`);
-        }
+        // Подключаемся к сети
+        const nearConnection = await nearAPI.connect(connectionConfig);
         
-        // 2. Получаем access keys для nonce
-        const accessKey = await provider.query({
-            request_type: 'view_access_key',
-            account_id: accountId,
-            public_key: nearPublicKey,
-            finality: 'final'
-        });
+        // Получаем аккаунт
+        const account = await nearConnection.account(accountId);
         
-        if (accessKey.error) {
-            throw new Error(`Access key error: ${accessKey.error.message}`);
-        }
-        
-        const nonce = accessKey.nonce + 1;
-        
-        // 3. Получаем последний блок
-        const block = await provider.block({ finality: 'final' });
-        const blockHash = block.header.hash;
-        
-        // 4. Создаем action для перевода
-        const transferAction = actionCreators.transfer(
-            BigInt(Math.floor(parseFloat(amount) * 1e24)).toString()
-        );
-        
-        // 5. Создаем транзакцию
-        const transaction = createTransaction(
-            accountId,
-            nearPublicKey,
+        // Отправляем транзакцию
+        const result = await account.sendMoney(
             toAddress,
-            nonce,
-            [transferAction],
-            Buffer.from(blockHash, 'base64')
+            nearAPI.utils.format.parseNearAmount(amount.toString())
         );
-        
-        // 6. Подписываем транзакцию
-        const signedTransaction = signNearTransaction(transaction, keyPair);
-        
-        // 7. Сериализуем подписанную транзакцию
-        const serializedTx = serialize.serialize(signedTransaction);
-        const signedTxBase64 = Buffer.from(serializedTx).toString('base64');
-        
-        // 8. Отправляем транзакцию
-        const sendTxResponse = await fetchWithRetry(rpcUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                jsonrpc: "2.0",
-                id: "dontcare",
-                method: "broadcast_tx_commit",
-                params: [signedTxBase64]
-            })
-        });
-        
-        const result = await sendTxResponse.json();
-        
-        if (result.error) {
-            throw new Error(`NEAR transaction failed: ${JSON.stringify(result.error)}`);
-        }
-        
-        const txHash = result.result.transaction.hash || result.result.transaction_outcome.id;
         
         const explorerUrl = network === 'testnet'
-            ? `https://explorer.testnet.near.org/transactions/${txHash}`
-            : `https://explorer.near.org/transactions/${txHash}`;
+            ? `https://explorer.testnet.near.org/transactions/${result.transaction.hash}`
+            : `https://explorer.near.org/transactions/${result.transaction.hash}`;
         
         return {
             success: true,
-            hash: txHash,
+            hash: result.transaction.hash,
             message: `Successfully sent ${amount} NEAR to ${toAddress}`,
             explorerUrl,
             timestamp: new Date().toISOString()
@@ -1352,7 +1289,7 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         } else if (error.message.includes('NotEnoughBalance')) {
             throw new Error('Insufficient NEAR balance.');
         } else if (error.message.includes('PARSE_ERROR') || error.message.includes('Unexpected length')) {
-            throw new Error('NEAR transaction encoding error. Please update your wallet software.');
+            throw new Error('NEAR transaction encoding error. Please try again.');
         }
         
         throw new Error(`Failed to send NEAR: ${error.message}`);
