@@ -12,7 +12,7 @@ import crypto from 'crypto';
 import bs58 from 'bs58';
 import nacl from 'tweetnacl';
 import { JsonRpcProvider } from '@near-js/providers';
-import { actionCreators, createTransaction, signTransaction } from '@near-js/transactions';
+import { actionCreators, createTransaction } from '@near-js/transactions';
 import { serialize } from '@near-js/transactions';
 import { KeyPair } from '@near-js/crypto';
 
@@ -1201,7 +1201,7 @@ export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress =
     }
 };
 
-// ========== NEAR - ИСПРАВЛЕННЫЙ ==========
+// ========== NEAR - ИСПРАВЛЕННЫЙ (с правильными импортами) ==========
 const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
     try {
         const config = getConfig(network);
@@ -1236,6 +1236,22 @@ const getNearWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
         console.error('Error getting NEAR wallet from seed:', error);
         throw error;
     }
+};
+
+// Вспомогательная функция для подписи NEAR транзакции
+const signNearTransaction = (transaction, keyPair) => {
+    // Создаем KeyPair из секретного ключа
+    const keyPairNear = KeyPair.fromString(`ed25519:${Buffer.from(keyPair.secretKey).toString('hex')}`);
+    
+    // Подписываем транзакцию вручную
+    const serializedTx = serialize.serialize(transaction);
+    const hash = crypto.createHash('sha256').update(serializedTx).digest();
+    const signature = keyPairNear.sign(hash);
+    
+    return {
+        ...transaction,
+        signature: signature
+    };
 };
 
 export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
@@ -1275,9 +1291,9 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         const blockHash = block.header.hash;
         
         // 4. Создаем action для перевода
-        const actions = [
-            actionCreators.transfer(parseNearAmount(amount.toString()))
-        ];
+        const transferAction = actionCreators.transfer(
+            BigInt(Math.floor(parseFloat(amount) * 1e24)).toString()
+        );
         
         // 5. Создаем транзакцию
         const transaction = createTransaction(
@@ -1285,32 +1301,26 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
             nearPublicKey,
             toAddress,
             nonce,
-            actions,
-            decodeBase64(blockHash)
+            [transferAction],
+            Buffer.from(blockHash, 'base64')
         );
         
-        // 6. Создаем KeyPair для подписи
-        const keyPairNear = KeyPair.fromString(`ed25519:${Buffer.from(keyPair.secretKey).toString('hex')}`);
+        // 6. Подписываем транзакцию
+        const signedTransaction = signNearTransaction(transaction, keyPair);
         
-        // 7. Подписываем транзакцию
-        const signedTx = signTransaction(transaction, keyPairNear);
-        
-        // 8. Сериализуем транзакцию
-        const serializedTx = serialize.serialize(signedTx);
+        // 7. Сериализуем подписанную транзакцию
+        const serializedTx = serialize.serialize(signedTransaction);
         const signedTxBase64 = Buffer.from(serializedTx).toString('base64');
         
-        // 9. Отправляем транзакцию
+        // 8. Отправляем транзакцию
         const sendTxResponse = await fetchWithRetry(rpcUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 jsonrpc: "2.0",
                 id: "dontcare",
-                method: "send_tx",
-                params: {
-                    signed_tx_base64: signedTxBase64,
-                    wait_until: 'EXECUTED_OPTIMISTIC'
-                }
+                method: "broadcast_tx_commit",
+                params: [signedTxBase64]
             })
         });
         
@@ -1348,15 +1358,6 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
         throw new Error(`Failed to send NEAR: ${error.message}`);
     }
 };
-
-// Вспомогательные функции для NEAR
-function parseNearAmount(amount) {
-    return BigInt(Math.floor(parseFloat(amount) * 1e24)).toString();
-}
-
-function decodeBase64(base64) {
-    return Buffer.from(base64, 'base64');
-}
 
 // ========== TRON (TRX) - ИСПРАВЛЕННЫЙ ==========
 const getTronWalletFromSeed = async (seedPhrase, network = 'mainnet') => {
