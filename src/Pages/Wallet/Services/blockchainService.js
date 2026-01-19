@@ -16,7 +16,7 @@ import TronWeb from 'tronweb';
 
 const bip32 = BIP32Factory(ecc);
 
-// ========== КОНФИГУРАЦИИ RPC ==========
+// ========== КОНФИГУРАЦИИ RPC ===============
 const MAINNET_CONFIG = {
     TON: {
         RPC_URL: 'https://toncenter.com/api/v2/jsonRPC',
