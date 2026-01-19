@@ -56,9 +56,9 @@ const MAINNET_CONFIG = {
     },
     ETHEREUM_CLASSIC: {
         RPC_URLS: [
+            'https://etc.rivet.link',
             'https://etc.rpc.blxrbdn.com',
-            'https://etc.etcdesktop.com',
-            'https://etc.rivet.link'
+            'https://etc.etcdesktop.com'
         ],
         CHAIN_ID: 61,
         BLOCKSCOUT_API: 'https://blockscout.com/etc/mainnet/api'
@@ -1006,65 +1006,33 @@ export const sendLtc = async ({ toAddress, amount, seedPhrase, network = 'mainne
     }
 };
 
-// ========== ETHEREUM CLASSIC (ETC) - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ==========
+// ========== ETHEREUM CLASSIC (ETC) - АБСОЛЮТНО НОВЫЙ КОД ==========
 export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress = null, network = 'mainnet' }) => {
     console.log(`[ETC SEND] Начинаем отправку ${amount} ETC`);
     
     try {
         const config = getConfig(network);
         
-        // Получаем адрес из seed phrase (как в storageService)
+        // Получаем адрес из seed phrase согласно официальной документации
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const hdNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
         const wallet = hdNode.derivePath("m/44'/61'/0'/0/0");
-        const fromAddress = wallet.address;
         
-        console.log(`[ETC SEND] Адрес отправителя: ${fromAddress}`);
+        console.log(`[ETC SEND] Адрес отправителя: ${wallet.address}`);
         console.log(`[ETC SEND] Отправляем на адрес: ${toAddress}`);
         
-        // Находим рабочий RPC
-        const rpcUrls = config.ETHEREUM_CLASSIC.RPC_URLS;
-        let provider;
-        let lastError;
+        // Используем RPC для ETC согласно документации
+        const providerUrl = network === 'testnet' 
+            ? 'https://geth-mordor.etcdesktop.com'
+            : 'https://etc.rivet.link';
         
-        for (let i = 0; i < rpcUrls.length; i++) {
-            const rpcUrl = rpcUrls[i];
-            console.log(`[ETC SEND] Попытка RPC ${i + 1}/${rpcUrls.length}: ${rpcUrl}`);
-            
-            try {
-                provider = new ethers.JsonRpcProvider(
-                    rpcUrl,
-                    {
-                        chainId: config.ETHEREUM_CLASSIC.CHAIN_ID,
-                        name: 'ethereum-classic'
-                    },
-                    { 
-                        staticNetwork: true,
-                        timeout: 30000
-                    }
-                );
-                
-                // Проверяем подключение
-                const blockNumber = await provider.getBlockNumber();
-                console.log(`[ETC SEND] RPC подключен успешно. Блок: ${blockNumber}`);
-                break;
-            } catch (error) {
-                lastError = error;
-                console.warn(`[ETC SEND] RPC недоступен: ${error.message}`);
-                if (i < rpcUrls.length - 1) await delay(2000);
-                continue;
-            }
-        }
+        console.log(`[ETC SEND] Используем RPC: ${providerUrl}`);
         
-        if (!provider) {
-            throw lastError || new Error('Все ETC RPC недоступны');
-        }
+        const provider = new ethers.JsonRpcProvider(providerUrl);
+        const connectedWallet = wallet.connect(provider);
         
-        // Подключаем кошелек к провайдеру
-        const signer = wallet.connect(provider);
-        
-        console.log('[ETC SEND] Проверяем баланс...');
-        const balance = await provider.getBalance(fromAddress);
+        // Проверяем баланс
+        const balance = await provider.getBalance(wallet.address);
         const balanceETC = ethers.formatEther(balance);
         console.log(`[ETC SEND] Баланс: ${balanceETC} ETC`);
         
@@ -1082,7 +1050,7 @@ export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress =
             ];
             
             const contract = new ethers.Contract(contractAddress, abi, provider);
-            const contractWithSigner = contract.connect(signer);
+            const contractWithSigner = contract.connect(connectedWallet);
             
             let decimals = 18;
             try {
@@ -1092,14 +1060,13 @@ export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress =
             }
             
             const amountInUnits = ethers.parseUnits(amount.toString(), decimals);
-            
-            const gasEstimate = await contractWithSigner.transfer.estimateGas(toAddress, amountInUnits);
             const gasPrice = await provider.getGasPrice();
             
             console.log('[ETC SEND] Отправляем транзакцию...');
             const tx = await contractWithSigner.transfer(toAddress, amountInUnits, {
-                gasLimit: gasEstimate * 2n,
-                gasPrice: gasPrice
+                gasLimit: 100000n,
+                gasPrice: gasPrice,
+                chainId: config.ETHEREUM_CLASSIC.CHAIN_ID
             });
             
             console.log(`[ETC SEND] Транзакция отправлена! Хеш: ${tx.hash}`);
@@ -1127,11 +1094,12 @@ export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress =
             const gasPrice = await provider.getGasPrice();
             
             console.log('[ETC SEND] Отправляем транзакцию...');
-            const tx = await signer.sendTransaction({
+            const tx = await connectedWallet.sendTransaction({
                 to: toAddress,
                 value: amountInWei,
                 gasLimit: 21000n,
-                gasPrice: gasPrice
+                gasPrice: gasPrice,
+                chainId: config.ETHEREUM_CLASSIC.CHAIN_ID
             });
             
             console.log(`[ETC SEND] Транзакция отправлена! Хеш: ${tx.hash}`);
@@ -1155,66 +1123,56 @@ export const sendEtc = async ({ toAddress, amount, seedPhrase, contractAddress =
         }
     } catch (error) {
         console.error(`[ETC ${network} ERROR]:`, error);
+        console.error('[ETC ERROR DETAILS]:', error.stack);
         throw new Error(`Не удалось отправить ETC: ${error.message}`);
     }
 };
 
-// ========== NEAR - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ С ИСПОЛЬЗОВАНИЕМ near-api-js ==========
+// ========== NEAR - АБСОЛЮТНО НОВЫЙ КОД (ВЫСОКОУРОВНЕВЫЙ ПОДХОД) ==========
 export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainnet' }) => {
     console.log(`[NEAR SEND] Начинаем отправку ${amount} NEAR`);
     
     try {
         const config = getConfig(network);
         
-        // Получаем адрес из seed phrase (как в storageService)
+        // Получаем приватный ключ из seed phrase
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const seed = Buffer.from(seedBuffer).slice(0, 32);
-        
-        // Создаем ключевую пару ed25519
         const keyPair = nacl.sign.keyPair.fromSeed(seed);
         
-        // Получаем публичный ключ в hex (64 символа) - это и есть NEAR implicit аккаунт
-        const publicKeyHex = Buffer.from(keyPair.publicKey).toString('hex');
-        const fromAddress = publicKeyHex.toLowerCase();
+        // Конвертируем в формат NEAR
+        const privateKeyString = `ed25519:${Buffer.from(keyPair.secretKey).toString('hex')}`;
+        const nearKeyPair = nearAPI.KeyPair.fromString(privateKeyString);
         
-        console.log(`[NEAR SEND] Адрес отправителя (implicit): ${fromAddress}`);
+        // Получаем публичный ключ для создания accountId
+        const publicKey = nearKeyPair.getPublicKey();
+        const accountId = publicKey.toString().replace('ed25519:', '');
+        
+        console.log(`[NEAR SEND] Account ID: ${accountId}`);
         console.log(`[NEAR SEND] Отправляем на адрес: ${toAddress}`);
         
-        // Конвертируем ключ в формат near-api-js
-        const nearKeyPair = nearAPI.KeyPair.fromString(
-            `ed25519:${Buffer.from(keyPair.secretKey).toString('hex')}`
+        // Создаем keyStore
+        const keyStore = new nearAPI.keyStores.InMemoryKeyStore();
+        await keyStore.setKey(
+            network === 'testnet' ? 'testnet' : 'mainnet',
+            accountId,
+            nearKeyPair
         );
         
-        // Настраиваем конфигурацию NEAR
+        // Конфигурация NEAR согласно документации
         const nearConfig = {
             networkId: network === 'testnet' ? 'testnet' : 'mainnet',
+            keyStore: keyStore,
             nodeUrl: config.NEAR.RPC_URL,
             walletUrl: config.NEAR.WALLET_URL,
-            helperUrl: config.NEAR.HELPER_URL,
-            keyStore: new nearAPI.keyStores.InMemoryKeyStore()
+            helperUrl: config.NEAR.HELPER_URL
         };
-        
-        // Сохраняем ключ в keyStore
-        await nearConfig.keyStore.setKey(nearConfig.networkId, fromAddress, nearKeyPair);
         
         // Подключаемся к NEAR
         const near = await nearAPI.connect(nearConfig);
         
-        // Получаем аккаунт отправителя
-        const senderAccount = await near.account(fromAddress);
-        
-        // Проверяем баланс
-        try {
-            const balance = await senderAccount.getAccountBalance();
-            const availableBalance = nearAPI.utils.format.formatNearAmount(balance.available);
-            console.log(`[NEAR SEND] Доступный баланс: ${availableBalance} NEAR`);
-            
-            if (parseFloat(availableBalance) < parseFloat(amount)) {
-                throw new Error(`Недостаточно NEAR. Доступно: ${availableBalance}, Требуется: ${amount}`);
-            }
-        } catch (balanceError) {
-            console.warn('[NEAR SEND] Не удалось получить баланс:', balanceError.message);
-        }
+        // Получаем аккаунт
+        const account = await near.account(accountId);
         
         // Конвертируем сумму в yoctoNEAR
         const amountInYocto = nearAPI.utils.format.parseNearAmount(amount.toString());
@@ -1222,10 +1180,9 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
             throw new Error(`Неверная сумма: ${amount}`);
         }
         
+        // Отправляем транзакцию через высокоуровневый API
         console.log('[NEAR SEND] Создаем и отправляем транзакцию...');
-        
-        // Используем официальный метод near-api-js для отправки транзакции
-        const result = await senderAccount.sendMoney(
+        const result = await account.sendMoney(
             toAddress,
             BigInt(amountInYocto)
         );
@@ -1251,14 +1208,14 @@ export const sendNear = async ({ toAddress, amount, seedPhrase, network = 'mainn
     }
 };
 
-// ========== TRON - ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ С ИСПОЛЬЗОВАНИЕМ tronweb ==========
+// ========== TRON - АБСОЛЮТНО НОВЫЙ КОД ==========
 export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress = null, network = 'mainnet' }) => {
     console.log(`[TRON SEND] Начинаем отправку ${amount} TRX`);
     
     try {
         const config = getConfig(network);
         
-        // Получаем адрес из seed phrase (как в storageService)
+        // Получаем приватный ключ из seed phrase
         const seedBuffer = await bip39.mnemonicToSeed(seedPhrase);
         const hdNode = ethers.HDNodeWallet.fromSeed(seedBuffer);
         const wallet = hdNode.derivePath("m/44'/195'/0'/0/0");
@@ -1282,19 +1239,28 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
         console.log(`[TRON SEND] Адрес отправителя: ${fromAddress}`);
         console.log(`[TRON SEND] Отправляем на адрес: ${toAddress}`);
         
-        // Настраиваем TronWeb
+        // Инициализируем TronWeb согласно официальной документации
+        const fullNode = network === 'testnet' 
+            ? 'https://api.shasta.trongrid.io' 
+            : 'https://api.trongrid.io';
+        
+        const solidityNode = network === 'testnet'
+            ? 'https://api.shasta.trongrid.io'
+            : 'https://api.trongrid.io';
+        
+        const eventServer = network === 'testnet'
+            ? 'https://api.shasta.trongrid.io'
+            : 'https://api.trongrid.io';
+        
         const tronWeb = new TronWeb({
-            fullHost: config.TRON.FULL_NODE,
+            fullHost: fullNode,
+            solidityNode: solidityNode,
+            eventServer: eventServer,
             privateKey: privateKeyHex
         });
         
-        // Проверяем подключение
-        try {
-            const nodeInfo = await tronWeb.trx.getNodeInfo();
-            console.log(`[TRON SEND] Подключено к сети: ${nodeInfo.configNodeType || network}`);
-        } catch (error) {
-            console.warn('[TRON SEND] Не удалось получить информацию о ноде:', error.message);
-        }
+        // Устанавливаем адрес по умолчанию
+        tronWeb.setAddress(fromAddress);
         
         const amountInSun = Math.floor(amount * 1000000);
         console.log(`[TRON SEND] Сумма в SUN: ${amountInSun}`);
@@ -1303,10 +1269,7 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
             console.log('[TRON SEND] Отправка TRC20 токена');
             
             try {
-                // Создаем контракт TRC20
                 const contract = await tronWeb.contract().at(contractAddress);
-                
-                // Вызываем transfer функцию
                 const result = await contract.transfer(
                     toAddress,
                     amountInSun
@@ -1338,7 +1301,7 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
             console.log('[TRON SEND] Отправка нативных TRX');
             
             try {
-                // Отправляем TRX через TronWeb
+                // Используем официальный метод sendTrx из TransactionBuilder
                 const transaction = await tronWeb.transactionBuilder.sendTrx(
                     toAddress,
                     amountInSun,
@@ -1358,7 +1321,7 @@ export const sendTrx = async ({ toAddress, amount, seedPhrase, contractAddress =
                     throw new Error(`Транзакция не отправлена: ${JSON.stringify(result)}`);
                 }
                 
-                const txHash = result.txid || result.transaction?.txID;
+                const txHash = result.txid;
                 console.log(`[TRON SEND] TRX транзакция отправлена! Хеш: ${txHash}`);
                 
                 const explorerUrl = network === 'testnet'
@@ -1468,7 +1431,7 @@ export const sendTransaction = async (params) => {
     console.log(`[SEND TRANSACTION] Адрес получателя: ${toAddress}`);
     console.log(`[SEND TRANSACTION] Сумма: ${amount}`);
     console.log(`[SEND TRANSACTION] Контракт: ${contractAddress || 'Нет'}`);
-    console.log(`[SEND TRANSACTION] From Address: ${fromAddress || 'Будет сгенерирован из seed phrase'}`);
+    console.log(`[SEND TRANSACTION] From Address: ${fromAddress || 'Не указан'}`);
     
     try {
         let result;
