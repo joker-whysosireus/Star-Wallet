@@ -1554,13 +1554,25 @@ export const sendTransaction = async (transactionData) => {
             network
         };
         
-        // ВАЖНОЕ ИСПРАВЛЕНИЕ: Добавляем fromAddress для TRON и Bitcoin Cash
-        if (blockchain === 'TRON' && userData?.wallet_addresses?.['TRON']?.address) {
-            txParams.fromAddress = userData.wallet_addresses['TRON'].address;
-        }
-        
-        if (blockchain === 'BitcoinCash' && userData?.wallet_addresses?.['BitcoinCash']?.address) {
-            txParams.fromAddress = userData.wallet_addresses['BitcoinCash'].address;
+        // Добавляем fromAddress из userData для всех блокчейнов
+        if (userData?.wallet_addresses?.[blockchain]?.address) {
+            txParams.fromAddress = userData.wallet_addresses[blockchain].address;
+        } else if (blockchain === 'EthereumClassic' && userData?.wallet_addresses?.['Ethereum']?.address) {
+            // Для ETC используем Ethereum адрес
+            txParams.fromAddress = userData.wallet_addresses['Ethereum'].address;
+        } else if (blockchain === 'BSC' && userData?.wallet_addresses?.['Ethereum']?.address) {
+            // Для BSC используем Ethereum адрес
+            txParams.fromAddress = userData.wallet_addresses['Ethereum'].address;
+        } else if (userData?.wallets) {
+            // Ищем адрес в списке кошельков
+            const wallet = userData.wallets.find(w => 
+                w.blockchain === blockchain || 
+                (blockchain === 'EthereumClassic' && w.blockchain === 'Ethereum') ||
+                (blockchain === 'BSC' && w.blockchain === 'Ethereum')
+            );
+            if (wallet?.address) {
+                txParams.fromAddress = wallet.address;
+            }
         }
         
         if (contractAddress && blockchain !== 'Bitcoin' && blockchain !== 'BitcoinCash' && 
@@ -1579,7 +1591,8 @@ export const sendTransaction = async (transactionData) => {
                 hash: result.hash,
                 message: result.message,
                 explorerUrl: result.explorerUrl,
-                timestamp: result.timestamp
+                timestamp: result.timestamp,
+                logs: result.logs || []
             };
         } else {
             console.error(`Transaction failed: ${result.error}`);
