@@ -78,7 +78,7 @@
     "stream-http": "^3.2.0",
     "tiny-secp256k1": "^2.2.4",
     "ton": "^13.9.0",
-    "tronweb": "^4.1.0",
+    "tronweb": "^4.4.0",
     "tweetnacl": "^1.0.3",
     "util": "^0.12.5",
     "utils": "^0.3.1",

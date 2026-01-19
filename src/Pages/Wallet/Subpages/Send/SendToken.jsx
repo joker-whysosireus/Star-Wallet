@@ -30,7 +30,6 @@ const SendToken = () => {
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [showErrorModal, setShowErrorModal] = useState(false);
     const [transactionResult, setTransactionResult] = useState(null);
-    const [detailedErrorLogs, setDetailedErrorLogs] = useState([]);
     
     const amountInputRef = useRef(null);
     const underlineRef = useRef(null);
@@ -45,48 +44,8 @@ const SendToken = () => {
         loadBalances();
         checkCameraAvailability();
         
-        // Перехватываем console.log, console.error, console.warn для сбора логов
-        const originalConsoleLog = console.log;
-        const originalConsoleError = console.error;
-        const originalConsoleWarn = console.warn;
-        
-        console.log = (...args) => {
-            originalConsoleLog(...args);
-            addToDetailedLogs('log', args);
-        };
-        
-        console.error = (...args) => {
-            originalConsoleError(...args);
-            addToDetailedLogs('error', args);
-        };
-        
-        console.warn = (...args) => {
-            originalConsoleWarn(...args);
-            addToDetailedLogs('warn', args);
-        };
-        
-        return () => {
-            console.log = originalConsoleLog;
-            console.error = originalConsoleError;
-            console.warn = originalConsoleWarn;
-        };
+        return () => {};
     }, []);
-    
-    const addToDetailedLogs = (type, args) => {
-        const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
-        const message = args.map(arg => 
-            typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-        ).join(' ');
-        
-        setDetailedErrorLogs(prev => {
-            const newLogs = [...prev, { timestamp, type, message }];
-            // Ограничиваем логи последними 50 сообщениями
-            if (newLogs.length > 50) {
-                return newLogs.slice(-50);
-            }
-            return newLogs;
-        });
-    };
     
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text).catch(err => {
@@ -145,11 +104,8 @@ const SendToken = () => {
     };
     
     const handleSend = async () => {
-        // Очищаем предыдущие логи
-        setDetailedErrorLogs([]);
-        
         if (!toAddress || !amount || parseFloat(amount) <= 0) {
-            const errorMsg = 'Please enter valid address and amount';
+            const errorMsg = 'Пожалуйста, введите корректный адрес и сумму';
             console.error(errorMsg);
             setTransactionResult({ error: errorMsg });
             setShowErrorModal(true);
@@ -157,7 +113,7 @@ const SendToken = () => {
         }
 
         if (!isAddressValid) {
-            const errorMsg = 'Invalid recipient address';
+            const errorMsg = 'Неверный адрес получателя';
             console.error(errorMsg);
             setTransactionResult({ error: errorMsg });
             setShowErrorModal(true);
@@ -165,21 +121,21 @@ const SendToken = () => {
         }
 
         if (parseFloat(amount) > parseFloat(balance || 0)) {
-            const errorMsg = `Insufficient balance. Available: ${balance}, Trying to send: ${amount}`;
+            const errorMsg = `Недостаточно средств. Доступно: ${balance}, Пытаетесь отправить: ${amount}`;
             console.error(errorMsg);
             setTransactionResult({ error: errorMsg });
             setShowErrorModal(true);
             return;
         }
 
-        console.log('=== STARTING TRANSACTION ===');
-        console.log(`Blockchain: ${token.blockchain}`);
-        console.log(`Token: ${token.symbol}`);
-        console.log(`Network: ${network}`);
-        console.log(`From: ${token.address}`);
-        console.log(`To: ${toAddress}`);
-        console.log(`Amount: ${amount}`);
-        console.log(`Contract: ${token.contractAddress || 'None'}`);
+        console.log('=== НАЧАЛО ТРАНЗАКЦИИ ===');
+        console.log(`Блокчейн: ${token.blockchain}`);
+        console.log(`Токен: ${token.symbol}`);
+        console.log(`Сеть: ${network}`);
+        console.log(`От: ${token.address}`);
+        console.log(`Кому: ${toAddress}`);
+        console.log(`Сумма: ${amount}`);
+        console.log(`Контракт: ${token.contractAddress || 'Нет'}`);
 
         setIsLoading(true);
         setSendSuccess(false);
@@ -200,7 +156,11 @@ const SendToken = () => {
                 txParams.contractAddress = token.contractAddress;
             }
 
-            console.log(`Sending ${token.blockchain} transaction with params:`, txParams);
+            if (token.blockchain === 'TRON') {
+                txParams.fromAddress = token.address;
+            }
+
+            console.log(`Отправка ${token.blockchain} транзакции с параметрами:`, txParams);
             
             const result = await sendTransaction(txParams);
 
@@ -209,7 +169,7 @@ const SendToken = () => {
                 setTransactionResult(result);
                 setShowSuccessModal(true);
                 
-                console.log('Transaction successful:', result);
+                console.log('✅ Транзакция успешна:', result);
                 
                 setTimeout(async () => {
                     await loadBalances();
@@ -225,43 +185,24 @@ const SendToken = () => {
                     setSendSuccess(false);
                 }, 5000);
             } else {
-                // Собираем все логи для отображения
-                const allLogs = detailedErrorLogs.map(log => 
-                    `[${log.timestamp}] ${log.message}`
-                ).join('\n');
-                
-                const fullError = result.error + (allLogs ? `\n\nПодробные логи:\n${allLogs}` : '');
-                setTransactionResult({ 
-                    error: fullError,
-                    rawError: result.error,
-                    logs: allLogs
-                });
+                console.error('❌ Транзакция не удалась:', result.error);
+                setTransactionResult(result);
                 setShowErrorModal(true);
-                console.error('Transaction failed:', result.error);
             }
         } catch (error) {
-            // Собираем все логи для отображения
-            const allLogs = detailedErrorLogs.map(log => 
-                `[${log.timestamp}] ${log.message}`
-            ).join('\n');
-            
-            const fullError = error.message + (allLogs ? `\n\nПодробные логи:\n${allLogs}` : '');
-            console.error('Transaction error:', error);
-            setTransactionResult({ 
-                error: fullError,
-                rawError: error.message,
-                logs: allLogs
-            });
+            console.error('❌ Ошибка транзакции:', error);
+            console.error('❌ Детали ошибки:', error.stack);
+            setTransactionResult({ error: error.message });
             setShowErrorModal(true);
         } finally {
             setIsLoading(false);
-            console.log('=== TRANSACTION COMPLETED ===');
+            console.log('=== ТРАНЗАКЦИЯ ЗАВЕРШЕНА ===');
         }
     };
     
     const handleScanQR = (scannedData) => {
         if (!scannedData || typeof scannedData !== 'string') {
-            console.error('Invalid QR code data');
+            console.error('Неверные данные QR кода');
             return;
         }
         
@@ -328,12 +269,10 @@ const SendToken = () => {
         setToAddress('');
         setComment('');
         setSendSuccess(false);
-        setDetailedErrorLogs([]);
     };
     
     const handleCloseErrorModal = () => {
         setShowErrorModal(false);
-        setDetailedErrorLogs([]);
     };
     
     const handleViewExplorer = () => {
@@ -342,12 +281,15 @@ const SendToken = () => {
         }
     };
     
-    const copyDetailedLogs = () => {
-        if (transactionResult?.logs) {
-            copyToClipboard(transactionResult.logs);
-        } else if (transactionResult?.error) {
-            copyToClipboard(transactionResult.error);
+    const formatErrorForDisplay = (error) => {
+        if (!error) return 'Неизвестная ошибка';
+        
+        // Ограничиваем длину ошибки для отображения
+        const maxLength = 500;
+        if (error.length > maxLength) {
+            return error.substring(0, maxLength) + '... [СООБЩЕНИЕ СЛИШКОМ ДЛИННОЕ, СКОПИРУЙТЕ ДЛЯ ПОЛНОГО ТЕКСТА]';
         }
+        return error;
     };
     
     if (!token || !userData) {
@@ -355,7 +297,7 @@ const SendToken = () => {
     }
     
     const badge = getBlockchainBadge(token.blockchain);
-    const buttonText = sendSuccess ? '✓ Sent!' : (isLoading ? 'Sending...' : 'Send');
+    const buttonText = sendSuccess ? '✓ Отправлено!' : (isLoading ? 'Отправка...' : 'Отправить');
     
     return (
         <div className="wallet-page">
@@ -367,8 +309,8 @@ const SendToken = () => {
             
             <div className="page-content send-page">
                 <div className="send-header">
-                    <h2>Send {token.symbol} ({network})</h2>
-                    <p>Choose recipient</p>
+                    <h2>Отправить {token.symbol} ({network})</h2>
+                    <p>Выберите получателя</p>
                 </div>
                 
                 <div className="send-content">
@@ -378,7 +320,7 @@ const SendToken = () => {
                                 type="text"
                                 value={toAddress}
                                 onChange={(e) => setToAddress(e.target.value)}
-                                placeholder={`Enter ${token.blockchain} address`}
+                                placeholder={`Введите ${token.blockchain} адрес`}
                                 className={`address-input ${!isAddressValid && toAddress ? 'invalid' : ''}`}
                                 disabled={isLoading}
                             />
@@ -387,7 +329,7 @@ const SendToken = () => {
                                     className="qr-button"
                                     onClick={() => setShowQRScanner(true)}
                                     disabled={isLoading || !isCameraAvailable}
-                                    title="Scan QR Code"
+                                    title="Сканировать QR код"
                                 >
                                     <svg className="qr-icon" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M1 1h8v8H1V1zm2 2v4h4V3H3zM1 15h8v8H1v-8zm2 2v4h4v-4H3zM15 1h8v8h-8V1zm2 2v4h4V3h-4zM15 15h8v8h-8v-8zm2 2v4h4v-4h-4z"/>
@@ -400,7 +342,7 @@ const SendToken = () => {
                             type="text"
                             value={comment}
                             onChange={(e) => setComment(e.target.value)}
-                            placeholder="Comment (optional)"
+                            placeholder="Комментарий (необязательно)"
                             className="comment-input"
                             disabled={isLoading}
                         />
@@ -453,7 +395,7 @@ const SendToken = () => {
                                 </div>
                             </div>
                             <div className="balance-display">
-                                Balance: {balance} {token.symbol}
+                                Баланс: {balance} {token.symbol}
                             </div>
                         </div>
                         
@@ -484,7 +426,7 @@ const SendToken = () => {
                                 onClick={handleMaxAmount}
                                 disabled={isLoading}
                             >
-                                MAX
+                                МАКС
                             </button>
                         </div>
                     </div>
@@ -498,7 +440,7 @@ const SendToken = () => {
                     {isLoading ? (
                         <div className="spinner-container">
                             <div className="spinner"></div>
-                            <span>Sending...</span>
+                            <span>Отправка...</span>
                         </div>
                     ) : buttonText}
                 </button>
@@ -508,23 +450,23 @@ const SendToken = () => {
                     <div className="modal-overlay">
                         <div className="modal-content success-modal">
                             <div className="modal-icon">✓</div>
-                            <h3 className="modal-title">Success!</h3>
+                            <h3 className="modal-title">Успешно!</h3>
                             <p className="modal-message">
-                                You have successfully sent {amount} {token.symbol}
+                                Вы успешно отправили {amount} {token.symbol}
                             </p>
                             {transactionResult?.explorerUrl && (
                                 <button 
                                     className="modal-button explorer-button"
                                     onClick={handleViewExplorer}
                                 >
-                                    View Transaction
+                                    Посмотреть транзакцию
                                 </button>
                             )}
                             <button 
                                 className="modal-button close-button"
                                 onClick={handleCloseSuccessModal}
                             >
-                                Close
+                                Закрыть
                             </button>
                         </div>
                     </div>
@@ -535,35 +477,29 @@ const SendToken = () => {
                     <div className="modal-overlay">
                         <div className="modal-content error-modal detailed-error-modal">
                             <div className="modal-icon">✗</div>
-                            <h3 className="modal-title">Transaction Failed</h3>
+                            <h3 className="modal-title">Ошибка транзакции</h3>
                             
                             <div className="detailed-error-content">
                                 <div className="error-summary">
-                                    {transactionResult?.rawError || 'Unknown error occurred'}
+                                    {formatErrorForDisplay(transactionResult?.error) || 'Неизвестная ошибка'}
                                 </div>
                                 
-                                {detailedErrorLogs.length > 0 && (
-                                    <div className="detailed-logs-container">
-                                        <div className="logs-header">
-                                            <h4>Detailed Logs:</h4>
-                                            <button 
-                                                className="copy-logs-button"
-                                                onClick={copyDetailedLogs}
-                                                title="Copy all logs"
-                                            >
-                                                Copy Logs
-                                            </button>
-                                        </div>
-                                        <div className="detailed-logs">
-                                            {detailedErrorLogs.slice(-20).map((log, index) => (
-                                                <div key={index} className={`log-entry log-${log.type}`}>
-                                                    <span className="log-timestamp">[{log.timestamp}]</span>
-                                                    <span className="log-message">{log.message}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
+                                <div className="error-help">
+                                    <p><strong>Возможные причины:</strong></p>
+                                    <ul>
+                                        <li>Недостаточно средств для комиссии</li>
+                                        <li>Проблемы с сетью блокчейна</li>
+                                        <li>Неверный формат адреса</li>
+                                        <li>Временные проблемы с RPC сервером</li>
+                                    </ul>
+                                    <p><strong>Решение:</strong></p>
+                                    <ol>
+                                        <li>Проверьте баланс и адрес получателя</li>
+                                        <li>Попробуйте уменьшить сумму для учета комиссии</li>
+                                        <li>Повторите попытку через несколько минут</li>
+                                        <li>Используйте mainnet сеть для более стабильной работы</li>
+                                    </ol>
+                                </div>
                             </div>
                             
                             <div className="modal-actions">
@@ -571,13 +507,13 @@ const SendToken = () => {
                                     className="modal-button copy-button"
                                     onClick={() => copyToClipboard(transactionResult?.error || '')}
                                 >
-                                    Copy Error
+                                    Скопировать ошибку
                                 </button>
                                 <button 
                                     className="modal-button close-button"
                                     onClick={handleCloseErrorModal}
                                 >
-                                    Close
+                                    Закрыть
                                 </button>
                             </div>
                         </div>

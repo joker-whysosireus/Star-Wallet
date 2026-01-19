@@ -608,3 +608,117 @@
     outline: none;
     border-color: rgba(255, 215, 0, 0.5);
 }
+
+/* ========== СТИЛИ ДЛЯ ДЕТАЛЬНЫХ ОШИБОК ========== */
+.detailed-error-modal {
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+}
+
+.detailed-error-content {
+    flex: 1;
+    overflow-y: auto;
+    margin: 15px 0;
+    text-align: left;
+    max-height: 400px;
+    padding-right: 5px;
+}
+
+.detailed-error-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.detailed-error-content::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+}
+
+.detailed-error-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 215, 0, 0.5);
+    border-radius: 3px;
+}
+
+.error-summary {
+    background: rgba(255, 85, 85, 0.1);
+    color: #ff5555;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 1.4;
+    word-break: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid rgba(255, 85, 85, 0.2);
+}
+
+.error-summary::-webkit-scrollbar {
+    width: 4px;
+}
+
+.error-summary::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.error-summary::-webkit-scrollbar-thumb {
+    background: rgba(255, 85, 85, 0.5);
+}
+
+.error-help {
+    background: rgba(255, 215, 0, 0.05);
+    border: 1px solid rgba(255, 215, 0, 0.1);
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 15px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 12px;
+}
+
+.error-help p {
+    margin: 8px 0;
+    font-weight: 500;
+}
+
+.error-help strong {
+    color: #FFD700;
+}
+
+.error-help ul, .error-help ol {
+    margin: 8px 0 8px 15px;
+    padding-left: 10px;
+}
+
+.error-help li {
+    margin: 4px 0;
+    line-height: 1.4;
+}
+
+/* Адаптивные стили для мобильных */
+@media (max-width: 768px) {
+    .detailed-error-modal {
+        max-height: 70vh;
+        padding: 15px;
+    }
+    
+    .detailed-error-content {
+        max-height: 300px;
+    }
+    
+    .error-summary {
+        font-size: 13px;
+        padding: 10px;
+        max-height: 150px;
+    }
+    
+    .modal-title {
+        font-size: 20px;
+    }
+    
+    .modal-button {
+        padding: 12px;
+        font-size: 14px;
+    }
+}
